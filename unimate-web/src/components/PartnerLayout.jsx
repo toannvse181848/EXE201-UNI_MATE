@@ -11,10 +11,11 @@ import {
   LogOut,
   Plus,
   ShieldCheck,
+  GraduationCap,
 } from 'lucide-react';
 
 export default function PartnerLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -96,22 +97,52 @@ export default function PartnerLayout() {
           })}
         </nav>
 
-        {/* Switch Portal button */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #1E293B' }}>
+        {/* Switch Portal buttons */}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #1E293B', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>
+            Chuyển nhanh vai trò
+          </div>
           <button
-            onClick={() => navigate('/admin/dashboard')}
+            onClick={() => {
+              switchRole('user');
+              navigate('/user/discover');
+            }}
             style={{
               width: '100%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              padding: '8px 12px',
+              padding: '7px 12px',
+              borderRadius: '8px',
+              backgroundColor: '#1E293B',
+              color: '#2DD4BF',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+            }}
+          >
+            <GraduationCap size={15} />
+            <span>Mở Cổng Sinh viên</span>
+          </button>
+          <button
+            onClick={() => {
+              switchRole('admin');
+              navigate('/admin/dashboard');
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '7px 12px',
               borderRadius: '8px',
               backgroundColor: '#1E293B',
               color: '#38BDF8',
               fontSize: '12px',
               fontWeight: '700',
+              cursor: 'pointer',
             }}
           >
             <ShieldCheck size={15} />
