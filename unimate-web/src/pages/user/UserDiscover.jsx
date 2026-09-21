@@ -114,7 +114,7 @@ export default function UserDiscover() {
       {/* Top Banner / Welcome */}
       <div
         style={{
-          backgroundColor: '#0F766E',
+          backgroundColor: '#E64A19',
           borderRadius: '20px',
           padding: '28px 32px',
           color: '#FFFFFF',
@@ -122,28 +122,28 @@ export default function UserDiscover() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          boxShadow: '0 10px 25px -5px rgba(15, 118, 110, 0.3)',
-          backgroundImage: 'linear-gradient(135deg, #0F766E 0%, #042F2E 100%)',
+          boxShadow: '0 10px 25px -5px rgba(230, 74, 25, 0.3)',
+          backgroundImage: 'linear-gradient(135deg, #E64A19 0%, #1A0E00 100%)',
         }}
       >
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '4px 12px', borderRadius: '16px', fontSize: '12px', fontWeight: '700', marginBottom: '10px' }}>
-            <Sparkles size={14} color="#5EEAD4" />
+            <Sparkles size={14} color="#FFB74D" />
             <span>Ghép đôi học tập & Cafe thông minh</span>
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '6px' }}>
             Khám phá Bạn học & Đi Cà phê Sinh viên 🎓☕
           </h1>
-          <p style={{ fontSize: '14px', color: '#CCFBF1', maxWidth: '580px' }}>
+          <p style={{ fontSize: '14px', color: '#FBE9E7', maxWidth: '580px' }}>
             Tìm kiếm bạn bè cùng trường ĐH, cùng cày deadline hoặc ôn thi tại các quán cafe thân thiện cho sinh viên gần bạn nhất.
           </p>
         </div>
 
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '32px', fontWeight: '900', color: '#5EEAD4' }}>
+          <div style={{ fontSize: '32px', fontWeight: '900', color: '#FFB74D' }}>
             {filteredStudents.length}
           </div>
-          <div style={{ fontSize: '12px', color: '#99F6E4', fontWeight: '600' }}>
+          <div style={{ fontSize: '12px', color: '#FFCC80', fontWeight: '600' }}>
             Bạn học đang tìm cạ cứng
           </div>
         </div>
@@ -165,7 +165,7 @@ export default function UserDiscover() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Filter size={16} color="#0D9488" />
+          <Filter size={16} color="#FF5722" />
           <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>Lọc theo Trường ĐH:</span>
         </div>
 
@@ -181,9 +181,9 @@ export default function UserDiscover() {
                   borderRadius: '20px',
                   fontSize: '12.5px',
                   fontWeight: '700',
-                  backgroundColor: isSelected ? '#0D9488' : '#F1F5F9',
+                  backgroundColor: isSelected ? '#FF5722' : '#F1F5F9',
                   color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
-                  border: isSelected ? '1px solid #0D9488' : '1px solid var(--border-color)',
+                  border: isSelected ? '1px solid #FF5722' : '1px solid var(--border-color)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
@@ -242,7 +242,7 @@ export default function UserDiscover() {
                   gap: '4px',
                 }}
               >
-                <MapPin size={12} color="#5EEAD4" />
+                <MapPin size={12} color="#FFB74D" />
                 <span>Cách bạn {student.distance}</span>
               </div>
 
@@ -252,8 +252,8 @@ export default function UserDiscover() {
                   position: 'absolute',
                   top: '14px',
                   left: '14px',
-                  backgroundColor: '#ECFDF5',
-                  color: '#059669',
+                  backgroundColor: '#FFF3E0',
+                  color: '#E64A19',
                   padding: '4px 10px',
                   borderRadius: '16px',
                   fontSize: '11px',
@@ -273,7 +273,7 @@ export default function UserDiscover() {
                 <div style={{ fontSize: '19px', fontWeight: '800' }}>
                   {student.name}, <span style={{ fontWeight: '400', fontSize: '17px' }}>{student.age}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#CCFBF1', marginTop: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#FBE9E7', marginTop: '2px' }}>
                   <GraduationCap size={14} />
                   <span>{student.university} • {student.year}</span>
                 </div>
@@ -289,7 +289,7 @@ export default function UserDiscover() {
               {/* Major & Favorite Cafe */}
               <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)' }}>
-                  <BookOpen size={14} color="#0D9488" />
+                  <BookOpen size={14} color="#FF5722" />
                   <span>Ngành: <strong>{student.major}</strong></span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)' }}>
@@ -308,9 +308,9 @@ export default function UserDiscover() {
                       fontWeight: '600',
                       padding: '3px 9px',
                       borderRadius: '12px',
-                      backgroundColor: '#F0FDFA',
-                      color: '#0F766E',
-                      border: '1px solid #CCFBF1',
+                      backgroundColor: '#FFF3E0',
+                      color: '#E64A19',
+                      border: '1px solid #FBE9E7',
                     }}
                   >
                     #{tag}
@@ -330,9 +330,9 @@ export default function UserDiscover() {
                     gap: '6px',
                     padding: '10px',
                     borderRadius: '12px',
-                    backgroundColor: '#F0FDFA',
-                    color: '#0D9488',
-                    border: '1.5px solid #99F6E4',
+                    backgroundColor: '#FFF3E0',
+                    color: '#FF5722',
+                    border: '1.5px solid #FFCC80',
                     fontSize: '13px',
                     fontWeight: '700',
                     cursor: 'pointer',
@@ -352,13 +352,13 @@ export default function UserDiscover() {
                     gap: '6px',
                     padding: '10px',
                     borderRadius: '12px',
-                    backgroundColor: '#0D9488',
+                    backgroundColor: '#FF5722',
                     color: '#FFFFFF',
                     border: 'none',
                     fontSize: '13px',
                     fontWeight: '700',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(13, 148, 136, 0.25)',
+                    boxShadow: '0 4px 10px rgba(255, 87, 34, 0.25)',
                   }}
                 >
                   <Coffee size={16} />
@@ -397,7 +397,7 @@ export default function UserDiscover() {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Coffee size={22} color="#0D9488" />
+                <Coffee size={22} color="#FF5722" />
                 <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)' }}>
                   Rủ {invitedStudent.name} đi Cafe
                 </h3>
@@ -414,8 +414,8 @@ export default function UserDiscover() {
                     width: '60px',
                     height: '60px',
                     borderRadius: '50%',
-                    backgroundColor: '#ECFDF5',
-                    color: '#059669',
+                    backgroundColor: '#FFF3E0',
+                    color: '#E64A19',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -424,7 +424,7 @@ export default function UserDiscover() {
                 >
                   <CheckCircle2 size={36} />
                 </div>
-                <h4 style={{ fontSize: '18px', fontWeight: '800', color: '#059669' }}>
+                <h4 style={{ fontSize: '18px', fontWeight: '800', color: '#E64A19' }}>
                   Lời mời đã được gửi đi! ☕🎉
                 </h4>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '6px' }}>
@@ -498,7 +498,7 @@ export default function UserDiscover() {
                     marginTop: '8px',
                     padding: '12px',
                     borderRadius: '12px',
-                    backgroundColor: '#0D9488',
+                    backgroundColor: '#FF5722',
                     color: '#FFFFFF',
                     fontWeight: '700',
                     fontSize: '14px',
@@ -507,7 +507,7 @@ export default function UserDiscover() {
                     justifyContent: 'center',
                     gap: '8px',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
+                    boxShadow: '0 4px 12px rgba(255, 87, 34, 0.3)',
                   }}
                 >
                   <Send size={16} />
@@ -521,3 +521,4 @@ export default function UserDiscover() {
     </div>
   );
 }
+

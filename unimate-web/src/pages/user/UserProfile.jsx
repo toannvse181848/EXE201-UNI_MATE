@@ -48,11 +48,11 @@ export default function UserProfile() {
         <div>
           <div
             style={{
-              background: 'linear-gradient(135deg, #0F766E 0%, #042F2E 100%)',
+              background: 'linear-gradient(135deg, #E64A19 0%, #1A0E00 100%)',
               borderRadius: '24px',
               padding: '28px',
               color: '#FFFFFF',
-              boxShadow: '0 20px 25px -5px rgba(15, 118, 110, 0.3)',
+              boxShadow: '0 20px 25px -5px rgba(230, 74, 25, 0.3)',
               position: 'relative',
               overflow: 'hidden',
               border: '1px solid rgba(255,255,255,0.15)',
@@ -82,11 +82,11 @@ export default function UserProfile() {
                     width: '32px',
                     height: '32px',
                     borderRadius: '8px',
-                    backgroundColor: '#14B8A6',
+                    backgroundColor: '#FF5722',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#042F2E',
+                    color: '#1A0E00',
                     fontWeight: '900',
                   }}
                 >
@@ -107,7 +107,7 @@ export default function UserProfile() {
                   borderRadius: '20px',
                   fontSize: '11px',
                   fontWeight: '700',
-                  color: '#5EEAD4',
+                  color: '#FFB74D',
                   border: '1px solid rgba(45, 212, 191, 0.4)',
                 }}
               >
@@ -126,7 +126,7 @@ export default function UserProfile() {
                   height: '74px',
                   borderRadius: '16px',
                   objectFit: 'cover',
-                  border: '3px solid #2DD4BF',
+                  border: '3px solid #FF8A50',
                   boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
                 }}
               />
@@ -134,10 +134,10 @@ export default function UserProfile() {
                 <div style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '-0.3px' }}>
                   {user?.name || 'Nguyễn Văn Toàn'}
                 </div>
-                <div style={{ fontSize: '13px', color: '#99F6E4', marginTop: '2px' }}>
+                <div style={{ fontSize: '13px', color: '#FFCC80', marginTop: '2px' }}>
                   MSSV: <strong>{user?.studentId || 'SE181848'}</strong>
                 </div>
-                <div style={{ fontSize: '12px', color: '#CCFBF1', marginTop: '2px' }}>
+                <div style={{ fontSize: '12px', color: '#FBE9E7', marginTop: '2px' }}>
                   {user?.university || 'Đại học FPT TP.HCM'}
                 </div>
               </div>
@@ -154,7 +154,7 @@ export default function UserProfile() {
               }}
             >
               <div>
-                <div style={{ fontSize: '10px', color: '#99F6E4', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '10px', color: '#FFCC80', textTransform: 'uppercase' }}>
                   Chuyên ngành
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '700' }}>
@@ -163,7 +163,7 @@ export default function UserProfile() {
               </div>
 
               <div>
-                <div style={{ fontSize: '10px', color: '#99F6E4', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '10px', color: '#FFCC80', textTransform: 'uppercase' }}>
                   Niên khóa
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '700' }}>
@@ -172,7 +172,7 @@ export default function UserProfile() {
               </div>
 
               <div style={{ textAlign: 'right' }}>
-                <QrCode size={36} color="#5EEAD4" />
+                <QrCode size={36} color="#FFB74D" />
               </div>
             </div>
           </div>
@@ -187,7 +187,7 @@ export default function UserProfile() {
             }}
           >
             <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#0D9488' }}>98%</div>
+              <div style={{ fontSize: '22px', fontWeight: '900', color: '#FF5722' }}>98%</div>
               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Tín nhiệm SV</div>
             </div>
             <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
@@ -224,7 +224,7 @@ export default function UserProfile() {
                   gap: '6px',
                   fontSize: '12.5px',
                   fontWeight: '700',
-                  color: '#0D9488',
+                  color: '#FF5722',
                   cursor: 'pointer',
                 }}
               >
@@ -280,12 +280,12 @@ export default function UserProfile() {
                   style={{
                     padding: '12px',
                     borderRadius: '12px',
-                    backgroundColor: '#0D9488',
+                    backgroundColor: '#FF5722',
                     color: '#FFFFFF',
                     fontWeight: '700',
                     fontSize: '14px',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(13, 148, 136, 0.3)',
+                    boxShadow: '0 4px 10px rgba(255, 87, 34, 0.3)',
                   }}
                 >
                   Lưu thay đổi
@@ -313,11 +313,11 @@ export default function UserProfile() {
                         style={{
                           padding: '5px 12px',
                           borderRadius: '14px',
-                          backgroundColor: '#F0FDFA',
-                          color: '#0F766E',
+                          backgroundColor: '#FFF3E0',
+                          color: '#E64A19',
                           fontSize: '12px',
                           fontWeight: '700',
-                          border: '1px solid #CCFBF1',
+                          border: '1px solid #FBE9E7',
                         }}
                       >
                         #{tag}
@@ -327,7 +327,7 @@ export default function UserProfile() {
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#059669', fontSize: '13px', fontWeight: '700' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#E64A19', fontSize: '13px', fontWeight: '700' }}>
                     <Award size={18} />
                     <span>Huy hiệu: Thành viên Tích cực Uni-Mate 2026</span>
                   </div>
@@ -340,3 +340,4 @@ export default function UserProfile() {
     </div>
   );
 }
+

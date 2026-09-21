@@ -180,7 +180,7 @@ export default function UserVouchers() {
             fontSize: '13.5px',
             fontWeight: '700',
             backgroundColor: activeTab === 'my_vouchers' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'my_vouchers' ? '#0F766E' : 'var(--text-secondary)',
+            color: activeTab === 'my_vouchers' ? '#E64A19' : 'var(--text-secondary)',
             boxShadow: activeTab === 'my_vouchers' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
             cursor: 'pointer',
           }}
@@ -196,7 +196,7 @@ export default function UserVouchers() {
             fontSize: '13.5px',
             fontWeight: '700',
             backgroundColor: activeTab === 'rewards' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'rewards' ? '#0F766E' : 'var(--text-secondary)',
+            color: activeTab === 'rewards' ? '#E64A19' : 'var(--text-secondary)',
             boxShadow: activeTab === 'rewards' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
             cursor: 'pointer',
           }}
@@ -225,9 +225,9 @@ export default function UserVouchers() {
               {/* Discount Tag Header */}
               <div
                 style={{
-                  backgroundColor: '#F0FDFA',
+                  backgroundColor: '#FFF3E0',
                   padding: '16px 20px',
-                  borderBottom: '1px dashed #99F6E4',
+                  borderBottom: '1px dashed #FFCC80',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -236,7 +236,7 @@ export default function UserVouchers() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '26px' }}>{vch.logo}</span>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#0F766E' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#E64A19' }}>
                       {vch.brand}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -247,7 +247,7 @@ export default function UserVouchers() {
 
                 <div
                   style={{
-                    backgroundColor: '#0D9488',
+                    backgroundColor: '#FF5722',
                     color: '#FFFFFF',
                     padding: '4px 10px',
                     borderRadius: '8px',
@@ -281,12 +281,12 @@ export default function UserVouchers() {
                       gap: '6px',
                       padding: '8px 14px',
                       borderRadius: '10px',
-                      backgroundColor: '#0D9488',
+                      backgroundColor: '#FF5722',
                       color: '#FFFFFF',
                       fontSize: '12.5px',
                       fontWeight: '800',
                       cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(13, 148, 136, 0.3)',
+                      boxShadow: '0 2px 8px rgba(255, 87, 34, 0.3)',
                     }}
                   >
                     <QrCode size={16} />
@@ -390,7 +390,7 @@ export default function UserVouchers() {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '800', color: '#0D9488', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '12px', fontWeight: '800', color: '#FF5722', textTransform: 'uppercase' }}>
                 {selectedVoucher.brand}
               </span>
               <button onClick={() => setSelectedVoucher(null)} style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>
@@ -414,7 +414,7 @@ export default function UserVouchers() {
                 padding: '16px',
                 backgroundColor: '#FFFFFF',
                 borderRadius: '16px',
-                border: '2px dashed #0D9488',
+                border: '2px dashed #FF5722',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -446,10 +446,10 @@ export default function UserVouchers() {
               </span>
               <button
                 onClick={() => handleCopyCode(selectedVoucher.code)}
-                style={{ color: '#0D9488', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                style={{ color: '#FF5722', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 title="Sao chép mã"
               >
-                {copiedCode ? <CheckCircle2 size={16} color="#10B981" /> : <Copy size={16} />}
+                {copiedCode ? <CheckCircle2 size={16} color="#FF7043" /> : <Copy size={16} />}
               </button>
             </div>
 
@@ -462,3 +462,4 @@ export default function UserVouchers() {
     </div>
   );
 }
+

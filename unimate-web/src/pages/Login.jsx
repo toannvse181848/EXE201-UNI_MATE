@@ -16,11 +16,11 @@ export default function Login() {
       title: 'Sinh viên & Người dùng',
       desc: 'Dành cho sinh viên kết nối bạn học, khám phá quán cafe & đổi voucher',
       email: 'toan.nguyen@fpt.edu.vn',
-      color: '#0D9488',
-      bgLight: '#CCFBF1',
+      color: '#FF5722',
+      bgLight: '#FBE9E7',
       icon: GraduationCap,
       path: '/user/discover',
-      btnClass: 'btn-teal',
+      btnClass: 'btn-orange',
       badge: 'Student Portal',
     },
     partner: {
@@ -349,9 +349,9 @@ export default function Login() {
                 fontSize: '12px',
                 fontWeight: '700',
                 borderRadius: '8px',
-                backgroundColor: '#CCFBF1',
-                color: '#0F766E',
-                border: '1px solid #99F6E4',
+                backgroundColor: '#FBE9E7',
+                color: '#E64A19',
+                border: '1px solid #FFCCBC',
                 transition: 'all 0.2s',
               }}
             >

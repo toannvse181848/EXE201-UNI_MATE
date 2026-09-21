@@ -1,7 +1,28 @@
 :root {
+  /* === Mobile-matched Orange Palette (Student/Primary brand) === */
   --primary: #FF5722;
-  --primary-hover: #F4511E;
-  --primary-light: #FFECE6;
+  --primary-hover: #E64A19;
+  --primary-light: #FBE9E7;
+  --primary-dark: #E64A19;
+
+  /* Student Portal (matches mobile COLORS.primary → gradientEnd) */
+  --student: #FF5722;
+  --student-hover: #E64A19;
+  --student-light: #FBE9E7;
+  --student-dark: #BF360C;
+  --student-secondary: #FF9800;
+  --student-secondary-light: #FFF3E0;
+  --student-gradient-start: #FF5722;
+  --student-gradient-end: #FFA726;
+  --student-sidebar: #1A0E00;
+  --student-sidebar-border: #3D1A00;
+
+  /* Partner Portal */
+  --partner: #FF5722;
+  --partner-hover: #E64A19;
+  --partner-light: #FBE9E7;
+
+  /* Admin Portal */
   --indigo: #4F46E5;
   --indigo-dark: #3730A3;
   --indigo-light: #EEF2FF;
@@ -209,6 +230,18 @@ input, select, textarea {
 .btn-indigo:hover {
   background-color: var(--indigo-dark);
   transform: translateY(-1px);
+}
+
+/* Student/Orange button — matches mobile primary */
+.btn-orange {
+  background: linear-gradient(135deg, var(--student-gradient-start), var(--student-gradient-end));
+  color: white;
+  box-shadow: 0 4px 14px rgba(255, 87, 34, 0.35);
+}
+.btn-orange:hover {
+  background: linear-gradient(135deg, var(--student-hover), #FF8A50);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 87, 34, 0.45);
 }
 
 .btn-secondary {

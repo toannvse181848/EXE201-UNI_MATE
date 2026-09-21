@@ -155,8 +155,8 @@ export default function UserMessages() {
                   gap: '12px',
                   padding: '14px 16px',
                   borderBottom: '1px solid #F1F5F9',
-                  backgroundColor: isSelected ? '#F0FDFA' : 'transparent',
-                  borderLeft: isSelected ? '4px solid #0D9488' : '4px solid transparent',
+                  backgroundColor: isSelected ? '#FFF3E0' : 'transparent',
+                  borderLeft: isSelected ? '4px solid #FF5722' : '4px solid transparent',
                   cursor: 'pointer',
                   transition: 'background-color 0.15s',
                 }}
@@ -176,7 +176,7 @@ export default function UserMessages() {
                         width: '10px',
                         height: '10px',
                         borderRadius: '50%',
-                        backgroundColor: '#10B981',
+                        backgroundColor: '#FF7043',
                         border: '2px solid #FFFFFF',
                       }}
                     />
@@ -193,7 +193,7 @@ export default function UserMessages() {
                     </span>
                   </div>
 
-                  <div style={{ fontSize: '11.5px', color: '#0D9488', fontWeight: '600', marginBottom: '2px' }}>
+                  <div style={{ fontSize: '11.5px', color: '#FF5722', fontWeight: '600', marginBottom: '2px' }}>
                     {chat.university.split(' ')[0]}
                   </div>
 
@@ -217,7 +217,7 @@ export default function UserMessages() {
                       width: '18px',
                       height: '18px',
                       borderRadius: '50%',
-                      backgroundColor: '#0D9488',
+                      backgroundColor: '#FF5722',
                       color: '#FFFFFF',
                       fontSize: '10px',
                       fontWeight: '800',
@@ -257,7 +257,7 @@ export default function UserMessages() {
               <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>
                 {activeChat.name}
               </div>
-              <div style={{ fontSize: '12px', color: '#0D9488', fontWeight: '600' }}>
+              <div style={{ fontSize: '12px', color: '#FF5722', fontWeight: '600' }}>
                 {activeChat.university} • {activeChat.online ? 'Đang hoạt động' : 'Ngoại tuyến'}
               </div>
             </div>
@@ -272,9 +272,9 @@ export default function UserMessages() {
                 gap: '6px',
                 padding: '7px 12px',
                 borderRadius: '8px',
-                backgroundColor: '#F0FDFA',
-                color: '#0D9488',
-                border: '1px solid #99F6E4',
+                backgroundColor: '#FFF3E0',
+                color: '#FF5722',
+                border: '1px solid #FFCC80',
                 fontSize: '12.5px',
                 fontWeight: '700',
                 cursor: 'pointer',
@@ -303,7 +303,7 @@ export default function UserMessages() {
                     maxWidth: '65%',
                     padding: '12px 16px',
                     borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    backgroundColor: isMe ? '#0D9488' : '#F1F5F9',
+                    backgroundColor: isMe ? '#FF5722' : '#F1F5F9',
                     color: isMe ? '#FFFFFF' : 'var(--text-primary)',
                     fontSize: '13.5px',
                     lineHeight: '1.5',
@@ -364,7 +364,7 @@ export default function UserMessages() {
             style={{
               padding: '12px 18px',
               borderRadius: '12px',
-              backgroundColor: '#0D9488',
+              backgroundColor: '#FF5722',
               color: '#FFFFFF',
               fontWeight: '700',
               display: 'flex',
@@ -372,7 +372,7 @@ export default function UserMessages() {
               justifyContent: 'center',
               gap: '6px',
               cursor: 'pointer',
-              boxShadow: '0 4px 10px rgba(13, 148, 136, 0.3)',
+              boxShadow: '0 4px 10px rgba(255, 87, 34, 0.3)',
             }}
           >
             <span>Gửi</span>
@@ -383,3 +383,4 @@ export default function UserMessages() {
     </div>
   );
 }
+

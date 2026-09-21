@@ -41,12 +41,12 @@ export default function UserLayout() {
       <aside
         style={{
           width: '270px',
-          backgroundColor: '#042F2E', // Deep Emerald / Slate Teal
+          backgroundColor: '#1A0E00', // Deep orange-black matching mobile dark bg
           color: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
           flexShrink: 0,
-          borderRight: '1px solid #115E59',
+          borderRight: '1px solid #3D1A00',
         }}
       >
         {/* Brand Header */}
@@ -57,14 +57,14 @@ export default function UserLayout() {
                 width: '40px',
                 height: '40px',
                 borderRadius: '12px',
-                backgroundColor: '#14B8A6',
+                backgroundColor: '#FF5722',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#042F2E',
+                color: '#FFFFFF',
                 fontWeight: '900',
                 fontSize: '20px',
-                boxShadow: '0 4px 12px rgba(20, 184, 166, 0.4)',
+                boxShadow: '0 4px 12px rgba(255, 87, 34, 0.45)',
               }}
             >
               U
@@ -111,7 +111,7 @@ export default function UserLayout() {
               <img
                 src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
                 alt="Avatar"
-                style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #2DD4BF' }}
+                style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF8A50' }}
               />
               <span
                 title="Đã xác thực thẻ SV"
@@ -133,7 +133,7 @@ export default function UserLayout() {
               <div style={{ fontSize: '13px', fontWeight: '700', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user?.name || 'Nguyễn Văn Toàn'}
               </div>
-              <div style={{ fontSize: '11px', color: '#5EEAD4', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ fontSize: '11px', color: '#FFB74D', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span>{user?.studentId || 'SE181848'}</span>
                 <span>•</span>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.university?.split(' ')[0] || 'FPTU'}</span>
@@ -144,7 +144,7 @@ export default function UserLayout() {
 
         {/* Navigation Links */}
         <nav style={{ padding: '4px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ padding: '6px 12px', fontSize: '11px', fontWeight: '700', color: '#5EEAD4', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+          <div style={{ padding: '6px 12px', fontSize: '11px', fontWeight: '700', color: '#FF8A50', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
             Menu Sinh viên
           </div>
           {navItems.map((item) => {
@@ -162,13 +162,13 @@ export default function UserLayout() {
                   borderRadius: '10px',
                   fontSize: '13.5px',
                   fontWeight: '600',
-                  color: isActive ? '#042F2E' : '#CCFBF1',
-                  backgroundColor: isActive ? '#2DD4BF' : 'transparent',
+                  color: isActive ? '#FFFFFF' : '#FFD0A8',
+                  backgroundColor: isActive ? '#FF5722' : 'transparent',
                   transition: 'all 0.15s ease',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Icon size={18} color={isActive ? '#042F2E' : '#5EEAD4'} />
+                  <Icon size={18} color={isActive ? '#FFFFFF' : '#FF8A50'} />
                   <span>{item.label}</span>
                 </div>
                 {item.badge && (
@@ -178,7 +178,7 @@ export default function UserLayout() {
                       fontWeight: '800',
                       padding: '2px 7px',
                       borderRadius: '10px',
-                      backgroundColor: isActive ? '#0F766E' : (item.alert ? '#EF4444' : '#134E4A'),
+                      backgroundColor: isActive ? '#BF360C' : (item.alert ? '#EF4444' : '#3D1A00'),
                       color: '#FFFFFF',
                     }}
                   >
@@ -191,8 +191,8 @@ export default function UserLayout() {
         </nav>
 
         {/* Role Switcher in Sidebar */}
-        <div style={{ padding: '14px 16px', borderTop: '1px solid #115E59', backgroundColor: 'rgba(0,0,0,0.1)' }}>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: '#5EEAD4', marginBottom: '8px', textTransform: 'uppercase' }}>
+        <div style={{ padding: '14px 16px', borderTop: '1px solid #3D1A00', backgroundColor: 'rgba(0,0,0,0.15)' }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#FF8A50', marginBottom: '8px', textTransform: 'uppercase' }}>
             Chuyển nhanh Cổng (Role)
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -251,16 +251,16 @@ export default function UserLayout() {
         </div>
 
         {/* User Footer / Logout */}
-        <div style={{ padding: '14px 16px', borderTop: '1px solid #115E59', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '14px 16px', borderTop: '1px solid #3D1A00', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
-            <span style={{ fontSize: '12px', color: '#99F6E4', fontWeight: '600' }}>Trực tuyến</span>
+            <span style={{ fontSize: '12px', color: '#FFB74D', fontWeight: '600' }}>Trực tuyến</span>
           </div>
           <button
             onClick={handleLogout}
             title="Đăng xuất"
             style={{
-              color: '#99F6E4',
+              color: '#FFB74D',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
@@ -268,7 +268,7 @@ export default function UserLayout() {
               fontWeight: '600',
               padding: '6px 10px',
               borderRadius: '6px',
-              backgroundColor: '#134E4A',
+              backgroundColor: '#3D1A00',
               cursor: 'pointer',
             }}
           >
@@ -311,7 +311,7 @@ export default function UserLayout() {
                 fontWeight: '700',
               }}
             >
-              <Sparkles size={14} color="#0D9488" />
+              <Sparkles size={14} color="#FF5722" />
               <span>{user?.university || 'Đại học FPT TP.HCM'}</span>
             </div>
 
@@ -322,13 +322,13 @@ export default function UserLayout() {
                 gap: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
-                color: '#059669',
+                color: '#E64A19',
                 backgroundColor: '#ECFDF5',
                 padding: '5px 12px',
                 borderRadius: '16px',
               }}
             >
-              <CheckCircle2 size={13} />
+              <CheckCircle2 size={13} color="#FF5722" />
               <span>Sinh viên đã xác minh</span>
             </div>
           </div>
@@ -375,7 +375,7 @@ export default function UserLayout() {
                   cursor: 'pointer',
                 }}
               >
-                <span style={{ color: '#0D9488' }}>Vai trò:</span>
+                <span style={{ color: '#FF5722' }}>Vai trò:</span>
                 <span>🎓 Sinh viên</span>
                 <ChevronDown size={14} />
               </button>
@@ -455,7 +455,7 @@ export default function UserLayout() {
               <img
                 src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
                 alt="Avatar"
-                style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #14B8A6' }}
+                style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF5722' }}
               />
             </NavLink>
           </div>

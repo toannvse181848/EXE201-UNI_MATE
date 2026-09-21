@@ -151,9 +151,9 @@ export default function UserVenues() {
                 borderRadius: '20px',
                 fontSize: '12.5px',
                 fontWeight: '700',
-                backgroundColor: activeFilter === filter ? '#0D9488' : '#FFFFFF',
+                backgroundColor: activeFilter === filter ? '#FF5722' : '#FFFFFF',
                 color: activeFilter === filter ? '#FFFFFF' : 'var(--text-secondary)',
-                border: activeFilter === filter ? '1px solid #0D9488' : '1px solid var(--border-color)',
+                border: activeFilter === filter ? '1px solid #FF5722' : '1px solid var(--border-color)',
                 cursor: 'pointer',
               }}
             >
@@ -224,7 +224,7 @@ export default function UserVenues() {
                   gap: '4px',
                 }}
               >
-                <Clock size={12} color="#5EEAD4" />
+                <Clock size={12} color="#FFB74D" />
                 <span>{venue.hours}</span>
               </div>
             </div>
@@ -236,7 +236,7 @@ export default function UserVenues() {
               </h3>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                <MapPin size={14} color="#0D9488" />
+                <MapPin size={14} color="#FF5722" />
                 <span>{venue.address} • <strong>{venue.distance}</strong></span>
               </div>
 
@@ -257,7 +257,7 @@ export default function UserVenues() {
                       gap: '4px',
                     }}
                   >
-                    <Zap size={11} color="#0D9488" />
+                    <Zap size={11} color="#FF5722" />
                     <span>{item}</span>
                   </span>
                 ))}
@@ -296,7 +296,7 @@ export default function UserVenues() {
                     style={{
                       padding: '6px 12px',
                       borderRadius: '8px',
-                      backgroundColor: claimedCodes[venue.id] ? '#10B981' : '#D97706',
+                      backgroundColor: claimedCodes[venue.id] ? '#FF7043' : '#D97706',
                       color: '#FFFFFF',
                       fontSize: '11px',
                       fontWeight: '800',
@@ -335,7 +335,7 @@ export default function UserVenues() {
                     gap: '6px',
                     fontSize: '12px',
                     fontWeight: '700',
-                    color: '#0D9488',
+                    color: '#FF5722',
                   }}
                 >
                   <span>Mở bản đồ</span>
@@ -349,3 +349,4 @@ export default function UserVenues() {
     </div>
   );
 }
+
