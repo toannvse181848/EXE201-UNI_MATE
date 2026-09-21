@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,49 +6,96 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
-  Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../src/constants/colors';
+import { matchApi } from '../../src/api/matchApi';
 
 const { width, height } = Dimensions.get('window');
 
-import { MOCK_PROFILES } from '../../src/data/mockUsers';
-
-
 export default function DiscoverScreen() {
   const router = useRouter();
+  const [deck, setDeck] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [swiping, setSwiping] = useState(false);
 
-  const currentProfile = MOCK_PROFILES[currentIndex];
+  const [notice, setNotice] = useState(null);
 
-  const handleSwipe = (action) => {
-    if (!currentProfile) return;
+  const currentProfile = deck[currentIndex];
 
-    if (action === 'like' || action === 'superlike') {
-      // Navigate to Match screen for interactive demo!
-      router.push({
-        pathname: '/match',
-        params: {
-          matchedName: currentProfile.name,
-          matchedPhoto: currentProfile.photo,
-          matchedUniversity: currentProfile.university,
-          matchedMajor: currentProfile.major,
-        },
-      });
+  // Chuẩn hóa profile từ API sang format hiển thị
+  const normalizeProfile = (user) => ({
+    id: user._id,
+    name: user.fullName,
+    photo: user.avatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800`,
+    university: user.studentProfile?.university || 'Đại học',
+    major: user.studentProfile?.major || 'Sinh viên',
+    year: user.studentProfile?.year,
+    bio: user.studentProfile?.bio || 'Đang tìm bạn học cùng ☕',
+    tags: (user.studentProfile?.interests || []).slice(0, 3).map((i) => `#${i}`),
+    matchScore: Math.floor(Math.random() * 20) + 80, // tạm thời random
+    distance: `${(Math.random() * 4 + 0.5).toFixed(1)} km`,
+    purpose: user.studentProfile?.objectives?.[0] === 'study_buddy'
+      ? '📚 Tìm bạn học'
+      : user.studentProfile?.objectives?.[0] === 'project'
+      ? '💻 Tìm teammate'
+      : '🤝 Kết nối',
+  });
+
+  const fetchDeck = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await matchApi.getDiscoverDeck();
+      const profiles = (res.data?.data || []).map(normalizeProfile);
+      setDeck(profiles);
+      setCurrentIndex(0);
+    } catch {
+      setDeck([]);
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    if (currentIndex < MOCK_PROFILES.length) {
+  useEffect(() => { fetchDeck(); }, [fetchDeck]);
+
+  const handleSwipe = async (action) => {
+    if (!currentProfile || swiping) return;
+    const swipedName = currentProfile.name;
+    setSwiping(true);
+
+    try {
+      const res = await matchApi.swipe(currentProfile.id, action === 'pass' ? 'pass' : 'like');
+      const { isMatch } = res.data || {};
+
+      // Chỉ navigate match screen khi backend xác nhận mutual match
+      if (isMatch) {
+        router.push({
+          pathname: '/match',
+          params: {
+            matchedName: currentProfile.name,
+            matchedPhoto: currentProfile.photo,
+            matchedUniversity: currentProfile.university,
+            matchedMajor: currentProfile.major,
+          },
+        });
+      } else if (action === 'like') {
+        setNotice(`💖 Đã gửi lời thích đến ${swipedName}! Xem trong tab Tin nhắn (mục "Đã thả tim").`);
+        setTimeout(() => setNotice(null), 3500);
+      }
+    } catch {
+      // swipe lỗi → vẫn chuyển card
+    } finally {
+      setSwiping(false);
       setCurrentIndex((prev) => prev + 1);
     }
   };
 
-  const resetDeck = () => {
-    setCurrentIndex(0);
-  };
+  const resetDeck = () => fetchDeck();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -69,9 +116,25 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      {/* Main Deck Container */}
-      <View style={styles.deckContainer}>
-        {currentProfile ? (
+      {/* Floating Notice Toast */}
+      {notice && (
+        <View style={styles.noticeToast}>
+          <Ionicons name="heart" size={16} color="#FFFFFF" />
+          <Text style={styles.noticeToastText}>{notice}</Text>
+        </View>
+      )}
+
+      {/* Loading */}
+      {loading ? (
+        <View style={styles.deckContainer}>
+          <View style={[styles.emptyContainer]}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={{ color: COLORS.textMuted, marginTop: 16 }}>Đang tải hồ sơ...</Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.deckContainer}>
+          {currentProfile ? (
           <View style={styles.card}>
             <Image source={{ uri: currentProfile.photo }} style={styles.cardImage} />
             <LinearGradient
@@ -136,35 +199,36 @@ export default function DiscoverScreen() {
               <Text style={styles.refreshBtnText}>Khám phá lại từ đầu</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </View>
+          )}
+        </View>
+      )}
 
       {/* Floating Action Controls */}
-      {currentProfile && (
+      {!loading && currentProfile && (
         <View style={styles.actionsBar}>
-          {/* Dislike / Pass */}
           <TouchableOpacity
             style={[styles.actionBtn, styles.passBtn]}
             onPress={() => handleSwipe('pass')}
             activeOpacity={0.8}
+            disabled={swiping}
           >
             <Ionicons name="close" size={28} color="#9CA3AF" />
           </TouchableOpacity>
 
-          {/* Super Like */}
           <TouchableOpacity
             style={[styles.actionBtn, styles.superBtn]}
             onPress={() => handleSwipe('superlike')}
             activeOpacity={0.8}
+            disabled={swiping}
           >
             <Ionicons name="star" size={26} color="#F59E0B" />
           </TouchableOpacity>
 
-          {/* Like */}
           <TouchableOpacity
-            style={[styles.actionBtn, styles.likeBtn]}
+            style={[styles.actionBtn, styles.likeBtn, swiping && { opacity: 0.6 }]}
             onPress={() => handleSwipe('like')}
             activeOpacity={0.8}
+            disabled={swiping}
           >
             <Ionicons name="heart" size={32} color={COLORS.white} />
           </TouchableOpacity>
@@ -431,5 +495,28 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 14,
     fontWeight: '700',
+  },
+  noticeToast: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: '#FF5722',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  noticeToastText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+    flex: 1,
+    lineHeight: 16,
   },
 });

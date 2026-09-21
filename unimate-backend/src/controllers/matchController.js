@@ -7,23 +7,31 @@ const ApiError = require('../utils/ApiError');
 const getDiscoveryDeck = catchAsync(async (req, res) => {
   const currentUserId = req.user._id;
 
-  // Lấy các id người dùng đã quẹt (dù like hay pass)
-  const existingSwipes = await Match.find({
-    $or: [{ user1: currentUserId }, { user2: currentUserId }],
+  // Lấy các người dùng mà currentUserId ĐÃ TỰ TAY QUẸT:
+  // 1. currentUserId là user1 (đã quẹt lượt đầu)
+  // 2. currentUserId là user2 VÀ user2Action !== 'pending' (đã quẹt phản hồi)
+  const mySwipes = await Match.find({
+    $or: [
+      { user1: currentUserId },
+      { user2: currentUserId, user2Action: { $ne: 'pending' } },
+    ],
   }).select('user1 user2');
 
-  const swipedUserIds = new Set();
-  swipedUserIds.add(currentUserId.toString());
+  const excludedIds = new Set();
+  excludedIds.add(currentUserId.toString());
 
-  existingSwipes.forEach((m) => {
-    swipedUserIds.add(m.user1.toString());
-    swipedUserIds.add(m.user2.toString());
+  mySwipes.forEach((m) => {
+    if (m.user1.toString() === currentUserId.toString()) {
+      excludedIds.add(m.user2.toString());
+    } else {
+      excludedIds.add(m.user1.toString());
+    }
   });
 
-  // Tìm các sinh viên khác chưa từng quẹt
+  // Tìm các sinh viên khác chưa từng được currentUserId quẹt
   const candidates = await User.find({
-    _id: { $nin: Array.from(swipedUserIds) },
-    role: 'student',
+    _id: { $nin: Array.from(excludedIds) },
+    role: { $in: ['student', 'user'] },
     status: 'active',
   })
     .select('fullName avatar studentProfile')
@@ -49,27 +57,42 @@ const swipe = catchAsync(async (req, res) => {
     throw new ApiError(400, 'Không thể tự quẹt chính mình');
   }
 
-  // Kiểm tra xem đối phương đã từng quẹt mình trước đó chưa
-  const reciprocalMatch = await Match.findOne({
-    user1: targetUserId,
-    user2: currentUserId,
+  // Kiểm tra xem đã có bản ghi tương tác giữa 2 người chưa (theo cả 2 chiều)
+  let existingMatch = await Match.findOne({
+    $or: [
+      { user1: currentUserId, user2: targetUserId },
+      { user1: targetUserId, user2: currentUserId },
+    ],
   });
 
   let isMatch = false;
   let matchRecord = null;
 
-  if (reciprocalMatch) {
-    // Đối phương đã quẹt mình trước đó
-    reciprocalMatch.user2Action = action;
-    if (reciprocalMatch.user1Action === 'like' && action === 'like') {
-      reciprocalMatch.status = 'matched';
-      reciprocalMatch.matchedAt = new Date();
-      isMatch = true;
+  if (existingMatch) {
+    // Đã có bản ghi trước đó
+    if (existingMatch.user1.toString() === currentUserId.toString()) {
+      // Mình là người tạo bản ghi đầu tiên (user1), cập nhật lại hành động nếu có
+      existingMatch.user1Action = action;
+      if (action === 'like' && existingMatch.user2Action === 'like') {
+        existingMatch.status = 'matched';
+        if (!existingMatch.matchedAt) existingMatch.matchedAt = new Date();
+        isMatch = true;
+      } else if (action === 'pass') {
+        existingMatch.status = 'passed';
+      }
     } else {
-      reciprocalMatch.status = 'passed';
+      // Đối phương là user1, mình là user2 phản hồi lại
+      existingMatch.user2Action = action;
+      if (existingMatch.user1Action === 'like' && action === 'like') {
+        existingMatch.status = 'matched';
+        if (!existingMatch.matchedAt) existingMatch.matchedAt = new Date();
+        isMatch = true;
+      } else {
+        existingMatch.status = 'passed';
+      }
     }
-    await reciprocalMatch.save();
-    matchRecord = reciprocalMatch;
+    await existingMatch.save();
+    matchRecord = existingMatch;
   } else {
     // Lần đầu quẹt
     matchRecord = await Match.create({
@@ -148,9 +171,82 @@ const proposeVenue = catchAsync(async (req, res) => {
   });
 });
 
+// Lấy danh sách những người mình đã gửi lời thích (đang chờ họ phản hồi)
+const getSentLikes = catchAsync(async (req, res) => {
+  const currentUserId = req.user._id;
+
+  const pending = await Match.find({
+    user1: currentUserId,
+    user1Action: 'like',
+    status: 'pending',
+  })
+    .populate('user2', 'fullName avatar studentProfile')
+    .sort({ createdAt: -1 });
+
+  const data = pending
+    .filter((m) => m.user2)
+    .map((m) => ({
+      matchId: m._id,
+      createdAt: m.createdAt,
+      status: 'pending',
+      buddy: {
+        id: m.user2._id,
+        fullName: m.user2.fullName,
+        avatar: m.user2.avatar,
+        university: m.user2.studentProfile?.university,
+        major: m.user2.studentProfile?.major,
+        trustScore: m.user2.studentProfile?.trustScore || 95,
+      },
+    }));
+
+  res.status(200).json({
+    success: true,
+    count: data.length,
+    data,
+  });
+});
+
+// Lấy danh sách những người đã thích mình (mình chưa phản hồi)
+const getReceivedLikes = catchAsync(async (req, res) => {
+  const currentUserId = req.user._id;
+
+  const received = await Match.find({
+    user2: currentUserId,
+    user1Action: 'like',
+    user2Action: 'pending',
+    status: 'pending',
+  })
+    .populate('user1', 'fullName avatar studentProfile')
+    .sort({ createdAt: -1 });
+
+  const data = received
+    .filter((m) => m.user1)
+    .map((m) => ({
+      matchId: m._id,
+      createdAt: m.createdAt,
+      status: 'pending',
+      buddy: {
+        id: m.user1._id,
+        fullName: m.user1.fullName,
+        avatar: m.user1.avatar,
+        university: m.user1.studentProfile?.university,
+        major: m.user1.studentProfile?.major,
+        trustScore: m.user1.studentProfile?.trustScore || 95,
+      },
+    }));
+
+  res.status(200).json({
+    success: true,
+    count: data.length,
+    data,
+  });
+});
+
 module.exports = {
   getDiscoveryDeck,
   swipe,
   getMyMatches,
   proposeVenue,
+  getSentLikes,
+  getReceivedLikes,
 };

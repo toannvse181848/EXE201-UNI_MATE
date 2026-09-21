@@ -87,16 +87,24 @@ export const voucherApi = {
     const res = await client.get('/api/vouchers', { params });
     return res.data;
   },
+  claimVoucher: async (voucherId) => {
+    const res = await client.post(`/api/vouchers/claim/${voucherId}`);
+    return res.data;
+  },
+  getMyWallet: async () => {
+    const res = await client.get('/api/vouchers/my-wallet');
+    return res.data;
+  },
   getMyPartnerVouchers: async () => {
-    const res = await client.get('/api/vouchers/my/list');
+    const res = await client.get('/api/vouchers/partner/my-vouchers');
     return res.data;
   },
   createVoucher: async (data) => {
     const res = await client.post('/api/vouchers', data);
     return res.data;
   },
-  redeemVoucher: async (code) => {
-    const res = await client.post('/api/vouchers/redeem', { code });
+  redeemVoucher: async (payload) => {
+    const res = await client.post('/api/vouchers/redeem', payload);
     return res.data;
   },
   toggleVoucher: async (id) => {
@@ -133,6 +141,30 @@ export const matchApi = {
     });
     return res.data;
   },
+  getSentLikes: async () => {
+    const res = await client.get('/api/matches/sent-likes');
+    return res.data;
+  },
+  getReceivedLikes: async () => {
+    const res = await client.get('/api/matches/received-likes');
+    return res.data;
+  },
+};
+
+// === CHAT API ===
+export const chatApi = {
+  getConversations: async () => {
+    const res = await client.get('/api/chat/conversations');
+    return res.data;
+  },
+  getMessages: async (matchId, params = {}) => {
+    const res = await client.get(`/api/chat/${matchId}/messages`, { params });
+    return res.data;
+  },
+  sendMessage: async (matchId, text) => {
+    const res = await client.post(`/api/chat/${matchId}/messages`, { text });
+    return res.data;
+  },
 };
 
 // === REPORT API ===
@@ -142,14 +174,30 @@ export const reportApi = {
     return res.data;
   },
   getAllReportsAdmin: async (params = {}) => {
-    const res = await client.get('/api/reports/admin/all', { params });
+    const res = await client.get('/api/reports', { params });
     return res.data;
   },
   resolveReport: async (id, status, adminNote) => {
-    const res = await client.patch(`/api/reports/admin/${id}`, {
+    const res = await client.patch(`/api/reports/${id}`, {
       status,
       adminNote,
     });
+    return res.data;
+  },
+};
+
+// === USER MANAGEMENT API ===
+export const userApi = {
+  getSuggestedStudents: async (limit = 10) => {
+    const res = await client.get(`/api/users/students?limit=${limit}`);
+    return res.data;
+  },
+  getAllUsers: async (params = {}) => {
+    const res = await client.get('/api/users/all', { params });
+    return res.data;
+  },
+  updateUserStatus: async (userId, status) => {
+    const res = await client.patch(`/api/users/${userId}/status`, { status });
     return res.data;
   },
 };

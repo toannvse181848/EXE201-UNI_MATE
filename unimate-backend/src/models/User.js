@@ -42,12 +42,17 @@ const userSchema = new mongoose.Schema(
     isProfileCompleted: { type: Boolean, default: false },
 
     studentProfile: {
-      university: String,
-      major: String,
-      year: Number,
-      bio: String,
-      interests: [String],
-      objectives: [String], // study_buddy | project | networking | dating
+      studentId: { type: String, trim: true }, // Mã số sinh viên (MSSV)
+      university: { type: String, trim: true },
+      major: { type: String, trim: true },
+      year: { type: String, trim: true, default: "Năm 3" }, // Ví dụ: "Năm 1", "Năm 2", "Năm 3", "K21"
+      gender: { type: String, enum: ["male", "female", "other"], default: "other" },
+      bio: { type: String, trim: true, default: "Tìm bạn cùng học bài & khám phá quán cafe yên tĩnh 🚀" },
+      interests: [{ type: String }],
+      objectives: [{ type: String }], // study_buddy | project | networking | dating
+      uniCoin: { type: Number, default: 200 },
+      trustScore: { type: Number, default: 95 },
+      isVerifiedStudent: { type: Boolean, default: true },
       location: {
         type: {
           type: String,
@@ -58,6 +63,7 @@ const userSchema = new mongoose.Schema(
         },
       },
     },
+
 
     partnerProfile: {
       businessName: String,
@@ -89,16 +95,34 @@ userSchema.methods.toPublicJSON = function () {
     id: this._id,
     email: this.email,
     fullName: this.fullName,
+    name: this.fullName,
     role: normalizedRole,
     originalRole: this.role,
-    avatar: this.avatar || (this.role === "partner" ? "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200" : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"),
+    avatar:
+      this.avatar ||
+      (normalizedRole === 'partner'
+        ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200'
+        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'),
     phone: this.phone,
     status: this.status,
     isProfileCompleted: this.isProfileCompleted,
+    // Flattened profile fields
+    studentId: this.studentProfile?.studentId || null,
+    university: this.studentProfile?.university || null,
+    major: this.studentProfile?.major || null,
+    year: this.studentProfile?.year || null,
+    gender: this.studentProfile?.gender || null,
+    bio: this.studentProfile?.bio || null,
+    interests: this.studentProfile?.interests || [],
+    uniCoin: this.studentProfile?.uniCoin ?? 200,
+    trustScore: this.studentProfile?.trustScore ?? 95,
+    isVerifiedStudent: this.studentProfile?.isVerifiedStudent ?? true,
+    // Nested objects
     studentProfile: (this.role === "student" || this.role === "user") ? this.studentProfile : undefined,
     partnerProfile: this.role === "partner" ? this.partnerProfile : undefined,
   };
 };
 
 module.exports = mongoose.model("User", userSchema);
+
 

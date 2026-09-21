@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
+  Users,
   Store,
   Ticket,
   AlertTriangle,
@@ -25,6 +26,7 @@ export default function AdminLayout() {
 
   const navItems = [
     { to: '/admin/dashboard', label: 'Tổng quan Admin', icon: LayoutDashboard },
+    { to: '/admin/users', label: 'Quản trị Người dùng', icon: Users },
     { to: '/admin/venues', label: 'Quản lý Địa điểm', icon: Store, count: 187 },
     { to: '/admin/vouchers', label: 'Quản lý Voucher', icon: Ticket, count: 45 },
     { to: '/admin/reports', label: 'Hàng đợi Report', icon: AlertTriangle, count: 3, alert: true },

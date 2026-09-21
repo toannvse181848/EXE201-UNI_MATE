@@ -5,29 +5,55 @@ const ApiError = require('../utils/ApiError');
 
 // POST /api/auth/register/student
 exports.registerStudent = catchAsync(async (req, res) => {
-  const { email, password, fullName, university, major, year } = req.body;
+  const {
+    email,
+    password,
+    fullName,
+    phone,
+    studentId,
+    university,
+    major,
+    year,
+    gender,
+    bio,
+  } = req.body;
 
   if (!email || !password || !fullName) {
-    throw new ApiError(400, 'Vui lòng nhập đầy đủ thông tin');
+    throw new ApiError(400, 'Vui lòng nhập đầy đủ họ tên, email và mật khẩu');
   }
 
   const existed = await User.findOne({ email });
-  if (existed) throw new ApiError(409, 'Email đã được sử dụng');
+  if (existed) throw new ApiError(409, 'Email này đã được sử dụng');
 
   const user = await User.create({
     email,
     password,
     fullName,
+    phone: phone || null,
     role: 'student',
     status: 'active',
-    studentProfile: { university, major, year },
+    isProfileCompleted: !!(studentId && university && major),
+    studentProfile: {
+      studentId: studentId || null,
+      university: university || 'Đại học FPT TP.HCM',
+      major: major || 'Kỹ thuật Phần mềm',
+      year: year || 'Năm 3',
+      gender: gender || 'other',
+      bio: bio || 'Tìm bạn cùng học bài & khám phá quán cafe yên tĩnh 🚀',
+      interests: req.body.interests || ['Kết nối bạn học', 'Cà phê học bài', 'Boardgame'],
+      uniCoin: 250,
+      trustScore: 95,
+      isVerifiedStudent: true,
+    },
   });
 
   res.status(201).json({
     success: true,
+    message: 'Đăng ký tài khoản sinh viên thành công',
     data: { token: generateToken(user), user: user.toPublicJSON() },
   });
 });
+
 
 // POST /api/auth/register/partner
 exports.registerPartner = catchAsync(async (req, res) => {

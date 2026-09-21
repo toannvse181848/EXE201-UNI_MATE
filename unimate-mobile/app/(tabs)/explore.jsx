@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,20 +15,36 @@ import { useRouter } from 'expo-router';
 import { COLORS } from '../../src/constants/colors';
 import { MOCK_VENUES, TAG_FILTERS } from '../../src/data/mockVenues';
 import { MOCK_MY_VOUCHERS } from '../../src/data/mockVouchers';
-
+import { venueApi } from '../../src/api/venueApi';
 
 export default function ExploreScreen() {
   const router = useRouter();
+  const [venuesList, setVenuesList] = useState(MOCK_VENUES);
   const [activeTab, setActiveTab] = useState('venues'); // 'venues' | 'vouchers'
   const [search, setSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('all');
 
-  const filteredVenues = MOCK_VENUES.filter((v) => {
+  useEffect(() => {
+    const fetchVenues = async () => {
+      try {
+        const res = await venueApi.getVenues();
+        if (res.data?.data && res.data.data.length > 0) {
+          setVenuesList(res.data.data);
+        }
+      } catch {
+        // Fallback to MOCK_VENUES
+      }
+    };
+    fetchVenues();
+  }, []);
+
+  const filteredVenues = venuesList.filter((v) => {
     const matchSearch =
       v.name.toLowerCase().includes(search.toLowerCase()) ||
       v.address.toLowerCase().includes(search.toLowerCase());
     return matchSearch;
   });
+
 
   return (
     <SafeAreaView style={styles.container}>

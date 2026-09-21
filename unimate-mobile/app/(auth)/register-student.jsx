@@ -18,6 +18,12 @@ import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { useAuth } from '../../src/context/AuthContext';
 
+const GENDER_OPTIONS = [
+  { label: 'Nam', value: 'male', icon: 'male-outline' },
+  { label: 'Nữ', value: 'female', icon: 'female-outline' },
+  { label: 'Khác', value: 'other', icon: 'transgender-outline' },
+];
+
 export default function RegisterStudent() {
   const router = useRouter();
   const { registerStudent } = useAuth();
@@ -26,9 +32,12 @@ export default function RegisterStudent() {
     fullName: '',
     email: '',
     password: '',
+    studentId: '',
+    gender: '',
     university: '',
     major: '',
     year: '',
+    phone: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -41,6 +50,7 @@ export default function RegisterStudent() {
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email không hợp lệ';
     if (!form.password) e.password = 'Vui lòng nhập mật khẩu';
     else if (form.password.length < 6) e.password = 'Mật khẩu tối thiểu 6 ký tự';
+    if (!form.studentId) e.studentId = 'Vui lòng nhập mã số sinh viên';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -99,6 +109,33 @@ export default function RegisterStudent() {
                 placeholder="email@example.com" keyboardType="email-address" icon="mail-outline" error={errors.email} />
               <Input label="Mật khẩu *" value={form.password} onChangeText={set('password')}
                 placeholder="Tối thiểu 6 ký tự" secureTextEntry icon="lock-closed-outline" error={errors.password} />
+              <Input label="Số điện thoại" value={form.phone} onChangeText={set('phone')}
+                placeholder="VD: 0912345678" keyboardType="phone-pad" icon="call-outline" />
+
+              <Text style={[styles.section, { marginTop: 8 }]}>Thông tin sinh viên</Text>
+              <Input label="Mã số sinh viên *" value={form.studentId} onChangeText={set('studentId')}
+                placeholder="VD: SE181848" autoCapitalize="characters" icon="id-card-outline" error={errors.studentId} />
+
+              {/* Gender Picker */}
+              <Text style={styles.inputLabel}>Giới tính</Text>
+              <View style={styles.genderRow}>
+                {GENDER_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.genderBtn, form.gender === opt.value && styles.genderBtnActive]}
+                    onPress={() => setForm((f) => ({ ...f, gender: opt.value }))}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={16}
+                      color={form.gender === opt.value ? COLORS.white : COLORS.textSecondary}
+                    />
+                    <Text style={[styles.genderBtnText, form.gender === opt.value && styles.genderBtnTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
               <Text style={[styles.section, { marginTop: 8 }]}>Thông tin học tập (tùy chọn)</Text>
               <Input label="Trường đại học" value={form.university} onChangeText={set('university')}
@@ -157,4 +194,40 @@ const styles = StyleSheet.create({
   section: { color: COLORS.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 16, textTransform: 'uppercase' },
   loginLink: { alignItems: 'center', marginTop: 20 },
   loginLinkText: { color: COLORS.textSecondary, fontSize: 14 },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  genderRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  genderBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+  genderBtnActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  genderBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  genderBtnTextActive: {
+    color: COLORS.white,
+  },
 });

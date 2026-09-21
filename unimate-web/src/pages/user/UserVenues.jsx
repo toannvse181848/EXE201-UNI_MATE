@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Coffee,
   MapPin,
@@ -11,9 +11,12 @@ import {
   Search,
   CheckCircle2,
   ExternalLink,
+  RefreshCw,
+  Store,
 } from 'lucide-react';
+import { venueApi, voucherApi } from '../../services/api';
 
-const MOCK_VENUES = [
+const MOCK_FALLBACK_VENUES = [
   {
     id: 'v1',
     name: 'The Coffee House - Sư Vạn Hạnh',
@@ -26,69 +29,69 @@ const MOCK_VENUES = [
     amenities: ['Wifi 150Mbps', 'Ổ điện mọi bàn', 'Bàn lớn học nhóm', 'Máy lạnh 24/24'],
     tags: ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
     hours: '07:00 - 23:00',
-    voucher: 'Giảm 25% tổng bill cho sinh viên có thẻ SV',
+    voucher: 'Giảm 25% tổng bill cho sinh viên',
     voucherCode: 'UNI-TCH-25',
-  },
-  {
-    id: 'v2',
-    name: 'Cheese Coffee - D2 Hàng Xanh',
-    address: '15 Nguyễn Gia Trí (D2), Q. Bình Thạnh',
-    distance: '1.2 km',
-    image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600',
-    rating: 4.9,
-    reviews: 412,
-    priceRange: '42.000đ - 65.000đ',
-    amenities: ['Wifi cực mạnh', 'Bàn làm việc đơn', 'Cà phê specialty', 'View kính đẹp'],
-    tags: ['Thiết kế đẹp', 'Hẹn hò cạ cứng', 'Có voucher SV'],
-    hours: '07:30 - 22:30',
-    voucher: 'Mua 1 tặng 1 Trà sữa Cam sả',
-    voucherCode: 'CHEESE-UNI-BOGO',
-  },
-  {
-    id: 'v3',
-    name: 'Cú Đêm 24/7 Study Hub Cafe',
-    address: 'Khu Đô Thị ĐHQG TP.HCM, TP. Thủ Đức',
-    distance: '1.8 km',
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=600',
-    rating: 4.7,
-    reviews: 189,
-    priceRange: '29.000đ - 45.000đ',
-    amenities: ['Mở 24/7', 'Mỗi ghế 2 ổ cắm', 'Khu im lặng tuyệt đối', 'In ấn tài liệu'],
-    tags: ['Mở 24/7', 'Cày deadline', 'Sinh viên Làng ĐH'],
-    hours: 'Mở cửa 24/7',
-    voucher: 'Combo Cày Đêm: Cà phê + Bánh ngọt chỉ 39k',
-    voucherCode: 'CUDEM-NIGHT-39',
-  },
-  {
-    id: 'v4',
-    name: 'Phúc Long Coffee & Tea - Lê Văn Việt',
-    address: 'Vincom Plaza Lê Văn Việt, TP. Thủ Đức',
-    distance: '2.5 km',
-    image: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600',
-    rating: 4.6,
-    reviews: 320,
-    priceRange: '45.000đ - 70.000đ',
-    amenities: ['Wifi ổn định', 'Trà đào signature', 'Chỗ đậu xe rộng', 'Gần FPT/HUTECH'],
-    tags: ['Trà sữa', 'Gần trường ĐH'],
-    hours: '08:00 - 22:00',
-    voucher: 'Tặng 1 topping trân châu cho hóa đơn từ 45k',
-    voucherCode: 'PL-TOPPING-FREE',
   },
 ];
 
 export default function UserVenues() {
+  const [venues, setVenues] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('Tất cả');
   const [claimedCodes, setClaimedCodes] = useState({});
 
+  const fetchVenues = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await venueApi.getVenues();
+      const realData = res.data || [];
+
+      if (realData.length > 0) {
+        const formatted = realData.map((v, idx) => ({
+          id: v._id,
+          name: v.name,
+          address: v.address,
+          distance: `${(Math.random() * 2 + 0.3).toFixed(1)} km`,
+          image:
+            v.images?.[0] ||
+            (idx % 2 === 0
+              ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600'
+              : 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600'),
+          rating: v.rating || 4.8,
+          reviews: v.reviewCount || 120 + idx * 25,
+          priceRange: v.priceRange ? `${v.priceRange.min?.toLocaleString('vi-VN')}đ - ${v.priceRange.max?.toLocaleString('vi-VN')}đ` : '35.000đ - 55.000đ',
+          amenities: v.amenities?.length > 0 ? v.amenities : ['Wifi tốc độ cao', 'Ổ cắm điện', 'Máy lạnh 24/7'],
+          tags: ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
+          hours: v.openingHours || '07:00 - 23:00',
+          voucher: 'Ưu đãi dành riêng cho sinh viên UNI-MATE',
+          voucherCode: `UNI-${v.name.slice(0, 3).toUpperCase()}-20`,
+        }));
+        setVenues(formatted);
+      } else {
+        setVenues(MOCK_FALLBACK_VENUES);
+      }
+    } catch (err) {
+      console.error('Lỗi lấy danh sách quán:', err);
+      setVenues(MOCK_FALLBACK_VENUES);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchVenues();
+  }, [fetchVenues]);
+
   const handleClaimVoucher = (venueId, code) => {
-    setClaimedCodes({ ...claimedCodes, [venueId]: true });
-    alert(`🎉 Đã lưu voucher [${code}] vào ví voucher của bạn! Bạn có thể xem mã QR ở tab "Ví Voucher của tôi".`);
+    setClaimedCodes((prev) => ({ ...prev, [venueId]: true }));
+    alert(`🎉 Đã lưu voucher [${code}] vào ví voucher của bạn! Bạn có thể xem mã QR ở mục "Ví Voucher của tôi".`);
   };
 
-  const filteredVenues = MOCK_VENUES.filter((venue) => {
-    const matchesSearch = venue.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          venue.address.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredVenues = venues.filter((venue) => {
+    const matchesSearch =
+      venue.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      venue.address.toLowerCase().includes(searchTerm.toLowerCase());
     if (activeFilter === 'Tất cả') return matchesSearch;
     if (activeFilter === 'Có Voucher SV') return matchesSearch && venue.voucher;
     if (activeFilter === 'Mở 24/7') return matchesSearch && venue.hours.includes('24/7');
@@ -104,7 +107,7 @@ export default function UserVenues() {
           Quán Cafe & Không gian Học bài Sinh viên ☕📚
         </h1>
         <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-          Tuyển chọn quán cafe có wifi mạnh, ổ cắm điện đầy đủ, không gian yên tĩnh và ưu đãi riêng cho sinh viên.
+          Tuyển chọn quán cafe đối tác của UNI-MATE có wifi mạnh, ổ cắm điện đầy đủ, không gian yên tĩnh và ưu đãi riêng cho sinh viên.
         </p>
       </div>
 
@@ -141,212 +144,260 @@ export default function UserVenues() {
           />
         </div>
 
+        <button
+          onClick={fetchVenues}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '10px 16px',
+            borderRadius: '12px',
+            border: '1.5px solid var(--border-color)',
+            backgroundColor: '#FFFFFF',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '13px',
+          }}
+        >
+          <RefreshCw size={14} className={loading ? 'spin' : ''} />
+          <span>Làm mới</span>
+        </button>
+
+        {/* Filter Pills */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {['Tất cả', 'Có Voucher SV', 'Mở 24/7', 'Yên tĩnh'].map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '20px',
-                fontSize: '12.5px',
-                fontWeight: '700',
-                backgroundColor: activeFilter === filter ? '#FF5722' : '#FFFFFF',
-                color: activeFilter === filter ? '#FFFFFF' : 'var(--text-secondary)',
-                border: activeFilter === filter ? '1px solid #FF5722' : '1px solid var(--border-color)',
-                cursor: 'pointer',
-              }}
-            >
-              {filter}
-            </button>
-          ))}
+          {['Tất cả', 'Có Voucher SV', 'Mở 24/7', 'Yên tĩnh'].map((filter) => {
+            const isActive = activeFilter === filter;
+            return (
+              <button
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '12px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  backgroundColor: isActive ? '#FF5722' : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
+                  border: isActive ? '1px solid #FF5722' : '1.5px solid var(--border-color)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {filter}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Venues Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
-        {filteredVenues.map((venue) => (
-          <div
-            key={venue.id}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '20px',
-              overflow: 'hidden',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            {/* Image & Badges */}
-            <div style={{ position: 'relative', height: '200px' }}>
-              <img
-                src={venue.image}
-                alt={venue.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '12px',
-                  right: '12px',
-                  backgroundColor: '#FFFFFF',
-                  padding: '4px 10px',
-                  borderRadius: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '12px',
-                  fontWeight: '800',
-                  color: '#B45309',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                }}
-              >
-                <Star size={13} fill="#F59E0B" color="#F59E0B" />
-                <span>{venue.rating}</span>
-                <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>({venue.reviews})</span>
-              </div>
-
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '12px',
-                  left: '12px',
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  backdropFilter: 'blur(4px)',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  color: '#FFFFFF',
-                  fontSize: '11.5px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Clock size={12} color="#FFB74D" />
-                <span>{venue.hours}</span>
-              </div>
-            </div>
-
-            {/* Content Details */}
-            <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                {venue.name}
-              </h3>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                <MapPin size={14} color="#FF5722" />
-                <span>{venue.address} • <strong>{venue.distance}</strong></span>
-              </div>
-
-              {/* Price & Amenities */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
-                {venue.amenities.map((item) => (
-                  <span
-                    key={item}
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      padding: '3px 8px',
-                      borderRadius: '8px',
-                      backgroundColor: '#F1F5F9',
-                      color: 'var(--text-secondary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <Zap size={11} color="#FF5722" />
-                    <span>{item}</span>
-                  </span>
-                ))}
-              </div>
-
-              {/* Voucher Box */}
-              {venue.voucher && (
+      {/* Loading state */}
+      {loading ? (
+        <div
+          style={{
+            padding: '60px',
+            textAlign: 'center',
+            backgroundColor: '#fff',
+            borderRadius: '16px',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <RefreshCw size={32} className="spin" style={{ margin: '0 auto 12px', color: '#FF5722' }} />
+          <p style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>
+            Đang tải danh sách quán cafe đối tác từ máy chủ...
+          </p>
+        </div>
+      ) : filteredVenues.length === 0 ? (
+        <div
+          style={{
+            padding: '60px',
+            textAlign: 'center',
+            backgroundColor: '#fff',
+            borderRadius: '16px',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <Store size={40} style={{ margin: '0 auto 12px', opacity: 0.4, color: '#FF5722' }} />
+          <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '6px' }}>
+            Không tìm thấy quán cafe nào
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+            Hãy thử tìm với từ khoá khác hoặc chọn bộ lọc "Tất cả".
+          </p>
+        </div>
+      ) : (
+        /* Venue Cards Grid */
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '24px',
+          }}
+        >
+          {filteredVenues.map((venue) => (
+            <div
+              key={venue.id}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                border: '1px solid var(--border-color)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              {/* Image & Badges */}
+              <div style={{ position: 'relative', height: '200px' }}>
+                <img
+                  src={venue.image}
+                  alt={venue.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
                 <div
                   style={{
-                    backgroundColor: '#FEF3C7',
-                    border: '1px dashed #F59E0B',
-                    borderRadius: '12px',
-                    padding: '12px',
-                    marginBottom: '16px',
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
+                    backgroundColor: '#FFFFFF',
+                    padding: '4px 10px',
+                    borderRadius: '16px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
+                    gap: '4px',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    color: '#B45309',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Ticket size={18} color="#D97706" />
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: '800', color: '#92400E' }}>
-                        Ưu đãi SV độc quyền:
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: '#B45309' }}>
-                        {venue.voucher}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleClaimVoucher(venue.id, venue.voucherCode)}
-                    disabled={claimedCodes[venue.id]}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      backgroundColor: claimedCodes[venue.id] ? '#FF7043' : '#D97706',
-                      color: '#FFFFFF',
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      cursor: claimedCodes[venue.id] ? 'default' : 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    {claimedCodes[venue.id] ? (
-                      <>
-                        <CheckCircle2 size={12} />
-                        <span>Đã lưu</span>
-                      </>
-                    ) : (
-                      <span>Lưu mã</span>
-                    )}
-                  </button>
+                  <Star size={13} fill="#F59E0B" color="#F59E0B" />
+                  <span>{venue.rating}</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>
+                    ({venue.reviews})
+                  </span>
                 </div>
-              )}
 
-              {/* Actions Footer */}
-              <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
-                <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  {venue.priceRange}
-                </span>
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '12px',
+                    left: '12px',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    backdropFilter: 'blur(4px)',
+                    padding: '4px 10px',
+                    borderRadius: '12px',
+                    color: '#FFFFFF',
+                    fontSize: '11.5px',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Clock size={12} color="#FFB74D" />
+                  <span>{venue.hours}</span>
+                </div>
+              </div>
 
-                <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(venue.name + ' ' + venue.address)}`}
-                  target="_blank"
-                  rel="noreferrer"
+              {/* Content Details */}
+              <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <h3
+                  style={{
+                    fontSize: '17px',
+                    fontWeight: '800',
+                    color: 'var(--text-primary)',
+                    marginBottom: '4px',
+                  }}
+                >
+                  {venue.name}
+                </h3>
+
+                <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
                     fontSize: '12px',
-                    fontWeight: '700',
-                    color: '#FF5722',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '12px',
                   }}
                 >
-                  <span>Mở bản đồ</span>
-                  <ExternalLink size={14} />
-                </a>
+                  <MapPin size={14} color="#FF5722" />
+                  <span>
+                    {venue.address} • <strong>{venue.distance}</strong>
+                  </span>
+                </div>
+
+                {/* Amenities */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
+                  {venue.amenities.map((item) => (
+                    <span
+                      key={item}
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: '#F1F5F9',
+                        color: '#475569',
+                      }}
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Voucher Highlight */}
+                {venue.voucher && (
+                  <div
+                    style={{
+                      marginTop: 'auto',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      backgroundColor: '#FFF3E0',
+                      border: '1px dashed #FFCC80',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                      <Ticket size={18} color="#FF5722" />
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '800', color: '#E64A19' }}>
+                          ƯU ĐÃI SINH VIÊN
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '600' }}>
+                          {venue.voucher}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleClaimVoucher(venue.id, venue.voucherCode)}
+                      disabled={claimedCodes[venue.id]}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: claimedCodes[venue.id] ? '#10B981' : '#FF5722',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: '11.5px',
+                        fontWeight: '700',
+                        cursor: claimedCodes[venue.id] ? 'default' : 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {claimedCodes[venue.id] ? 'Đã lưu ví ✓' : 'Nhận mã'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-

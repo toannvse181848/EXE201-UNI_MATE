@@ -2,24 +2,33 @@ const express = require('express');
 const router = express.Router();
 const {
   getPublicVouchers,
+  claimVoucher,
+  getMyWallet,
+  redeemVoucher,
   getMyPartnerVouchers,
   createVoucher,
-  redeemVoucher,
   toggleVoucherStatus,
   getAllVouchersAdmin,
 } = require('../controllers/voucherController');
 const { protect, authorize } = require('../middlewares/auth');
 
-// Public routes (Sinh viên)
+// ─── PUBLIC ─────────────────────────────────────────────────────────────────
 router.get('/', getPublicVouchers);
 
-// Partner routes
-router.get('/my/list', protect, authorize('partner'), getMyPartnerVouchers);
-router.post('/', protect, authorize('partner'), createVoucher);
-router.post('/redeem', protect, authorize('partner', 'admin'), redeemVoucher);
-router.patch('/:id/toggle', protect, authorize('partner', 'admin'), toggleVoucherStatus);
+// ─── STUDENT (đã đăng nhập) ──────────────────────────────────────────────────
+router.use(protect);
+router.post('/claim/:id', authorize('student'), claimVoucher);
+router.get('/my-wallet', authorize('student'), getMyWallet);
 
-// Admin routes
-router.get('/admin/all', protect, authorize('admin'), getAllVouchersAdmin);
+// ─── PARTNER ─────────────────────────────────────────────────────────────────
+router.get('/partner/my-vouchers', authorize('partner'), getMyPartnerVouchers);
+router.post('/', authorize('partner'), createVoucher);
+router.patch('/:id/toggle', authorize('partner', 'admin'), toggleVoucherStatus);
+
+// ─── PARTNER + STUDENT (đối soát tại quán) ───────────────────────────────────
+router.post('/redeem', authorize('partner', 'student', 'admin'), redeemVoucher);
+
+// ─── ADMIN ───────────────────────────────────────────────────────────────────
+router.get('/admin/all', authorize('admin'), getAllVouchersAdmin);
 
 module.exports = router;

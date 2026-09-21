@@ -11,6 +11,7 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="match" options={{ presentation: 'transparentModal', animation: 'fade' }} />
         <Stack.Screen name="select-place" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="chat-room" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="place-detail" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="voucher-detail" options={{ animation: 'slide_from_bottom' }} />
       </Stack>

@@ -20,9 +20,22 @@ const protect = catchAsync(async (req, res, next) => {
   next();
 });
 
+/**
+ * Normalize role để authorize linh hoạt:
+ * - 'student' matches cả 'student' và 'user' (sinh viên có thể đăng ký với role 'user')
+ * - 'admin' chỉ match 'admin'
+ * - 'partner' chỉ match 'partner'
+ */
+const normalize = (role) => {
+  if (role === 'student' || role === 'user') return 'student';
+  return role;
+};
+
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    const userNormalized = normalize(req.user.role);
+    const allowed = roles.some((r) => normalize(r) === userNormalized);
+    if (!allowed) {
       throw new ApiError(403, 'Bạn không có quyền truy cập');
     }
     next();

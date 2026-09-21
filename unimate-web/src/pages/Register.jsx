@@ -12,6 +12,9 @@ import {
   BookOpen,
   Phone,
   MapPin,
+  IdCard,
+  Calendar,
+  Sparkles,
   CheckCircle2,
 } from 'lucide-react';
 
@@ -25,7 +28,16 @@ const UNIVERSITIES = [
   'ĐH Sư Phạm Kỹ Thuật (HCMUTE)',
   'ĐH Quốc Tế (IU)',
   'ĐH Tôn Đức Thắng (TDTU)',
+  'ĐH Hoa Sen (HSU)',
   'Trường Đại học khác',
+];
+
+const ACADEMIC_YEARS = [
+  'Năm 1 (Tân sinh viên)',
+  'Năm 2',
+  'Năm 3',
+  'Năm 4',
+  'Năm cuối / Đang thực tập',
 ];
 
 export default function Register() {
@@ -35,12 +47,16 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Student form state
+  // Student form state - Khớp 100% với Thẻ Uni-Card Profile
   const [studentForm, setStudentForm] = useState({
     fullName: '',
+    studentId: '', // Mã số sinh viên (MSSV)
+    phone: '',
     email: '',
     university: 'Đại học FPT TP.HCM',
     major: 'Kỹ thuật Phần mềm',
+    year: 'Năm 3',
+    gender: 'male', // 'male' | 'female' | 'other'
     password: '',
     confirmPassword: '',
   });
@@ -70,8 +86,10 @@ export default function Register() {
     const err = {};
     if (role === 'user') {
       if (!studentForm.fullName.trim()) err.fullName = 'Vui lòng nhập họ và tên';
+      if (!studentForm.studentId.trim()) err.studentId = 'Vui lòng nhập Mã số sinh viên (MSSV)';
       if (!studentForm.email.trim()) err.email = 'Vui lòng nhập email';
       else if (!/\S+@\S+\.\S+/.test(studentForm.email)) err.email = 'Email không hợp lệ';
+      if (!studentForm.phone.trim()) err.phone = 'Vui lòng nhập số điện thoại';
       if (!studentForm.password) err.password = 'Vui lòng nhập mật khẩu';
       else if (studentForm.password.length < 6) err.password = 'Mật khẩu tối thiểu 6 ký tự';
       if (studentForm.password !== studentForm.confirmPassword) {
@@ -127,7 +145,7 @@ export default function Register() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '28px 16px',
+        padding: '36px 16px',
         backgroundColor: '#FAFAF9',
         fontFamily: 'Inter, system-ui, sans-serif',
       }}
@@ -135,7 +153,7 @@ export default function Register() {
       <div
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '560px',
           backgroundColor: '#FFFFFF',
           borderRadius: '24px',
           boxShadow: '0 20px 40px -15px rgba(0,0,0,0.07), 0 0 1px 1px rgba(0,0,0,0.05)',
@@ -174,8 +192,8 @@ export default function Register() {
           </h1>
           <p style={{ fontSize: '14px', color: '#78716C', margin: 0 }}>
             {role === 'user'
-              ? 'Tạo tài khoản sinh viên để kết nối bạn học & săn voucher quán cafe'
-              : 'Gia nhập mạng lưới quán cafe đối tác phục vụ sinh viên'}
+              ? 'Tạo Thẻ sinh viên điện tử Uni-Card để kết nối bạn học & nhận ưu đãi quán cafe'
+              : 'Gia nhập mạng lưới quán cafe đối tác phục vụ cộng đồng sinh viên'}
           </p>
         </div>
 
@@ -212,7 +230,7 @@ export default function Register() {
             }}
           >
             <GraduationCap size={18} />
-            <span>Sinh viên & Học viên</span>
+            <span>Sinh viên (Thẻ Uni-Card)</span>
           </button>
 
           <button
@@ -243,44 +261,87 @@ export default function Register() {
         {/* Registration Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {role === 'user' ? (
-            /* === STUDENT REGISTRATION FIELDS === */
+            /* === STUDENT REGISTRATION FIELDS (Chuẩn hóa so với Thẻ Uni-Card Profile) === */
             <>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
-                  Họ và tên sinh viên *
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 14px' }}>
-                  <User size={18} color="#A8A29E" style={{ marginRight: '10px' }} />
-                  <input
-                    type="text"
-                    required
-                    value={studentForm.fullName}
-                    onChange={(e) => handleStudentChange('fullName', e.target.value)}
-                    placeholder="Nguyễn Văn A"
-                    style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', color: '#1C1917' }}
-                  />
+              {/* Họ tên & MSSV */}
+              <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
+                    Họ và tên sinh viên *
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
+                    <User size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
+                    <input
+                      type="text"
+                      required
+                      value={studentForm.fullName}
+                      onChange={(e) => handleStudentChange('fullName', e.target.value)}
+                      placeholder="Nguyễn Văn Toàn"
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
+                    />
+                  </div>
+                  {errors.fullName && <span style={{ color: '#EF4444', fontSize: '11px', marginTop: '3px', display: 'block' }}>{errors.fullName}</span>}
                 </div>
-                {errors.fullName && <span style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.fullName}</span>}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
+                    Mã số SV (MSSV) *
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
+                    <IdCard size={18} color="#FF5722" style={{ marginRight: '8px' }} />
+                    <input
+                      type="text"
+                      required
+                      value={studentForm.studentId}
+                      onChange={(e) => handleStudentChange('studentId', e.target.value.toUpperCase())}
+                      placeholder="VD: SE181848"
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917', fontWeight: '700' }}
+                    />
+                  </div>
+                  {errors.studentId && <span style={{ color: '#EF4444', fontSize: '11px', marginTop: '3px', display: 'block' }}>{errors.studentId}</span>}
+                </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
-                  Email trường hoặc cá nhân *
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 14px' }}>
-                  <Mail size={18} color="#A8A29E" style={{ marginRight: '10px' }} />
-                  <input
-                    type="email"
-                    required
-                    value={studentForm.email}
-                    onChange={(e) => handleStudentChange('email', e.target.value)}
-                    placeholder="ten.ban@fpt.edu.vn hoặc email cá nhân"
-                    style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', color: '#1C1917' }}
-                  />
+              {/* Email & Số điện thoại */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
+                    Email trường / cá nhân *
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
+                    <Mail size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
+                    <input
+                      type="email"
+                      required
+                      value={studentForm.email}
+                      onChange={(e) => handleStudentChange('email', e.target.value)}
+                      placeholder="toan.nguyen@fpt.edu.vn"
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
+                    />
+                  </div>
+                  {errors.email && <span style={{ color: '#EF4444', fontSize: '11px', marginTop: '3px', display: 'block' }}>{errors.email}</span>}
                 </div>
-                {errors.email && <span style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.email}</span>}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
+                    Số điện thoại *
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
+                    <Phone size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
+                    <input
+                      type="tel"
+                      required
+                      value={studentForm.phone}
+                      onChange={(e) => handleStudentChange('phone', e.target.value)}
+                      placeholder="0901234567"
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
+                    />
+                  </div>
+                  {errors.phone && <span style={{ color: '#EF4444', fontSize: '11px', marginTop: '3px', display: 'block' }}>{errors.phone}</span>}
+                </div>
               </div>
 
+              {/* Trường Đại học & Chuyên ngành */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
@@ -304,17 +365,71 @@ export default function Register() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
-                    Chuyên ngành
+                    Chuyên ngành *
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
                     <BookOpen size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
                     <input
                       type="text"
+                      required
                       value={studentForm.major}
                       onChange={(e) => handleStudentChange('major', e.target.value)}
-                      placeholder="VD: CNTT, Thiết kế..."
+                      placeholder="VD: Kỹ thuật Phần mềm"
                       style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Năm học & Giới tính */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
+                    Năm học / Niên khóa
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
+                    <Calendar size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
+                    <select
+                      value={studentForm.year}
+                      onChange={(e) => handleStudentChange('year', e.target.value)}
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917', backgroundColor: 'transparent' }}
+                    >
+                      {ACADEMIC_YEARS.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
+                    Giới tính
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', height: '41px' }}>
+                    {[
+                      { id: 'male', label: 'Nam' },
+                      { id: 'female', label: 'Nữ' },
+                      { id: 'other', label: 'Khác' },
+                    ].map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => handleStudentChange('gender', g.id)}
+                        style={{
+                          borderRadius: '10px',
+                          border: studentForm.gender === g.id ? '1.5px solid #FF5722' : '1px solid #E7E5E4',
+                          backgroundColor: studentForm.gender === g.id ? '#FBE9E7' : '#FFFFFF',
+                          color: studentForm.gender === g.id ? '#FF5722' : '#44403C',
+                          fontWeight: '700',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -435,7 +550,7 @@ export default function Register() {
                   style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
                 />
               </div>
-              {errors.password && <span style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.password}</span>}
+              {errors.password && <span style={{ color: '#EF4444', fontSize: '11px', marginTop: '3px', display: 'block' }}>{errors.password}</span>}
             </div>
 
             <div>
@@ -458,7 +573,7 @@ export default function Register() {
                 />
               </div>
               {errors.confirmPassword && (
-                <span style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.confirmPassword}</span>
+                <span style={{ color: '#EF4444', fontSize: '11px', marginTop: '3px', display: 'block' }}>{errors.confirmPassword}</span>
               )}
             </div>
           </div>
@@ -481,12 +596,18 @@ export default function Register() {
               justifyContent: 'center',
               gap: '8px',
               boxShadow: '0 8px 16px -4px rgba(255, 87, 34, 0.4)',
-              marginTop: '10px',
+              marginTop: '8px',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
           >
-            <span>{loading ? 'Đang tạo tài khoản...' : role === 'user' ? 'Đăng ký tài khoản Sinh viên' : 'Đăng ký Đối tác Quán cafe'}</span>
+            <span>
+              {loading
+                ? 'Đang tạo thẻ & tài khoản...'
+                : role === 'user'
+                ? 'Đăng ký & Cấp thẻ Uni-Card'
+                : 'Đăng ký Đối tác Quán cafe'}
+            </span>
             <ArrowRight size={18} />
           </button>
         </form>

@@ -5,6 +5,8 @@ const {
   swipe,
   getMyMatches,
   proposeVenue,
+  getSentLikes,
+  getReceivedLikes,
 } = require('../controllers/matchController');
 const { protect, authorize } = require('../middlewares/auth');
 
@@ -16,5 +18,7 @@ router.get('/discover', getDiscoveryDeck);
 router.post('/swipe', swipe);
 router.get('/my-matches', getMyMatches);
 router.post('/propose-venue', proposeVenue);
+router.get('/sent-likes', getSentLikes);
+router.get('/received-likes', getReceivedLikes);
 
 module.exports = router;

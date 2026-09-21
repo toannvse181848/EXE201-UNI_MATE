@@ -96,7 +96,7 @@ export default function ProfileScreen() {
         {/* Profile Card Header */}
         <View style={styles.profileCard}>
           <View style={styles.avatarWrapper}>
-            <Avatar name={user?.fullName || 'Minh Anh'} uri={user?.avatar} size={84} />
+            <Avatar name={user?.fullName || 'U'} uri={user?.avatar} size={84} />
             <TouchableOpacity
               style={styles.editBadge}
               onPress={() => router.push('/(auth)/create-profile')}
@@ -106,58 +106,100 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.nameRow}>
-            <Text style={styles.userName}>{user?.fullName || 'Nguyễn Minh Anh'}</Text>
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={16} color="#0284C7" />
-            </View>
+            <Text style={styles.userName}>{user?.fullName || 'Sinh viên'}</Text>
+            {user?.isVerifiedStudent && (
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="checkmark-circle" size={16} color="#0284C7" />
+              </View>
+            )}
           </View>
 
-          <Text style={styles.userSchool}>ĐH Bách Khoa TP.HCM • K21 CNTT</Text>
-          <Text style={styles.userBio}>
-            "Đam mê code, thích học cafe cuối tuần và tìm bạn cùng ôn thi chứng chỉ."
+          {/* School & Major info */}
+          <Text style={styles.userSchool}>
+            {[user?.university, user?.major, user?.year ? `K${user.year}` : null]
+              .filter(Boolean)
+              .join(' • ') || 'Chưa cập nhật thông tin'}
           </Text>
 
-          <View style={styles.goldPill}>
-            <Text style={styles.goldText}>👑 UNI-MATE GOLD MEMBER</Text>
-          </View>
+          {/* MSSV & Gender */}
+          {(user?.studentId || user?.gender) && (
+            <View style={styles.infoRow}>
+              {user?.studentId && (
+                <View style={styles.infoPill}>
+                  <Ionicons name="id-card-outline" size={13} color={COLORS.primary} />
+                  <Text style={styles.infoPillText}>{user.studentId}</Text>
+                </View>
+              )}
+              {user?.gender && (
+                <View style={styles.infoPill}>
+                  <Ionicons
+                    name={user.gender === 'male' ? 'male-outline' : user.gender === 'female' ? 'female-outline' : 'transgender-outline'}
+                    size={13}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.infoPillText}>
+                    {user.gender === 'male' ? 'Nam' : user.gender === 'female' ? 'Nữ' : 'Khác'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {user?.bio && (
+            <Text style={styles.userBio}>“{user.bio}”</Text>
+          )}
+
+          {user?.uniCoin !== undefined && (
+            <View style={styles.goldPill}>
+              <Text style={styles.goldText}>💎 {user.uniCoin} UniCoin</Text>
+            </View>
+          )}
         </View>
 
         {/* Stats Row */}
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>28</Text>
-            <Text style={styles.statLabel}>Kết nối match</Text>
+            <Text style={styles.statNumber}>{user?.trustScore ?? 0}</Text>
+            <Text style={styles.statLabel}>Trust Score</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>14</Text>
-            <Text style={styles.statLabel}>Điểm check-in</Text>
+            <Text style={styles.statNumber}>{user?.uniCoin ?? 0}</Text>
+            <Text style={styles.statLabel}>UniCoin</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>06</Text>
-            <Text style={styles.statLabel}>Voucher đã dùng</Text>
+            <Text style={styles.statNumber}>{user?.isVerifiedStudent ? 'SV' : '---'}</Text>
+            <Text style={styles.statLabel}>Trạng thái</Text>
           </View>
         </View>
 
         {/* My Interests Section */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Sở thích của tôi</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/interests')}>
-              <Text style={styles.editText}>Thay đổi</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.tagWrap}>
-            {['#lap_trinh', '#cafe_chill', '#doc_sach', '#ielts_7_0', '#boardgame'].map(
-              (tag, idx) => (
+        {user?.interests && user.interests.length > 0 ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Sở thích của tôi</Text>
+              <TouchableOpacity onPress={() => router.push('/(auth)/interests')}>
+                <Text style={styles.editText}>Thay đổi</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.tagWrap}>
+              {user.interests.map((tag, idx) => (
                 <View key={idx} style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{tag}</Text>
+                  <Text style={styles.tagChipText}>#{tag}</Text>
                 </View>
-              )
-            )}
+              ))}
+            </View>
           </View>
-        </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.sectionCard, styles.addInterestCard]}
+            onPress={() => router.push('/(auth)/interests')}
+          >
+            <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} />
+            <Text style={styles.addInterestText}>Thêm sở thích của bạn</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Menu Section */}
         <View style={styles.menuCard}>
@@ -409,6 +451,38 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  infoPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  infoPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  addInterestCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  addInterestText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   menuItem: {
     flexDirection: 'row',

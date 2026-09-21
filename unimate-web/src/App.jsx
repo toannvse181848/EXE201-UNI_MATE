@@ -29,6 +29,7 @@ import PendingReview from './pages/partner/PendingReview';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
 import VenueModeration from './pages/admin/VenueModeration';
 import VoucherOversight from './pages/admin/VoucherOversight';
 import ReportQueue from './pages/admin/ReportQueue';
@@ -103,6 +104,7 @@ export default function App() {
           >
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="users" element={<UserManagement />} />
             <Route path="venues" element={<VenueModeration />} />
             <Route path="vouchers" element={<VoucherOversight />} />
             <Route path="reports" element={<ReportQueue />} />

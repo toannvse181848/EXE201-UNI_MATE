@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Avatar } from '../../src/components/Avatar';
 import { MOCK_VENUES } from '../../src/data/mockVenues';
 import { SUGGESTED_MATES } from '../../src/data/mockUsers';
+import { userApi } from '../../src/api/userApi';
 
 const QUICK_ACTIONS = [
   {
@@ -52,7 +53,38 @@ const QUICK_ACTIONS = [
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const displayName = user?.fullName || 'Minh Anh';
+  const displayName = user?.fullName || 'Bạn mới';
+  const [realStudents, setRealStudents] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadStudents = async () => {
+      try {
+        const res = await userApi.getSuggestedStudents(10);
+        if (isMounted && res.data?.data?.length > 0) {
+          setRealStudents(res.data.data);
+        }
+      } catch {
+        // Fallback sang mock nếu chưa đăng nhập hoặc offline
+      }
+    };
+    loadStudents();
+    return () => { isMounted = false; };
+  }, [user]);
+
+  // Chuẩn hoá danh sách hiển thị (ưu tiên dữ liệu thật từ DB)
+  const displayMates = realStudents.length > 0
+    ? realStudents.map((s, idx) => ({
+        id: s._id,
+        name: s.fullName,
+        school: s.studentProfile?.university || 'Đại học',
+        major: s.studentProfile?.major || '',
+        avatar: s.avatar || (idx % 2 === 0
+          ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
+          : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'),
+        score: `${s.studentProfile?.trustScore || 95}% Hợp`,
+      }))
+    : SUGGESTED_MATES;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -145,7 +177,7 @@ export default function HomeScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.friendsScroll}
         >
-          {SUGGESTED_MATES.map((mate) => (
+          {displayMates.map((mate) => (
             <TouchableOpacity
               key={mate.id}
               style={styles.mateCard}
