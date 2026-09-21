@@ -91,10 +91,20 @@ export default function RegisterPartner() {
             <Text style={styles.title}>Đăng ký đối tác</Text>
             <Text style={styles.subtitle}>Kết nối với hàng nghìn sinh viên tài năng</Text>
 
+            <View style={styles.webNoticeCard}>
+              <View style={styles.webNoticeHeader}>
+                <Ionicons name="desktop-outline" size={20} color="#FF9800" />
+                <Text style={styles.webNoticeTitle}>Uni-Mate Partner Web Portal</Text>
+              </View>
+              <Text style={styles.webNoticeDesc}>
+                Các tính năng quản lý quán cafe, phát hành voucher và quét QR đối soát được thiết kế tối ưu trên máy tính tại giao diện Web Đối Tác.
+              </Text>
+            </View>
+
             <View style={styles.infoBox}>
               <Ionicons name="information-circle-outline" size={18} color={COLORS.warning} />
               <Text style={styles.infoText}>
-                Tài khoản đối tác sẽ cần được phê duyệt trước khi sử dụng.
+                Đăng ký tài khoản tại đây để ban quản trị liên hệ thẩm định & kích hoạt quyền đối tác.
               </Text>
             </View>
 
@@ -162,6 +172,31 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   infoText: { color: COLORS.warning, fontSize: 13, flex: 1, lineHeight: 18 },
+  webNoticeCard: {
+    backgroundColor: '#FF980018',
+    borderWidth: 1,
+    borderColor: '#FF980040',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  webNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  webNoticeTitle: {
+    color: '#FF9800',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  webNoticeDesc: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 24,

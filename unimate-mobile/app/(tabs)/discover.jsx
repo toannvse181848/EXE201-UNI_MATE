@@ -16,61 +16,8 @@ import { COLORS } from '../../src/constants/colors';
 
 const { width, height } = Dimensions.get('window');
 
-// Mock Profiles for Discovery Deck (TODO: Integrate with /api/discover/students)
-const MOCK_PROFILES = [
-  {
-    id: 'p1',
-    name: 'Lê Phương Thảo',
-    age: 21,
-    university: 'ĐH Bách Khoa TP.HCM',
-    major: 'Khoa học Máy tính (K21)',
-    distance: 'Cách 1.2 km',
-    matchScore: 98,
-    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800',
-    bio: 'Thích học cafe cuối tuần, đang cày LeetCode & ôn IELTS 7.5. Cần tìm bạn học bài nghiêm túc hoặc teammate làm đồ án tốt nghiệp!',
-    purpose: '📚 Tìm bạn học bài',
-    tags: ['#lap_trinh', '#ielts_7_0', '#cafe_chill', '#nhac_indie'],
-  },
-  {
-    id: 'p2',
-    name: 'Trần Hoàng Nam',
-    age: 22,
-    university: 'ĐH Kinh Tế TP.HCM (UEH)',
-    major: 'Tài chính - Fintech (K20)',
-    distance: 'Cách 2.5 km',
-    matchScore: 94,
-    photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800',
-    bio: 'Tìm bạn đi cafe The Coffee House, Highlands thảo luận ý tưởng khởi nghiệp và chia sẻ kinh nghiệm đầu tư.',
-    purpose: '☕ Đi cafe chill',
-    tags: ['#kinh_te_tai_chinh', '#doc_sach', '#chup_anh_film', '#cafe_chill'],
-  },
-  {
-    id: 'p3',
-    name: 'Nguyễn Hà My',
-    age: 20,
-    university: 'ĐH RMIT Việt Nam',
-    major: 'Thiết kế Đồ họa (Design)',
-    distance: 'Cách 3.1 km',
-    matchScore: 91,
-    photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800',
-    bio: 'UI/UX enthusiast. Thích lùng sục những quán cafe view đẹp, yên tĩnh có ổ cắm để vẽ Figma cả ngày.',
-    purpose: '💻 Tìm teammate đồ án',
-    tags: ['#thiet_ke_uiux', '#chup_anh_film', '#boardgame', '#du_lich_bui'],
-  },
-  {
-    id: 'p4',
-    name: 'Đặng Quốc Huy',
-    age: 21,
-    university: 'ĐH FPT TP.HCM',
-    major: 'Kỹ thuật Phần mềm (SE)',
-    distance: 'Cách 4.0 km',
-    matchScore: 89,
-    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800',
-    bio: 'Hackathon hunter & Boardgame lover. Cuối tuần thường tụ tập chơi Ma Sói hoặc Avalon ở Q.10.',
-    purpose: '👥 Hangout cuối tuần',
-    tags: ['#boardgame', '#lap_trinh', '#ai_machine_learning', '#cau_long'],
-  },
-];
+import { MOCK_PROFILES } from '../../src/data/mockUsers';
+
 
 export default function DiscoverScreen() {
   const router = useRouter();

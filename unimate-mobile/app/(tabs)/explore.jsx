@@ -13,46 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { COLORS } from '../../src/constants/colors';
-import { MOCK_VENUES } from '../select-place';
+import { MOCK_VENUES, TAG_FILTERS } from '../../src/data/mockVenues';
+import { MOCK_MY_VOUCHERS } from '../../src/data/mockVouchers';
 
-// Mock My Vouchers (TODO: Connect with backend API /api/vouchers/my-vouchers)
-const MOCK_MY_VOUCHERS = [
-  {
-    id: 'vch1',
-    venueName: 'The Coffee House - Sư Vạn Hạnh',
-    title: 'Giảm 20% tổng hoá đơn',
-    code: 'VCH-2024-X9F2',
-    expiresIn: '04 ngày',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800',
-    used: false,
-  },
-  {
-    id: 'vch2',
-    venueName: 'The Workshop Coffee & Boardgame',
-    title: 'Tặng 2 giờ chơi Boardgame',
-    code: 'WS-BG2H-8821',
-    expiresIn: '02 ngày',
-    image: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800',
-    used: false,
-  },
-  {
-    id: 'vch3',
-    venueName: 'Cộng Cà Phê - Tô Hiến Thành',
-    title: 'Mua 1 tặng 1 đồ uống',
-    code: 'CONG-B1G1-OLD',
-    expiresIn: 'Hết hạn',
-    image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
-    used: true,
-  },
-];
-
-const TAG_FILTERS = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'wifi', label: '#wifi_manh' },
-  { id: 'study', label: '#hoc_tap' },
-  { id: 'boardgame', label: '#boardgame' },
-  { id: 'chill', label: '#cafe_chill' },
-];
 
 export default function ExploreScreen() {
   const router = useRouter();

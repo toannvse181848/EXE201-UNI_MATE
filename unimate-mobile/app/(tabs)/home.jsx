@@ -14,7 +14,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../src/constants/colors';
 import { useAuth } from '../../src/context/AuthContext';
 import { Avatar } from '../../src/components/Avatar';
-import { MOCK_VENUES } from '../select-place';
+import { MOCK_VENUES } from '../../src/data/mockVenues';
+import { SUGGESTED_MATES } from '../../src/data/mockUsers';
 
 const QUICK_ACTIONS = [
   {
@@ -47,36 +48,6 @@ const QUICK_ACTIONS = [
   },
 ];
 
-const SUGGESTED_MATES = [
-  {
-    id: 'm1',
-    name: 'Phương Thảo',
-    school: 'ĐH Bách Khoa',
-    score: '98%',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
-  },
-  {
-    id: 'm2',
-    name: 'Hoàng Nam',
-    school: 'ĐH Kinh Tế',
-    score: '94%',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300',
-  },
-  {
-    id: 'm3',
-    name: 'Hà My',
-    school: 'ĐH RMIT',
-    score: '91%',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300',
-  },
-  {
-    id: 'm4',
-    name: 'Quốc Huy',
-    school: 'ĐH FPT',
-    score: '89%',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
-  },
-];
 
 export default function HomeScreen() {
   const router = useRouter();

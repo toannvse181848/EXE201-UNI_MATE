@@ -12,73 +12,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../src/constants/colors';
 
-// Mock Partner Venues (TODO: Connect with backend API /api/places/partners)
-export const MOCK_VENUES = [
-  {
-    id: 'v1',
-    name: 'The Coffee House - Sư Vạn Hạnh',
-    rating: 4.8,
-    reviewsCount: 142,
-    distance: '650m',
-    address: '798 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM',
-    openHours: '07:00 - 22:30',
-    priceRange: '35.000 - 65.000 VNĐ',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800',
-    voucherBadge: 'Giảm 20% tổng hoá đơn',
-    voucherCode: 'TCH-UNI20',
-    tags: ['Wifi cực mạnh', 'Nhiều ổ cắm', 'Không gian rộng'],
-    category: 'study',
-    description: 'Quán có không gian mở 3 tầng, khu vực tầng 2 và 3 đặc biệt yên tĩnh, bố trí bàn dài phù hợp cho nhóm học bài và làm việc.',
-  },
-  {
-    id: 'v2',
-    name: 'Cộng Cà Phê - Tô Hiến Thành',
-    rating: 4.7,
-    reviewsCount: 98,
-    distance: '1.1 km',
-    address: '274 Tô Hiến Thành, Phường 14, Quận 10, TP.HCM',
-    openHours: '07:30 - 23:00',
-    priceRange: '39.000 - 69.000 VNĐ',
-    image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
-    voucherBadge: 'Mua 1 tặng 1 đồ uống',
-    voucherCode: 'CONG-B1G1',
-    tags: ['Decor hoài niệm', 'Chill trò chuyện', 'Nhạc nhẹ'],
-    category: 'chill',
-    description: 'Phong cách bao cấp độc đáo, ánh sáng vàng ấm cúng, thích hợp cho những buổi hẹn hò cafe trò chuyện và chia sẻ câu chuyện cuộc sống.',
-  },
-  {
-    id: 'v3',
-    name: 'The Workshop Coffee & Boardgame',
-    rating: 4.9,
-    reviewsCount: 210,
-    distance: '1.4 km',
-    address: '152 Nguyễn Trãi, Phường 3, Quận 5, TP.HCM',
-    openHours: '08:00 - 22:00',
-    priceRange: '45.000 - 85.000 VNĐ',
-    image: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800',
-    voucherBadge: 'Tặng 2 giờ chơi Boardgame',
-    voucherCode: 'WS-BG2H',
-    tags: ['Boardgame hơn 100 bộ', 'Máy lạnh êm', 'Đồ uống ngon'],
-    category: 'boardgame',
-    description: 'Không gian tích hợp cafe specialty và thư viện boardgame đa dạng nhất khu vực sinh viên. Có nhân viên hướng dẫn luật chơi nhiệt tình.',
-  },
-  {
-    id: 'v4',
-    name: 'Highlands Coffee - Vạn Hạnh Mall',
-    rating: 4.6,
-    reviewsCount: 185,
-    distance: '850m',
-    address: 'Tầng 1, Vạn Hạnh Mall, Quận 10, TP.HCM',
-    openHours: '08:00 - 22:00',
-    priceRange: '35.000 - 59.000 VNĐ',
-    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800',
-    voucherBadge: 'Giảm 15.000đ cho ly Size L',
-    voucherCode: 'HL-SIZEL',
-    tags: ['Trung tâm thương mại', 'Điều hòa mát rượi', 'Gần rạp phim'],
-    category: 'chill',
-    description: 'Vị trí tiện lợi trong trung tâm thương mại, thuận tiện kết hợp đi xem phim, ăn uống và mua sắm sau khi trò chuyện.',
-  },
-];
+import { MOCK_VENUES } from '../src/data/mockVenues';
+export { MOCK_VENUES };
+
 
 const FILTERS = [
   { id: 'all', label: 'Tất cả' },

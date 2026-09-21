@@ -13,8 +13,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../src/constants/colors';
-import { Button } from '../src/components/Button';
-import { MOCK_VENUES } from './select-place';
+import { MOCK_VENUES } from '../src/data/mockVenues';
+
 
 const { width } = Dimensions.get('window');
 
