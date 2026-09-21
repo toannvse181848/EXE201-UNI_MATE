@@ -26,8 +26,9 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["student", "partner", "admin"],
+      enum: ["student", "user", "partner", "admin"],
       required: true,
+      default: "user",
     },
     fullName: { type: String, required: true, trim: true },
     avatar: { type: String, default: null },
@@ -83,17 +84,21 @@ userSchema.methods.comparePassword = function (candidate) {
 
 // Chuẩn hoá object trả về cho frontend
 userSchema.methods.toPublicJSON = function () {
+  const normalizedRole = (this.role === "student" || this.role === "user") ? "user" : this.role;
   return {
     id: this._id,
     email: this.email,
     fullName: this.fullName,
-    role: this.role,
-    avatar: this.avatar,
+    role: normalizedRole,
+    originalRole: this.role,
+    avatar: this.avatar || (this.role === "partner" ? "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200" : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"),
+    phone: this.phone,
     status: this.status,
     isProfileCompleted: this.isProfileCompleted,
-    studentProfile: this.role === "student" ? this.studentProfile : undefined,
+    studentProfile: (this.role === "student" || this.role === "user") ? this.studentProfile : undefined,
     partnerProfile: this.role === "partner" ? this.partnerProfile : undefined,
   };
 };
 
 module.exports = mongoose.model("User", userSchema);
+

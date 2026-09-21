@@ -56,6 +56,15 @@ exports.registerPartner = catchAsync(async (req, res) => {
   });
 });
 
+// POST /api/auth/register (Universal register endpoint)
+exports.register = catchAsync(async (req, res) => {
+  const { role } = req.body;
+  if (role === 'partner') {
+    return exports.registerPartner(req, res);
+  }
+  return exports.registerStudent(req, res);
+});
+
 // POST /api/auth/login
 exports.login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
@@ -69,11 +78,8 @@ exports.login = catchAsync(async (req, res) => {
     throw new ApiError(401, 'Email hoặc mật khẩu không đúng');
   }
 
-  if (user.status === 'pending') {
-    throw new ApiError(403, 'Tài khoản đang chờ phê duyệt');
-  }
   if (user.status === 'suspended') {
-    throw new ApiError(403, 'Tài khoản đã bị khoá');
+    throw new ApiError(403, 'Tài khoản đã bị khoá do vi phạm tiêu chuẩn cộng đồng');
   }
 
   user.lastActiveAt = Date.now();
@@ -81,9 +87,14 @@ exports.login = catchAsync(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: { token: generateToken(user), user: user.toPublicJSON() },
+    data: {
+      token: generateToken(user),
+      user: user.toPublicJSON(),
+      isPendingReview: user.status === 'pending',
+    },
   });
 });
+
 
 // GET /api/auth/me
 exports.getMe = catchAsync(async (req, res) => {
