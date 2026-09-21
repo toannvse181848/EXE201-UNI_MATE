@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Store,
   Search,
@@ -11,6 +11,7 @@ import {
   Calendar,
   Filter,
 } from 'lucide-react';
+import { venueApi } from '../../services/api';
 
 const INITIAL_VENUES = [
   {
@@ -76,7 +77,33 @@ export default function VenueModeration() {
   const [search, setSearch] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState(null);
 
-  const handleAction = (id, newStatus, venueName) => {
+  React.useEffect(() => {
+    const fetchVenues = async () => {
+      try {
+        const res = await venueApi.getAllVenuesAdmin();
+        if (res?.data && res.data.length > 0) {
+          const mapped = res.data.map((v) => ({
+            id: v._id || v.id,
+            name: v.name,
+            owner: v.partnerId?.fullName || 'Đối tác',
+            phone: v.partnerId?.phone || '0901 234 567',
+            district: v.district || 'TP.HCM',
+            registeredAt: new Date(v.createdAt).toLocaleDateString('vi-VN'),
+            status: v.status === 'approved' ? 'active' : v.status,
+            image: v.image,
+            vouchersCount: 2,
+          }));
+          setVenues(mapped);
+        }
+      } catch (err) {
+        console.log('Backend venues note:', err.message);
+      }
+    };
+    fetchVenues();
+  }, []);
+
+  const handleAction = async (id, newStatus, venueName) => {
+    // Cập nhật UI ngay lập tức
     setVenues(
       venues.map((v) => (v.id === id ? { ...v, status: newStatus } : v))
     );
@@ -88,7 +115,16 @@ export default function VenueModeration() {
         : `Đã từ chối hồ sơ "${venueName}".`;
     setFeedbackMsg(actionText);
     setTimeout(() => setFeedbackMsg(null), 3500);
+
+    // Gửi request lên backend nếu có ID từ database
+    try {
+      const backendStatus = newStatus === 'active' ? 'approved' : newStatus === 'suspended' ? 'rejected' : 'rejected';
+      await venueApi.updateVenueStatus(id, backendStatus);
+    } catch (err) {
+      console.log('Backend sync notice:', err.message);
+    }
   };
+
 
   const filteredVenues = venues.filter((v) => {
     const matchSearch =

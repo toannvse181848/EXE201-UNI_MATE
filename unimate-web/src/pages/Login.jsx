@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { GraduationCap, Coffee, ShieldCheck, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
+import { GraduationCap, Coffee, ShieldCheck, ArrowRight, Lock, Mail, Sparkles, UserPlus } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -145,6 +145,54 @@ export default function Login() {
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
             {currentConfig.desc}
           </p>
+        </div>
+
+        {/* Auth Mode Toggle: Login vs Register */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '4px',
+            padding: '4px',
+            backgroundColor: '#F1F5F9',
+            borderRadius: '12px',
+            marginBottom: '20px',
+          }}
+        >
+          <div
+            style={{
+              padding: '8px',
+              textAlign: 'center',
+              borderRadius: '9px',
+              fontSize: '13px',
+              fontWeight: '800',
+              backgroundColor: '#FFFFFF',
+              color: 'var(--text-primary)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+            }}
+          >
+            Đăng nhập
+          </div>
+          <Link
+            to="/register"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '8px',
+              textAlign: 'center',
+              borderRadius: '9px',
+              fontSize: '13px',
+              fontWeight: '700',
+              color: 'var(--text-secondary)',
+              textDecoration: 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <UserPlus size={15} color="#FF5722" />
+            <span>Đăng ký mới</span>
+          </Link>
         </div>
 
         {/* 3 Role Selection Tabs */}
@@ -330,6 +378,21 @@ export default function Login() {
             <ArrowRight size={18} />
           </button>
         </form>
+
+        {/* Register Link Prompt */}
+        <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '14px', color: 'var(--text-secondary)' }}>
+          Chưa có tài khoản?{' '}
+          <Link
+            to="/register"
+            style={{
+              color: currentConfig.color,
+              fontWeight: '700',
+              textDecoration: 'none',
+            }}
+          >
+            Đăng ký tài khoản mới ngay
+          </Link>
+        </div>
 
         {/* 1-Click Fast Login for Demo */}
         <div style={{ marginTop: '26px', paddingTop: '20px', borderTop: '1px solid var(--border-light)', textAlign: 'center' }}>

@@ -14,8 +14,10 @@ import {
   Sparkles,
   Check,
 } from 'lucide-react';
+import { venueApi } from '../../services/api';
 
 export default function VenueManagement() {
+  const [venueId, setVenueId] = useState(null);
   const [formData, setFormData] = useState({
     name: 'The Coffee House - Sư Vạn Hạnh',
     description: 'Quán có không gian mở 3 tầng, thích hợp cho sinh viên học tập và làm việc nhóm. Wifi tốc độ cao, mỗi bàn đều có ổ cắm riêng biệt.',
@@ -33,6 +35,29 @@ export default function VenueManagement() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isBoosted, setIsBoosted] = useState(false);
 
+  React.useEffect(() => {
+    const loadMyVenue = async () => {
+      try {
+        const res = await venueApi.getMyVenues();
+        if (res?.data && res.data.length > 0) {
+          const v = res.data[0];
+          setVenueId(v._id || v.id);
+          setFormData((prev) => ({
+            ...prev,
+            name: v.name || prev.name,
+            description: v.description || prev.description,
+            phone: v.phone || prev.phone,
+            address: v.address || prev.address,
+            tags: v.tags?.length ? v.tags : prev.tags,
+          }));
+        }
+      } catch (err) {
+        console.log('Backend my venues note:', err.message);
+      }
+    };
+    loadMyVenue();
+  }, []);
+
   const handleAddTag = (e) => {
     e.preventDefault();
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
@@ -48,11 +73,35 @@ export default function VenueManagement() {
     });
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
+
+    try {
+      if (venueId) {
+        await venueApi.updateVenue(venueId, {
+          name: formData.name,
+          description: formData.description,
+          phone: formData.phone,
+          address: formData.address,
+          tags: formData.tags,
+        });
+      } else {
+        const res = await venueApi.createVenue({
+          name: formData.name,
+          description: formData.description,
+          phone: formData.phone,
+          address: formData.address,
+          tags: formData.tags,
+        });
+        if (res?.data?._id) setVenueId(res.data._id);
+      }
+    } catch (err) {
+      console.log('Backend sync note:', err.message);
+    }
   };
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

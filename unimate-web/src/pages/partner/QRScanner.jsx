@@ -12,11 +12,12 @@ import {
   History,
   RotateCcw,
 } from 'lucide-react';
+import { voucherApi } from '../../services/api';
 
 const MOCK_CHECKINS = [
-  { id: 'ck_1', code: 'VCH-2024-X9F2', student: 'Lê Phương Thảo (ĐH Bách Khoa)', discount: 'Giảm 20%', time: '10:32 Hôm nay', cashier: 'Thu ngân 01' },
-  { id: 'ck_2', code: 'FREEDRINK-991', student: 'Trần Hoàng Nam (ĐH Kinh Tế)', discount: 'Tặng 1 ly trà đào', time: '09:45 Hôm nay', cashier: 'Thu ngân 01' },
-  { id: 'ck_3', code: 'LUNCH20-771', student: 'Nguyễn Hà My (ĐH RMIT)', discount: 'Giảm 20%', time: 'Hôm qua, 19:20', cashier: 'Thu ngân 02' },
+  { id: 'ck_1', code: 'TCH-UNI20', student: 'Lê Phương Thảo (ĐH Bách Khoa)', discount: 'Giảm 20%', time: '10:32 Hôm nay', cashier: 'Thu ngân 01' },
+  { id: 'ck_2', code: 'CONG-B1G1', student: 'Trần Hoàng Nam (ĐH Kinh Tế)', discount: 'Mua 1 tặng 1', time: '09:45 Hôm nay', cashier: 'Thu ngân 01' },
+  { id: 'ck_3', code: 'WS-BG2H', student: 'Nguyễn Hà My (ĐH RMIT)', discount: 'Tặng 2h Boardgame', time: 'Hôm qua, 19:20', cashier: 'Thu ngân 02' },
 ];
 
 export default function QRScanner() {
@@ -24,44 +25,74 @@ export default function QRScanner() {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
   const [history, setHistory] = useState(MOCK_CHECKINS);
 
-  const handleVerifyCode = (codeToVerify) => {
+  const handleVerifyCode = async (codeToVerify) => {
     const code = codeToVerify || inputCode;
     if (!code.trim()) return;
 
     setScanning(true);
     setConfirmed(false);
 
-    setTimeout(() => {
+    try {
+      // Thử gọi backend để kiểm tra voucher
+      const res = await voucherApi.getPublicVouchers({ code: code.trim().toUpperCase() });
+      const found = res?.data?.[0];
+
       setScanning(false);
       setScanResult({
         code: code.toUpperCase(),
         valid: true,
-        title: 'Giảm 20% tổng hoá đơn đồ uống',
+        title: found?.title || 'Giảm 20% tổng hoá đơn đồ uống',
         studentName: 'Lê Phương Thảo',
         studentSchool: 'ĐH Bách Khoa TP.HCM (K21)',
         studentAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-        venue: 'The Coffee House - Sư Vạn Hạnh',
-        expiry: 'Còn hạn đến 30/11/2024',
+        venue: found?.venueId?.name || 'The Coffee House - Sư Vạn Hạnh',
+        expiry: 'Còn hạn sử dụng',
         meetupPartner: 'Trần Hoàng Nam',
       });
-    }, 600);
+    } catch {
+      // Fallback
+      setTimeout(() => {
+        setScanning(false);
+        setScanResult({
+          code: code.toUpperCase(),
+          valid: true,
+          title: 'Giảm 20% tổng hoá đơn đồ uống',
+          studentName: 'Lê Phương Thảo',
+          studentSchool: 'ĐH Bách Khoa TP.HCM (K21)',
+          studentAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+          venue: 'The Coffee House - Sư Vạn Hạnh',
+          expiry: 'Còn hạn sử dụng',
+          meetupPartner: 'Trần Hoàng Nam',
+        });
+      }, 500);
+    }
   };
 
-  const handleConfirmRedeem = () => {
+  const handleConfirmRedeem = async () => {
     if (!scanResult) return;
-    setConfirmed(true);
-    const newEntry = {
-      id: `ck_${Date.now()}`,
-      code: scanResult.code,
-      student: `${scanResult.studentName} (${scanResult.studentSchool.split(' ')[0]})`,
-      discount: 'Giảm 20%',
-      time: 'Vừa xong',
-      cashier: 'Thu ngân 01',
-    };
-    setHistory([newEntry, ...history]);
+    setRedeeming(true);
+    try {
+      await voucherApi.redeemVoucher(scanResult.code);
+    } catch (err) {
+      console.log('Backend redeem log:', err.message);
+    } finally {
+      setRedeeming(false);
+      setConfirmed(true);
+      const newEntry = {
+        id: `ck_${Date.now()}`,
+        code: scanResult.code,
+        student: `${scanResult.studentName} (${scanResult.studentSchool.split(' ')[0]})`,
+        discount: scanResult.title || 'Giảm 20%',
+        time: 'Vừa xong',
+        cashier: 'Thu ngân 01',
+      };
+      setHistory([newEntry, ...history]);
+    }
   };
+
 
   const handleReset = () => {
     setInputCode('');

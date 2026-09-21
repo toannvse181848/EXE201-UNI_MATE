@@ -10,6 +10,8 @@ import AdminLayout from './components/AdminLayout';
 
 // Public Pages
 import Login from './pages/Login';
+import Register from './pages/Register';
+
 
 // User / Student Pages
 import UserDiscover from './pages/user/UserDiscover';
@@ -53,6 +55,8 @@ export default function App() {
         <Routes>
           {/* Public Authentication */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+
 
           {/* 🎓 User / Student Portal Routes */}
           <Route

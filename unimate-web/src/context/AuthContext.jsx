@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { authApi } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -46,6 +47,16 @@ export const AuthProvider = ({ children }) => {
   });
 
   const login = async (email, password, role = 'user') => {
+    // Thử gọi backend nếu có
+    try {
+      const res = await authApi.login(email, password);
+      if (res?.data?.token) {
+        localStorage.setItem('unimate_token', res.data.token);
+      }
+    } catch (err) {
+      console.log('Backend auth login notice:', err.message);
+    }
+
     let mockUser = null;
     if (role === 'admin' || (email && email.includes('admin'))) {
       mockUser = { ...MOCK_ACCOUNTS.admin, email: email || MOCK_ACCOUNTS.admin.email };
@@ -66,6 +77,62 @@ export const AuthProvider = ({ children }) => {
     return mockUser;
   };
 
+  const register = async (userData) => {
+    // Thử gửi dữ liệu lên backend
+    try {
+      const res = await authApi.register({
+        email: userData.email,
+        password: userData.password,
+        fullName: userData.fullName,
+        role: userData.role === 'partner' ? 'partner' : 'student',
+        phone: userData.phone,
+        studentProfile:
+          userData.role === 'user'
+            ? {
+                university: userData.university,
+                major: userData.major,
+              }
+            : undefined,
+        partnerProfile:
+          userData.role === 'partner'
+            ? {
+                businessName: userData.businessName,
+              }
+            : undefined,
+      });
+      if (res?.data?.token) {
+        localStorage.setItem('unimate_token', res.data.token);
+      }
+    } catch (err) {
+      console.log('Backend auth register notice:', err.message);
+    }
+
+    // Tạo phiên người dùng đăng nhập ngay sau khi đăng ký
+    const newUser = {
+      id: `user_${Date.now()}`,
+      name: userData.fullName,
+      email: userData.email,
+      role: userData.role || 'user',
+      avatar:
+        userData.role === 'partner'
+          ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200'
+          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      university: userData.university || 'Đại học FPT TP.HCM',
+      major: userData.major || 'Kỹ thuật Phần mềm',
+      businessName: userData.businessName || '',
+      status: userData.role === 'partner' ? 'pending' : 'active',
+      uniCoin: 100,
+      isVerifiedStudent: true,
+      trustScore: 90,
+      interests: ['Kết nối bạn học', 'Cà phê', 'Học tập'],
+      bio: 'Thành viên mới của cộng đồng sinh viên UNI-MATE ✨',
+    };
+
+    setUser(newUser);
+    localStorage.setItem('unimate_portal_user', JSON.stringify(newUser));
+    return newUser;
+  };
+
   const switchRole = (targetRole) => {
     if (MOCK_ACCOUNTS[targetRole]) {
       const newUser = MOCK_ACCOUNTS[targetRole];
@@ -79,10 +146,11 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('unimate_portal_user');
+    localStorage.removeItem('unimate_token');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, setUser, switchRole, MOCK_ACCOUNTS }}>
+    <AuthContext.Provider value={{ user, login, register, logout, setUser, switchRole, MOCK_ACCOUNTS }}>
       {children}
     </AuthContext.Provider>
   );
