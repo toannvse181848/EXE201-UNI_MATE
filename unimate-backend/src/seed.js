@@ -9,8 +9,11 @@ const UserVoucher = require('./models/UserVoucher');
 const Report = require('./models/Report');
 const crypto = require('crypto');
 
+// Đọc cùng biến với server (db.js), MONGO_URI giữ lại cho tương thích cũ
 const MONGO_URI =
-  process.env.MONGO_URI || 'mongodb://localhost:27017/unimate';
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URI ||
+  'mongodb://localhost:27017/unimate';
 
 async function seedData() {
   try {
