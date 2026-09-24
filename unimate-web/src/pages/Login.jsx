@@ -8,7 +8,7 @@ export default function Login() {
   const { login } = useAuth();
   const [role, setRole] = useState('user'); // 'user' | 'partner' | 'admin'
   const [email, setEmail] = useState('toan.nguyen@fpt.edu.vn');
-  const [password, setPassword] = useState('123456');
+  const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
 
   const roleConfigs = {
@@ -71,7 +71,7 @@ export default function Login() {
     setRole(quickRole);
     setLoading(true);
     try {
-      await login(roleConfigs[quickRole].email, '123456', quickRole);
+      await login(roleConfigs[quickRole].email, 'password123', quickRole);
       navigate(roleConfigs[quickRole].path);
     } finally {
       setLoading(false);
