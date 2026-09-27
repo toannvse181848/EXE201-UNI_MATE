@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../src/constants/colors';
 
 function TabIcon({ name, focused }) {
@@ -16,11 +17,24 @@ function TabIcon({ name, focused }) {
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
+  // Đối với Android có phím điều hướng hệ thống 3 nút (Back, Home, Recents) hoặc cử chỉ vuốt,
+  // insets.bottom sẽ phản ánh chính xác chiều cao của thanh điều hướng (thường là 48dp).
+  // Đảm bảo padding dưới luôn đẩy icon và label lên trên thanh điều hướng, không bị cấn phím.
+  const bottomInset = insets.bottom;
+  const bottomPadding = bottomInset > 0 ? bottomInset + 4 : (Platform.OS === 'ios' ? 24 : 10);
+  const tabHeight = 60 + (bottomInset > 0 ? bottomInset : (Platform.OS === 'ios' ? 24 : 10));
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          ...styles.tabBar,
+          height: tabHeight,
+          paddingBottom: bottomPadding,
+        },
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: styles.label,
@@ -81,8 +95,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderTopColor: COLORS.border,
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 84 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     paddingTop: 8,
     elevation: 8,
     shadowColor: '#000',
@@ -93,6 +105,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: '600',
+    marginTop: -2,
   },
   activeTab: {
     backgroundColor: COLORS.primary + '15',
