@@ -37,7 +37,7 @@ exports.registerStudent = catchAsync(async (req, res) => {
       studentId: studentId || null,
       university: university || 'Đại học FPT TP.HCM',
       major: major || 'Kỹ thuật Phần mềm',
-      year: year || 'Năm 3',
+      year: year || 'Sinh viên năm 3',
       gender: gender || 'other',
       bio: bio || 'Tìm bạn cùng học bài & khám phá quán cafe yên tĩnh 🚀',
       interests: req.body.interests || ['Kết nối bạn học', 'Cà phê học bài', 'Boardgame'],

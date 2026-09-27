@@ -17,6 +17,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { MOCK_VENUES } from '../../src/data/mockVenues';
 import { SUGGESTED_MATES } from '../../src/data/mockUsers';
 import { userApi } from '../../src/api/userApi';
+import { formatStudentYear } from '../../src/constants/academic';
 
 const QUICK_ACTIONS = [
   {
@@ -77,7 +78,10 @@ export default function HomeScreen() {
     ? realStudents.map((s, idx) => ({
         id: s._id,
         name: s.fullName,
-        school: s.studentProfile?.university || 'Đại học',
+        school: [
+          s.studentProfile?.university,
+          s.studentProfile?.year ? formatStudentYear(s.studentProfile.year) : null,
+        ].filter(Boolean).join(' • ') || 'Đại học',
         major: s.studentProfile?.major || '',
         avatar: s.avatar || (idx % 2 === 0
           ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'

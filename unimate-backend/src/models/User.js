@@ -45,11 +45,19 @@ const userSchema = new mongoose.Schema(
       studentId: { type: String, trim: true }, // Mã số sinh viên (MSSV)
       university: { type: String, trim: true },
       major: { type: String, trim: true },
-      year: { type: String, trim: true, default: "Năm 3" }, // Ví dụ: "Năm 1", "Năm 2", "Năm 3", "K21"
+      year: { type: String, trim: true, default: "Sinh viên năm 3" }, // Ví dụ: "Sinh viên năm 1", "Sinh viên năm 2"
       gender: { type: String, enum: ["male", "female", "other"], default: "other" },
       bio: { type: String, trim: true, default: "Tìm bạn cùng học bài & khám phá quán cafe yên tĩnh 🚀" },
       interests: [{ type: String }],
-      objectives: [{ type: String }], // study_buddy | project | networking | dating
+      objectives: [{ type: String }], // study_buddy | project | certificate | activities | hangout
+      // === Onboarding Matching Preferences ===
+      studyHabits: {
+        timeSlots: [{ type: String }], // morning | afternoon | evening | weekend
+        spaceType: { type: String, enum: ["quiet", "social", "any"], default: "any" },
+      },
+      distancePreference: { type: Number, default: 5 }, // km radius
+      onboardingCompleted: { type: Boolean, default: false },
+      // =========================================
       uniCoin: { type: Number, default: 200 },
       trustScore: { type: Number, default: 95 },
       isVerifiedStudent: { type: Boolean, default: true },
@@ -114,6 +122,10 @@ userSchema.methods.toPublicJSON = function () {
     gender: this.studentProfile?.gender || null,
     bio: this.studentProfile?.bio || null,
     interests: this.studentProfile?.interests || [],
+    objectives: this.studentProfile?.objectives || [],
+    studyHabits: this.studentProfile?.studyHabits || { timeSlots: [], spaceType: 'any' },
+    distancePreference: this.studentProfile?.distancePreference ?? 5,
+    onboardingCompleted: this.studentProfile?.onboardingCompleted ?? false,
     uniCoin: this.studentProfile?.uniCoin ?? 200,
     trustScore: this.studentProfile?.trustScore ?? 95,
     isVerifiedStudent: this.studentProfile?.isVerifiedStudent ?? true,

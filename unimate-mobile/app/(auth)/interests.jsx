@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../src/constants/colors';
 import { Button } from '../../src/components/Button';
+import { onboardingApi } from '../../src/api/onboardingApi';
+import { useAuth } from '../../src/context/AuthContext';
 
 const CATEGORIES = [
   {
@@ -52,8 +54,11 @@ const CATEGORIES = [
 
 export default function InterestsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const { updateUser } = useAuth();
   const [selectedTags, setSelectedTags] = useState(['coding', 'cafe', 'reading']);
   const [locationGranted, setLocationGranted] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const toggleTag = (tagId) => {
     if (selectedTags.includes(tagId)) {
@@ -63,13 +68,46 @@ export default function InterestsScreen() {
     }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     if (selectedTags.length < 3) {
       Alert.alert('Gợi ý', 'Vui lòng chọn tối thiểu 3 sở thích để thuật toán ghép đôi hiệu quả nhất nhé!');
       return;
     }
-    // TODO: Update user interests via backend API
-    router.replace('/(tabs)/home');
+
+    setSubmitting(true);
+    try {
+      let objectives = ['study_buddy', 'cafe'];
+      if (params.objectives) {
+        try {
+          objectives = JSON.parse(params.objectives);
+        } catch {
+          // keep fallback
+        }
+      }
+
+      const payload = {
+        objectives,
+        interests: selectedTags,
+        studyHabits: {
+          timeSlots: ['evening', 'weekend'],
+          spaceType: 'quiet',
+        },
+        distancePreference: locationGranted ? 5 : 10,
+        bio: params.bio || '',
+      };
+
+      const res = await onboardingApi.savePreferences(payload);
+      if (res.data?.data) {
+        updateUser(res.data.data);
+      }
+      router.replace('/(tabs)/home');
+    } catch (err) {
+      console.warn('Lỗi lưu sở thích:', err.message);
+      // Fallback cho phép tiếp tục vào app
+      router.replace('/(tabs)/home');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -176,6 +214,7 @@ export default function InterestsScreen() {
           <Button
             title={`Hoàn tất hồ sơ (${selectedTags.length} đã chọn)`}
             onPress={handleFinish}
+            loading={submitting}
           />
         </View>
       </ScrollView>

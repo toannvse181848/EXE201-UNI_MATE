@@ -11,6 +11,7 @@ import AdminLayout from './components/AdminLayout';
 // Public Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Onboarding from './pages/Onboarding';
 
 
 // User / Student Pages
@@ -57,6 +58,7 @@ export default function App() {
           {/* Public Authentication */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/onboarding" element={<Onboarding />} />
 
 
           {/* 🎓 User / Student Portal Routes */}

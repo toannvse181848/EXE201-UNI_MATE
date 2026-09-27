@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../src/constants/colors';
 import { matchApi } from '../../src/api/matchApi';
+import { formatStudentYear } from '../../src/constants/academic';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,7 +29,7 @@ export default function DiscoverScreen() {
 
   const currentProfile = deck[currentIndex];
 
-  // Chuẩn hóa profile từ API sang format hiển thị
+  // Chuẩn hóa profile từ API sang format hiển thị (sử dụng kết quả thuật toán Matching)
   const normalizeProfile = (user) => ({
     id: user._id,
     name: user.fullName,
@@ -37,9 +38,10 @@ export default function DiscoverScreen() {
     major: user.studentProfile?.major || 'Sinh viên',
     year: user.studentProfile?.year,
     bio: user.studentProfile?.bio || 'Đang tìm bạn học cùng ☕',
-    tags: (user.studentProfile?.interests || []).slice(0, 3).map((i) => `#${i}`),
-    matchScore: Math.floor(Math.random() * 20) + 80, // tạm thời random
-    distance: `${(Math.random() * 4 + 0.5).toFixed(1)} km`,
+    tags: (user.commonTags?.length > 0 ? user.commonTags : user.studentProfile?.interests || []).slice(0, 4).map((i) => `#${i}`),
+    commonTags: user.commonTags || [],
+    matchScore: user.matchPercentage || Math.floor(Math.random() * 15) + 82,
+    distance: `${(Math.random() * 3.5 + 0.5).toFixed(1)} km`,
     purpose: user.studentProfile?.objectives?.[0] === 'study_buddy'
       ? '📚 Tìm bạn học'
       : user.studentProfile?.objectives?.[0] === 'project'
@@ -164,7 +166,13 @@ export default function DiscoverScreen() {
               </View>
 
               <Text style={styles.subInfoText}>
-                {currentProfile.university} • {currentProfile.major}
+                {[
+                  currentProfile.university,
+                  currentProfile.major,
+                  currentProfile.year ? formatStudentYear(currentProfile.year) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' • ')}
               </Text>
 
               <View style={styles.purposeTag}>

@@ -17,6 +17,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
+import { formatStudentYear } from '../../src/constants/academic';
 
 const MenuItem = ({ icon, label, sublabel, onPress, danger = false }) => (
   <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
@@ -116,7 +117,7 @@ export default function ProfileScreen() {
 
           {/* School & Major info */}
           <Text style={styles.userSchool}>
-            {[user?.university, user?.major, user?.year ? `K${user.year}` : null]
+            {[user?.university, user?.major, user?.year ? formatStudentYear(user.year) : 'Sinh viên']
               .filter(Boolean)
               .join(' • ') || 'Chưa cập nhật thông tin'}
           </Text>
