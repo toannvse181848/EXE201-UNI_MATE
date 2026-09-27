@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import logoFull from '../assets/logo-full.png';
+import cover from '../assets/cover.png';
 import { useAuth } from '../context/AuthContext';
 import {
   GraduationCap,
@@ -163,7 +163,17 @@ export default function Register() {
       >
         {/* Header Branding */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <img src={logoFull} alt="UniMate" style={{ display: 'block', height: '96px', margin: '0 auto 14px' }} />
+          <img
+            src={cover}
+            alt="UniMate - Học hết mình, chơi hết phố"
+            style={{
+              display: 'block',
+              width: 'calc(100% + 72px)',
+              margin: '-36px -36px 20px',
+              borderRadius: '24px 24px 0 0',
+              borderBottom: '1px solid var(--border-color)',
+            }}
+          />
 
           <h1
             style={{
