@@ -7,6 +7,7 @@ const matchRoutes = require('./routes/matchRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
+const onboardingRoutes = require('./routes/onboardingRoutes');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 
 const app = express();
@@ -17,9 +18,9 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'UNI-MATE API v1.1.0',
-    version: '1.1.0',
-    features: ['Auth', 'Venues', 'Vouchers + Wallet', 'Match/Swipe', 'Real-time Chat', 'Reports', 'Users'],
+    message: 'UNI-MATE API v1.2.0',
+    version: '1.2.0',
+    features: ['Auth', 'Venues', 'Vouchers + Wallet', 'Match/Swipe', 'Real-time Chat', 'Reports', 'Users', 'Onboarding & AI Matching'],
     endpoints: {
       auth: '/api/auth',
       venues: '/api/venues',
@@ -28,6 +29,7 @@ app.get('/', (req, res) => {
       chat: '/api/chat',
       reports: '/api/reports',
       users: '/api/users',
+      onboarding: '/api/onboarding',
     },
   });
 });
@@ -39,6 +41,7 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
 // Hai dòng này phải nằm CUỐI CÙNG
 app.use(notFound);

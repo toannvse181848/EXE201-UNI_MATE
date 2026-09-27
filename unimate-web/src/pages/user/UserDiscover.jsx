@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Users,
 } from 'lucide-react';
-import { userApi, matchApi } from '../../services/api';
+import { userApi, matchApi, onboardingApi } from '../../services/api';
+import { formatStudentYear } from '../../constants/academic';
 
 const MOCK_FALLBACK_STUDENTS = [
   {
@@ -25,7 +26,7 @@ const MOCK_FALLBACK_STUDENTS = [
     gender: 'Nữ',
     university: 'Đại học FPT TP.HCM',
     major: 'Truyền thông Đa phương tiện',
-    year: 'Năm 2',
+    year: 'Sinh viên năm 2',
     avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500',
     distance: '0.8 km',
     trustScore: 99,
@@ -40,7 +41,7 @@ const MOCK_FALLBACK_STUDENTS = [
     gender: 'Nam',
     university: 'ĐH Bách Khoa TP.HCM',
     major: 'Khoa học Máy tính',
-    year: 'Năm 3',
+    year: 'Sinh viên năm 3',
     avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=500',
     distance: '1.5 km',
     trustScore: 97,
@@ -61,39 +62,66 @@ export default function UserDiscover() {
   const [likedMap, setLikedMap] = useState({});
   const [actionLoading, setActionLoading] = useState(null);
 
-  // Tải danh sách sinh viên thật từ Backend MongoDB
+  // Tải danh sách sinh viên thật từ Backend MongoDB (ưu tiên thuật toán gợi ý matching)
   const fetchStudents = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await userApi.getSuggestedStudents(30);
-      const realData = res.data || [];
+      let realData = [];
+      let isAlgorithm = false;
+
+      // Ưu tiên gọi API Thuật toán Matching Weighted Hybrid
+      try {
+        const recoRes = await onboardingApi.getRecommendations(30);
+        if (recoRes?.data && Array.isArray(recoRes.data) && recoRes.data.length > 0) {
+          realData = recoRes.data;
+          isAlgorithm = true;
+        }
+      } catch (recoErr) {
+        console.log('Chưa đăng nhập hoặc chưa đủ dữ liệu matching, chuyển sang danh sách chung:', recoErr.message);
+      }
+
+      // Fallback sang API danh sách sinh viên cơ bản
+      if (realData.length === 0) {
+        const res = await userApi.getSuggestedStudents(30);
+        realData = res.data || [];
+      }
 
       if (realData.length > 0) {
-        const formatted = realData.map((u, idx) => ({
-          id: u._id,
-          name: u.fullName,
-          age: 20 + (idx % 4),
-          gender: u.studentProfile?.gender === 'female' ? 'Nữ' : 'Nam',
-          university: u.studentProfile?.university || 'Đại học FPT TP.HCM',
-          major: u.studentProfile?.major || 'Kỹ thuật Phần mềm',
-          year: u.studentProfile?.year || 'Năm 3',
-          studentId: u.studentProfile?.studentId || '',
-          avatar:
-            u.avatar ||
-            (idx % 2 === 0
-              ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500'
-              : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500'),
-          distance: `${(Math.random() * 2.5 + 0.4).toFixed(1)} km`,
-          trustScore: u.studentProfile?.trustScore || 96,
-          bio:
-            u.studentProfile?.bio ||
-            'Tìm bạn cùng học bài & khám phá các quán cafe yên tĩnh 🚀',
-          interests:
-            u.studentProfile?.interests?.length > 0
-              ? u.studentProfile.interests
-              : ['Cà phê học bài', 'Boardgame', 'Kết nối bạn bè'],
-          favoritePlace: 'The Coffee House - Làng Đại Học',
-        }));
+        const formatted = realData.map((u, idx) => {
+          const profile = u.studentProfile || {};
+          const isReco = isAlgorithm && u.matchPercentage !== undefined;
+
+          return {
+            id: u.id || u._id,
+            name: u.name || u.fullName,
+            age: 20 + (idx % 4),
+            gender: (profile.gender || u.gender) === 'female' ? 'Nữ' : 'Nam',
+            university: u.university || profile.university || 'Đại học FPT TP.HCM',
+            major: u.major || profile.major || 'Kỹ thuật Phần mềm',
+            year: u.year || profile.year || 'Sinh viên năm 3',
+            studentId: profile.studentId || u.studentId || '',
+            avatar:
+              u.avatar ||
+              (idx % 2 === 0
+                ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500'
+                : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500'),
+            distance: `${(Math.random() * 2.5 + 0.4).toFixed(1)} km`,
+            trustScore: u.trustScore || profile.trustScore || 96,
+            matchPercentage: isReco ? u.matchPercentage : 85 - (idx * 2 % 25),
+            commonTags: u.commonTags || [],
+            bio:
+              u.bio ||
+              profile.bio ||
+              'Tìm bạn cùng học bài & khám phá các quán cafe yên tĩnh 🚀',
+            interests:
+              (u.interests?.length > 0 ? u.interests : profile.interests?.length > 0 ? profile.interests : [
+                'Cà phê học bài',
+                'Boardgame',
+                'Kết nối bạn bè',
+              ]),
+            favoritePlace: 'The Coffee House - Làng Đại Học',
+          };
+        });
         setStudents(formatted);
       } else {
         setStudents(MOCK_FALLBACK_STUDENTS);
@@ -434,10 +462,36 @@ export default function UserDiscover() {
                         'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 50%)',
                     }}
                   />
+                  {/* Match Score Badge */}
+                  {student.matchPercentage && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '14px',
+                        right: '14px',
+                        background: 'linear-gradient(135deg, #FF5722 0%, #FF9800 100%)',
+                        color: '#FFFFFF',
+                        padding: '4px 10px',
+                        borderRadius: '16px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        boxShadow: '0 2px 8px rgba(255, 87, 34, 0.45)',
+                        zIndex: 2,
+                      }}
+                    >
+                      <Sparkles size={12} color="#FFF" />
+                      <span>{student.matchPercentage}% Hợp gu</span>
+                    </div>
+                  )}
+
+                  {/* Distance Pill */}
                   <div
                     style={{
                       position: 'absolute',
-                      top: '14px',
+                      top: '46px',
                       right: '14px',
                       backgroundColor: 'rgba(0, 0, 0, 0.65)',
                       backdropFilter: 'blur(4px)',
@@ -449,10 +503,11 @@ export default function UserDiscover() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '4px',
+                      zIndex: 2,
                     }}
                   >
                     <MapPin size={12} color="#FFB74D" />
-                    <span>Cách bạn {student.distance}</span>
+                    <span>Cách {student.distance}</span>
                   </div>
 
                   {/* Verified Trust Badge */}
@@ -516,7 +571,7 @@ export default function UserDiscover() {
                     >
                       <GraduationCap size={14} />
                       <span>
-                        {student.university} • {student.year}
+                        {student.university} • {formatStudentYear(student.year)}
                       </span>
                     </div>
                   </div>
@@ -591,22 +646,32 @@ export default function UserDiscover() {
                       marginBottom: '18px',
                     }}
                   >
-                    {student.interests.map((tag) => (
-                      <span
-                        key={tag}
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          padding: '3px 9px',
-                          borderRadius: '12px',
-                          backgroundColor: '#FFF3E0',
-                          color: '#E64A19',
-                          border: '1px solid #FBE9E7',
-                        }}
-                      >
-                        #{tag}
-                      </span>
-                    ))}
+                    {student.interests.map((tag) => {
+                      const isCommon = student.commonTags?.some(
+                        (c) => String(c).toLowerCase().trim() === String(tag).toLowerCase().trim()
+                      );
+                      return (
+                        <span
+                          key={tag}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: isCommon ? '700' : '600',
+                            padding: '3px 9px',
+                            borderRadius: '12px',
+                            backgroundColor: isCommon ? '#FF5722' : '#FFF3E0',
+                            color: isCommon ? '#FFFFFF' : '#E64A19',
+                            border: isCommon ? '1px solid #FF5722' : '1px solid #FBE9E7',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            boxShadow: isCommon ? '0 2px 6px rgba(255, 87, 34, 0.25)' : 'none',
+                          }}
+                        >
+                          {isCommon && <Sparkles size={11} color="#FFF" />}
+                          #{tag}
+                        </span>
+                      );
+                    })}
                   </div>
 
                   {/* Action Buttons */}

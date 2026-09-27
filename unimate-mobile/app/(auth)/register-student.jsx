@@ -17,6 +17,7 @@ import { COLORS } from '../../src/constants/colors';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { useAuth } from '../../src/context/AuthContext';
+import { MAJORS, ACADEMIC_YEARS, UNIVERSITIES } from '../../src/constants/academic';
 
 const GENDER_OPTIONS = [
   { label: 'Nam', value: 'male', icon: 'male-outline' },
@@ -34,12 +35,14 @@ export default function RegisterStudent() {
     password: '',
     studentId: '',
     gender: '',
-    university: '',
-    major: '',
-    year: '',
+    university: UNIVERSITIES[0],
+    major: MAJORS[0],
+    year: ACADEMIC_YEARS[2], // Sinh viên năm 3
     phone: '',
   });
   const [errors, setErrors] = useState({});
+  const [showMajorPicker, setShowMajorPicker] = useState(false);
+  const [showYearPicker, setShowYearPicker] = useState(false);
 
   const set = (key) => (val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -61,7 +64,6 @@ export default function RegisterStudent() {
     try {
       await registerStudent({
         ...form,
-        year: form.year ? Number(form.year) : undefined,
         email: form.email.trim(),
       });
       router.replace('/(auth)/create-profile');
@@ -104,9 +106,9 @@ export default function RegisterStudent() {
             <View style={styles.card}>
               <Text style={styles.section}>Thông tin cơ bản</Text>
               <Input label="Họ và tên *" value={form.fullName} onChangeText={set('fullName')}
-                placeholder="Nguyễn Văn A" autoCapitalize="words" icon="person-outline" error={errors.fullName} />
+                placeholder="VD: Nguyễn Văn A" autoCapitalize="words" icon="person-outline" error={errors.fullName} />
               <Input label="Email *" value={form.email} onChangeText={set('email')}
-                placeholder="email@example.com" keyboardType="email-address" icon="mail-outline" error={errors.email} />
+                placeholder="VD: sinhvien@school.edu.vn" keyboardType="email-address" icon="mail-outline" error={errors.email} />
               <Input label="Mật khẩu *" value={form.password} onChangeText={set('password')}
                 placeholder="Tối thiểu 6 ký tự" secureTextEntry icon="lock-closed-outline" error={errors.password} />
               <Input label="Số điện thoại" value={form.phone} onChangeText={set('phone')}
@@ -137,13 +139,65 @@ export default function RegisterStudent() {
                 ))}
               </View>
 
-              <Text style={[styles.section, { marginTop: 8 }]}>Thông tin học tập (tùy chọn)</Text>
+              <Text style={[styles.section, { marginTop: 8 }]}>Thông tin học tập</Text>
               <Input label="Trường đại học" value={form.university} onChangeText={set('university')}
                 placeholder="VD: Đại học FPT" autoCapitalize="words" icon="business-outline" />
-              <Input label="Ngành học" value={form.major} onChangeText={set('major')}
-                placeholder="VD: Công nghệ thông tin" autoCapitalize="words" icon="book-outline" />
-              <Input label="Năm học" value={form.year} onChangeText={set('year')}
-                placeholder="VD: 3" keyboardType="numeric" icon="calendar-outline" />
+
+              {/* Major Picker */}
+              <Text style={styles.inputLabel}>Chuyên ngành</Text>
+              <TouchableOpacity
+                style={styles.pickerBtn}
+                onPress={() => setShowMajorPicker(!showMajorPicker)}
+              >
+                <Ionicons name="book-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
+                <Text style={styles.pickerBtnText}>{form.major}</Text>
+                <Ionicons name={showMajorPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} />
+              </TouchableOpacity>
+              {showMajorPicker && (
+                <View style={styles.pickerList}>
+                  <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+                    {MAJORS.map((m) => (
+                      <TouchableOpacity
+                        key={m}
+                        style={[styles.pickerItem, form.major === m && styles.pickerItemActive]}
+                        onPress={() => { setForm((f) => ({ ...f, major: m })); setShowMajorPicker(false); }}
+                      >
+                        <Text style={[styles.pickerItemText, form.major === m && styles.pickerItemTextActive]}>
+                          {m}
+                        </Text>
+                        {form.major === m && <Ionicons name="checkmark" size={16} color={COLORS.primary} />}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Year Picker */}
+              <Text style={[styles.inputLabel, { marginTop: 4 }]}>Năm học</Text>
+              <TouchableOpacity
+                style={styles.pickerBtn}
+                onPress={() => setShowYearPicker(!showYearPicker)}
+              >
+                <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
+                <Text style={styles.pickerBtnText}>{form.year}</Text>
+                <Ionicons name={showYearPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} />
+              </TouchableOpacity>
+              {showYearPicker && (
+                <View style={styles.pickerList}>
+                  {ACADEMIC_YEARS.map((y) => (
+                    <TouchableOpacity
+                      key={y}
+                      style={[styles.pickerItem, form.year === y && styles.pickerItemActive]}
+                      onPress={() => { setForm((f) => ({ ...f, year: y })); setShowYearPicker(false); }}
+                    >
+                      <Text style={[styles.pickerItemText, form.year === y && styles.pickerItemTextActive]}>
+                        {y}
+                      </Text>
+                      {form.year === y && <Ionicons name="checkmark" size={16} color={COLORS.primary} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             <Button
@@ -229,5 +283,50 @@ const styles = StyleSheet.create({
   },
   genderBtnTextActive: {
     color: COLORS.white,
+  },
+  pickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    height: 52,
+    marginBottom: 4,
+  },
+  pickerBtnText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  pickerList: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.border,
+  },
+  pickerItemActive: {
+    backgroundColor: COLORS.primary + '10',
+  },
+  pickerItemText: {
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  pickerItemTextActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
   },
 });

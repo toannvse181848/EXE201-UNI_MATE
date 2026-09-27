@@ -13,7 +13,7 @@ export const MOCK_ACCOUNTS = {
     university: 'Đại học FPT TP.HCM',
     studentId: 'SE181848',
     major: 'Kỹ thuật Phần mềm',
-    year: 'Năm 3',
+    year: 'Sinh viên năm 3',
     uniCoin: 450,
     isVerifiedStudent: true,
     trustScore: 98,
@@ -232,8 +232,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('unimate_token');
   };
 
+  // Cập nhật thông tin user sau khi onboarding / chỉnh sửa hồ sơ
+  const updateUser = (newData) => {
+    const merged = { ...user, ...newData };
+    setUser(merged);
+    localStorage.setItem('unimate_portal_user', JSON.stringify(merged));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, setUser, switchRole, MOCK_ACCOUNTS }}>
+    <AuthContext.Provider value={{ user, login, register, logout, setUser, updateUser, switchRole, MOCK_ACCOUNTS }}>
       {children}
     </AuthContext.Provider>
   );

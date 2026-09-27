@@ -19,27 +19,11 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-const UNIVERSITIES = [
-  'Đại học FPT TP.HCM',
-  'ĐH Bách Khoa TP.HCM (HCMUT)',
-  'ĐH Kinh Tế TP.HCM (UEH)',
-  'ĐH RMIT Việt Nam',
-  'ĐH Quốc Gia - KHTN',
-  'ĐH Ngoại Thương (FTU2)',
-  'ĐH Sư Phạm Kỹ Thuật (HCMUTE)',
-  'ĐH Quốc Tế (IU)',
-  'ĐH Tôn Đức Thắng (TDTU)',
-  'ĐH Hoa Sen (HSU)',
-  'Trường Đại học khác',
-];
-
-const ACADEMIC_YEARS = [
-  'Năm 1 (Tân sinh viên)',
-  'Năm 2',
-  'Năm 3',
-  'Năm 4',
-  'Năm cuối / Đang thực tập',
-];
+import {
+  UNIVERSITIES,
+  MAJORS,
+  ACADEMIC_YEARS,
+} from '../constants/academic';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -54,9 +38,9 @@ export default function Register() {
     studentId: '', // Mã số sinh viên (MSSV)
     phone: '',
     email: '',
-    university: 'Đại học FPT TP.HCM',
-    major: 'Kỹ thuật Phần mềm',
-    year: 'Năm 3',
+    university: UNIVERSITIES[0],
+    major: MAJORS[0],
+    year: 'Sinh viên năm 3',
     gender: 'male', // 'male' | 'female' | 'other'
     password: '',
     confirmPassword: '',
@@ -124,7 +108,7 @@ export default function Register() {
           ...studentForm,
           role: 'user',
         });
-        navigate('/user/discover');
+        navigate('/onboarding');
       } else {
         await register({
           ...partnerForm,
@@ -272,7 +256,7 @@ export default function Register() {
                       required
                       value={studentForm.fullName}
                       onChange={(e) => handleStudentChange('fullName', e.target.value)}
-                      placeholder="Nguyễn Văn Toàn"
+                      placeholder="VD: Nguyễn Văn A"
                       style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
                     />
                   </div>
@@ -290,7 +274,7 @@ export default function Register() {
                       required
                       value={studentForm.studentId}
                       onChange={(e) => handleStudentChange('studentId', e.target.value.toUpperCase())}
-                      placeholder="VD: SE181848"
+                      placeholder="VD: SE123456"
                       style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917', fontWeight: '700' }}
                     />
                   </div>
@@ -311,7 +295,7 @@ export default function Register() {
                       required
                       value={studentForm.email}
                       onChange={(e) => handleStudentChange('email', e.target.value)}
-                      placeholder="toan.nguyen@fpt.edu.vn"
+                      placeholder="VD: sinhvien@school.edu.vn"
                       style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
                     />
                   </div>
@@ -329,7 +313,7 @@ export default function Register() {
                       required
                       value={studentForm.phone}
                       onChange={(e) => handleStudentChange('phone', e.target.value)}
-                      placeholder="0901234567"
+                      placeholder="VD: 0912345678"
                       style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
                     />
                   </div>
@@ -365,14 +349,17 @@ export default function Register() {
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
                     <BookOpen size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
-                    <input
-                      type="text"
-                      required
+                    <select
                       value={studentForm.major}
                       onChange={(e) => handleStudentChange('major', e.target.value)}
-                      placeholder="VD: Kỹ thuật Phần mềm"
-                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
-                    />
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917', backgroundColor: 'transparent' }}
+                    >
+                      {MAJORS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -381,7 +368,7 @@ export default function Register() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
-                    Năm học / Niên khóa
+                    Năm học
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
                     <Calendar size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
@@ -444,7 +431,7 @@ export default function Register() {
                     required
                     value={partnerForm.fullName}
                     onChange={(e) => handlePartnerChange('fullName', e.target.value)}
-                    placeholder="Nguyễn Văn Hùng"
+                    placeholder="VD: Nguyễn Văn A"
                     style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', color: '#1C1917' }}
                   />
                 </div>
@@ -481,7 +468,7 @@ export default function Register() {
                       required
                       value={partnerForm.email}
                       onChange={(e) => handlePartnerChange('email', e.target.value)}
-                      placeholder="contact@quan.vn"
+                      placeholder="VD: contact@quan.vn"
                       style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
                     />
                   </div>
@@ -498,7 +485,7 @@ export default function Register() {
                       required
                       value={partnerForm.phone}
                       onChange={(e) => handlePartnerChange('phone', e.target.value)}
-                      placeholder="0901234567"
+                      placeholder="VD: 0912345678"
                       style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#1C1917' }}
                     />
                   </div>
@@ -516,7 +503,7 @@ export default function Register() {
                     required
                     value={partnerForm.address}
                     onChange={(e) => handlePartnerChange('address', e.target.value)}
-                    placeholder="798 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM"
+                    placeholder="VD: 798 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM"
                     style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', color: '#1C1917' }}
                   />
                 </div>
@@ -601,8 +588,8 @@ export default function Register() {
               {loading
                 ? 'Đang tạo thẻ & tài khoản...'
                 : role === 'user'
-                ? 'Đăng ký & Cấp thẻ Uni-Card'
-                : 'Đăng ký Đối tác Quán cafe'}
+                  ? 'Đăng ký & Cấp thẻ Uni-Card'
+                  : 'Đăng ký Đối tác Quán cafe'}
             </span>
             <ArrowRight size={18} />
           </button>

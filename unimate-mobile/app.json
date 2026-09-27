@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.unimate.app",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#6C63FF",
         "foregroundImage": "./assets/android-icon-foreground.png",

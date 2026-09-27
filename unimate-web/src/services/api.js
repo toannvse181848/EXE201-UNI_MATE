@@ -202,4 +202,16 @@ export const userApi = {
   },
 };
 
+// === ONBOARDING & MATCHING API ===
+export const onboardingApi = {
+  savePreferences: async (data) => {
+    const res = await client.post('/api/onboarding/preferences', data);
+    return res.data;
+  },
+  getRecommendations: async (limit = 20) => {
+    const res = await client.get(`/api/onboarding/recommendations?limit=${limit}`);
+    return res.data;
+  },
+};
+
 export default client;

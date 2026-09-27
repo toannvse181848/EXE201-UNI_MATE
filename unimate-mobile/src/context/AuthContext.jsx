@@ -65,9 +65,23 @@ export const AuthProvider = ({ children }) => {
     await authApi.changePassword({ currentPassword, newPassword });
   };
 
+  const updateUser = (updatedUser) => {
+    setUser((prev) => ({ ...prev, ...updatedUser }));
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, registerStudent, registerPartner, logout, changePassword }}
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        registerStudent,
+        registerPartner,
+        logout,
+        changePassword,
+        updateUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

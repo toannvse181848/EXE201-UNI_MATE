@@ -15,16 +15,18 @@ import {
   Heart,
   Award,
 } from 'lucide-react';
+import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
 
 export default function UserProfile() {
   const { user, setUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || 'Tìm bạn cùng cày deadline & khám phá các quán cafe yên tĩnh khu Công nghệ cao 🚀');
   const [major, setMajor] = useState(user?.major || 'Kỹ thuật Phần mềm');
+  const [year, setYear] = useState(user?.year || 'Sinh viên năm 3');
 
   const handleSave = (e) => {
     e.preventDefault();
-    const updated = { ...user, bio, major };
+    const updated = { ...user, bio, major, year };
     setUser(updated);
     localStorage.setItem('unimate_portal_user', JSON.stringify(updated));
     setIsEditing(false);
@@ -164,10 +166,10 @@ export default function UserProfile() {
 
               <div>
                 <div style={{ fontSize: '10px', color: '#FFCC80', textTransform: 'uppercase' }}>
-                  Niên khóa
+                  Năm học
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '700' }}>
-                  2023 - 2027 ({user?.year || 'Năm 3'})
+                  {formatStudentYear(user?.year || 'Sinh viên năm 3')}
                 </div>
               </div>
 
@@ -239,8 +241,7 @@ export default function UserProfile() {
                   <label style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
                     Chuyên ngành:
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={major}
                     onChange={(e) => setMajor(e.target.value)}
                     style={{
@@ -251,8 +252,41 @@ export default function UserProfile() {
                       border: '1.5px solid var(--border-color)',
                       fontSize: '13px',
                       outline: 'none',
+                      backgroundColor: '#FFFFFF',
                     }}
-                  />
+                  >
+                    {MAJORS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    Năm học:
+                  </label>
+                  <select
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                    style={{
+                      width: '100%',
+                      marginTop: '6px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid var(--border-color)',
+                      fontSize: '13px',
+                      outline: 'none',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    {ACADEMIC_YEARS.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

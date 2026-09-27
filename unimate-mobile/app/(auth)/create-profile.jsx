@@ -14,17 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../src/constants/colors';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
-
-// Mock universities list for quick picker
-const UNIVERSITIES = [
-  'Đại học Bách Khoa TP.HCM',
-  'Đại học Kinh Tế TP.HCM (UEH)',
-  'Đại học Quốc Gia - KHTN',
-  'Đại học Ngoại Thương (FTU2)',
-  'Đại học FPT TP.HCM',
-  'Đại học RMIT Việt Nam',
-  'Đại học Sư Phạm Kỹ Thuật',
-];
+import { MAJORS, UNIVERSITIES } from '../../src/constants/academic';
 
 const PURPOSES = [
   { id: 'study', label: 'Tìm bạn học bài', icon: 'book-outline', emoji: '📚' },
@@ -42,7 +32,8 @@ export default function CreateProfileScreen() {
   const [fullName, setFullName] = useState('');
   const [birthYear, setBirthYear] = useState('');
   const [university, setUniversity] = useState(UNIVERSITIES[0]);
-  const [major, setMajor] = useState('');
+  const [major, setMajor] = useState(MAJORS[0]);
+  const [showMajorPicker, setShowMajorPicker] = useState(false);
   const [district, setDistrict] = useState('Quận 10, TP.HCM');
   const [bio, setBio] = useState('');
   const [selectedPurposes, setSelectedPurposes] = useState(['study', 'cafe']);
@@ -63,8 +54,15 @@ export default function CreateProfileScreen() {
       Alert.alert('Thông báo', 'Vui lòng nhập họ và tên của bạn');
       return;
     }
-    // TODO: Connect with backend API /api/users/profile
-    router.push('/(auth)/interests');
+    router.push({
+      pathname: '/(auth)/interests',
+      params: {
+        objectives: JSON.stringify(selectedPurposes),
+        bio: bio.trim(),
+        university,
+        major,
+      },
+    });
   };
 
   return (
@@ -151,13 +149,34 @@ export default function CreateProfileScreen() {
             icon="school-outline"
           />
 
-          <Input
-            label="Chuyên ngành học"
-            placeholder="Ví dụ: Khoa học máy tính, Marketing..."
-            value={major}
-            onChangeText={setMajor}
-            icon="book-outline"
-          />
+          {/* Major Picker */}
+          <Text style={styles.pickerLabel}>Chuyên ngành học</Text>
+          <TouchableOpacity
+            style={styles.pickerBtn}
+            onPress={() => setShowMajorPicker(!showMajorPicker)}
+          >
+            <Ionicons name="book-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
+            <Text style={styles.pickerBtnText}>{major}</Text>
+            <Ionicons name={showMajorPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} />
+          </TouchableOpacity>
+          {showMajorPicker && (
+            <View style={styles.pickerList}>
+              <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+                {MAJORS.map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.pickerItem, major === m && styles.pickerItemActive]}
+                    onPress={() => { setMajor(m); setShowMajorPicker(false); }}
+                  >
+                    <Text style={[styles.pickerItemText, major === m && styles.pickerItemTextActive]}>
+                      {m}
+                    </Text>
+                    {major === m && <Ionicons name="checkmark" size={16} color={COLORS.primary} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           <Input
             label="Giới thiệu bản thân (Bio)"
@@ -368,5 +387,57 @@ const styles = StyleSheet.create({
   },
   btnWrapper: {
     marginTop: 10,
+  },
+  pickerLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
+  pickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    height: 52,
+    marginBottom: 4,
+  },
+  pickerBtnText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  pickerList: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.border,
+  },
+  pickerItemActive: {
+    backgroundColor: COLORS.primary + '10',
+  },
+  pickerItemText: {
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  pickerItemTextActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
   },
 });

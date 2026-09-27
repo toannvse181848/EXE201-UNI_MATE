@@ -2,6 +2,7 @@ const Match = require('../models/Match');
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { computeMatchScore, commonInterests } = require('../utils/matchingAlgorithm');
 
 // Sinh viên: Lấy danh sách bạn học để quẹt thẻ khám phá
 const getDiscoveryDeck = catchAsync(async (req, res) => {
@@ -28,6 +29,8 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
     }
   });
 
+  const me = await User.findById(currentUserId);
+
   // Tìm các sinh viên khác chưa từng được currentUserId quẹt
   const candidates = await User.find({
     _id: { $nin: Array.from(excludedIds) },
@@ -35,12 +38,31 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
     status: 'active',
   })
     .select('fullName avatar studentProfile')
-    .limit(20);
+    .limit(30);
+
+  const scoredCandidates = candidates.map((them) => {
+    const themObj = them.toObject ? them.toObject() : them;
+    const matchPercentage = me ? computeMatchScore(me, them) : 80;
+    const commonTags = me
+      ? commonInterests(
+          me.studentProfile?.interests || [],
+          them.studentProfile?.interests || []
+        )
+      : [];
+
+    return {
+      ...themObj,
+      matchPercentage,
+      commonTags,
+    };
+  });
+
+  scoredCandidates.sort((a, b) => b.matchPercentage - a.matchPercentage);
 
   res.status(200).json({
     success: true,
-    count: candidates.length,
-    data: candidates,
+    count: scoredCandidates.length,
+    data: scoredCandidates,
   });
 });
 
