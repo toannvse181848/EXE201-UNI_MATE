@@ -1,7 +1,7 @@
 # UNI-MATE API Contract
 
 Base URL:
-- Production: `https://unimate-backend-re5y.onrender.com`
+- Production: `https://unimate-api.onrender.com`
 - Local: `http://localhost:5000`
 
 ## Quy ước chung

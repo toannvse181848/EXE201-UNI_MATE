@@ -13,7 +13,7 @@ npm run dev
 Tạo file `.env` theo mẫu `.env.example`.
 
 ## Production
-https://unimate-backend-re5y.onrender.com
+https://unimate-api.onrender.com
 
 ## Tài liệu API
 Xem `docs/api-contract.md`
