@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import logoIcon from '../assets/logo-icon.png';
 import { useAuth } from '../context/AuthContext';
 import {
   Compass,
@@ -57,7 +58,7 @@ export default function UserLayout() {
                 width: '40px',
                 height: '40px',
                 borderRadius: '12px',
-                backgroundColor: '#FF5722',
+                backgroundColor: '#FFFFFF',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -67,7 +68,7 @@ export default function UserLayout() {
                 boxShadow: '0 4px 12px rgba(255, 87, 34, 0.45)',
               }}
             >
-              U
+              <img src={logoIcon} alt="UNI-MATE" style={{ width: '72%', height: '72%', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

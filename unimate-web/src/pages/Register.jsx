@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import logoFull from '../assets/logo-full.png';
 import { useAuth } from '../context/AuthContext';
 import {
   GraduationCap,
@@ -162,22 +163,7 @@ export default function Register() {
       >
         {/* Header Branding */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '18px',
-              backgroundColor: '#FF5722',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              boxShadow: '0 8px 20px -4px rgba(255, 87, 34, 0.45)',
-              marginBottom: '14px',
-            }}
-          >
-            {role === 'user' ? <GraduationCap size={32} /> : <Coffee size={32} />}
-          </div>
+          <img src={logoFull} alt="UniMate" style={{ display: 'block', height: '96px', margin: '0 auto 14px' }} />
 
           <h1
             style={{

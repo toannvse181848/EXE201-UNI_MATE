@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import logoFull from '../assets/logo-full.png';
 import { useAuth } from '../context/AuthContext';
 import { GraduationCap, Coffee, ShieldCheck, ArrowRight, Lock, Mail, Sparkles, UserPlus } from 'lucide-react';
 
@@ -104,23 +105,7 @@ export default function Login() {
       >
         {/* Brand Logo & Role Badge */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div
-            style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '18px',
-              backgroundColor: currentConfig.color,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#FFFFFF',
-              boxShadow: `0 10px 20px -5px ${currentConfig.color}66`,
-              marginBottom: '14px',
-              transition: 'all 0.3s ease',
-            }}
-          >
-            {React.createElement(currentConfig.icon, { size: 30 })}
-          </div>
+          <img src={logoFull} alt="UniMate" style={{ display: 'block', height: '96px', margin: '0 auto 14px' }} />
 
           <div style={{ display: 'inline-block', marginBottom: '6px' }}>
             <span

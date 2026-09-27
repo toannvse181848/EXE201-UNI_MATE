@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import logoIcon from '../assets/logo-icon.png';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
@@ -44,7 +45,7 @@ export default function PartnerLayout() {
                 width: '36px',
                 height: '36px',
                 borderRadius: '10px',
-                backgroundColor: 'var(--primary)',
+                backgroundColor: '#FFFFFF',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -53,7 +54,7 @@ export default function PartnerLayout() {
                 fontSize: '18px',
               }}
             >
-              U
+              <img src={logoIcon} alt="UNI-MATE" style={{ width: '72%', height: '72%', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
