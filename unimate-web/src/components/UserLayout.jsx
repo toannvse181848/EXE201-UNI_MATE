@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import logoIcon from '../assets/logo-icon.png';
 import { useAuth } from '../context/AuthContext';
+import { chatApi, voucherApi } from '../services/api';
 import {
   Compass,
   Coffee,
@@ -22,17 +23,95 @@ export default function UserLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [voucherNotificationCount, setVoucherNotificationCount] = useState(0);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  // Tải số lượng thông báo thực tế (tin nhắn chưa đọc và voucher mới/sắp hết hạn)
+  const fetchNotificationCounts = useCallback(async () => {
+    // 1. Kiểm tra tin nhắn chưa đọc từ Backend
+    try {
+      const convRes = await chatApi.getConversations();
+      if (convRes?.data && Array.isArray(convRes.data)) {
+        const totalUnread = convRes.data.reduce(
+          (sum, c) => sum + (c.unreadCount || 0),
+          0
+        );
+        setUnreadMessagesCount(totalUnread);
+      } else {
+        setUnreadMessagesCount(0);
+      }
+    } catch {
+      setUnreadMessagesCount(0);
+    }
+
+    // 2. Kiểm tra thông báo ví voucher (chỉ hiện khi có voucher mới lưu chưa xem hoặc sắp hết hạn trong 48h)
+    try {
+      const lastViewed = parseInt(
+        localStorage.getItem('unimate_vouchers_last_viewed') || '0',
+        10
+      );
+      const walletRes = await voucherApi.getMyWallet();
+      if (walletRes?.data && Array.isArray(walletRes.data)) {
+        const now = Date.now();
+        const activeAlerts = walletRes.data.filter((uv) => {
+          if (uv.status !== 'saved') return false;
+          const claimedTime = new Date(uv.claimedAt || uv.createdAt || 0).getTime();
+          const isNewlyClaimed = claimedTime > lastViewed;
+          const expireTime = uv.voucherId?.validUntil
+            ? new Date(uv.voucherId.validUntil).getTime()
+            : null;
+          const isExpiringSoon =
+            expireTime &&
+            expireTime - now > 0 &&
+            expireTime - now < 48 * 3600 * 1000;
+          return isNewlyClaimed || isExpiringSoon;
+        });
+        setVoucherNotificationCount(activeAlerts.length);
+      } else {
+        setVoucherNotificationCount(0);
+      }
+    } catch {
+      setVoucherNotificationCount(0);
+    }
+  }, []);
+
+  // Lắng nghe thay đổi route để reset / cập nhật thông báo
+  useEffect(() => {
+    if (location.pathname === '/user/vouchers') {
+      localStorage.setItem('unimate_vouchers_last_viewed', Date.now().toString());
+      setVoucherNotificationCount(0);
+    }
+    fetchNotificationCounts();
+  }, [location.pathname, fetchNotificationCounts]);
+
+  // Polling định kỳ mỗi 25s để cập nhật real-time
+  useEffect(() => {
+    const timer = setInterval(fetchNotificationCounts, 25000);
+    return () => clearInterval(timer);
+  }, [fetchNotificationCounts]);
+
   const navItems = [
     { to: '/user/discover', label: 'Khám phá Bạn học & Cafe', icon: Compass },
     { to: '/user/venues', label: 'Quán Cafe & Không gian học', icon: Coffee },
-    { to: '/user/vouchers', label: 'Ví Voucher của tôi', icon: Ticket, badge: '4' },
-    { to: '/user/messages', label: 'Tin nhắn & Kết nối', icon: MessageCircle, badge: '2', alert: true },
+    {
+      to: '/user/vouchers',
+      label: 'Ví Voucher của tôi',
+      icon: Ticket,
+      badge: voucherNotificationCount > 0 ? String(voucherNotificationCount) : null,
+      alert: false,
+    },
+    {
+      to: '/user/messages',
+      label: 'Tin nhắn & Kết nối',
+      icon: MessageCircle,
+      badge: unreadMessagesCount > 0 ? String(unreadMessagesCount) : null,
+      alert: unreadMessagesCount > 0,
+    },
     { to: '/user/profile', label: 'Hồ sơ Sinh viên (Uni-Card)', icon: User },
   ];
 

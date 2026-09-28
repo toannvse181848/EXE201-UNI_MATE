@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { cloudinary } = require('../config/cloudinary');
 
 // Sinh viên: Lấy danh sách bạn học gợi ý (loại trừ chính mình)
 const getSuggestedStudents = catchAsync(async (req, res) => {
@@ -96,8 +97,50 @@ const updateUserStatus = catchAsync(async (req, res) => {
   });
 });
 
+// PUT /api/users/me/avatar — upload ảnh đại diện lên Cloudinary (hoặc local storage)
+const updateAvatar = catchAsync(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'Vui lòng chọn file ảnh đại diện');
+  }
+
+  // Nếu dùng Cloudinary, req.file.path là URL Cloudinary. Nếu local, tạo link static.
+  let avatarUrl = req.file.path;
+  if (!avatarUrl.startsWith('http://') && !avatarUrl.startsWith('https://')) {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    avatarUrl = `${baseUrl}/uploads/avatars/${req.file.filename}`;
+  }
+
+  // Xoá ảnh cũ trên Cloudinary nếu có (tránh tốn dung lượng)
+  const currentUser = await User.findById(req.user._id);
+  if (currentUser && currentUser.avatar && currentUser.avatar.includes('cloudinary.com')) {
+    try {
+      const publicId = currentUser.avatar.split('/').slice(-2).join('/').replace(/\.[^.]+$/, '');
+      await cloudinary.uploader.destroy(publicId);
+    } catch {
+      // Bỏ qua lỗi xoá ảnh cũ nếu có
+    }
+  }
+
+  // Lưu URL mới vào DB
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { avatar: avatarUrl },
+    { new: true }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: 'Cập nhật ảnh đại diện thành công',
+    data: {
+      avatar: user.avatar,
+      user: user.toPublicJSON(),
+    },
+  });
+});
+
 module.exports = {
   getSuggestedStudents,
   getAllUsers,
   updateUserStatus,
+  updateAvatar,
 };

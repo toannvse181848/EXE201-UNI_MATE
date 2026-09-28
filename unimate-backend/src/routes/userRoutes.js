@@ -4,11 +4,16 @@ const {
   getSuggestedStudents,
   getAllUsers,
   updateUserStatus,
+  updateAvatar,
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middlewares/auth');
+const { uploadAvatar } = require('../config/cloudinary');
 
 // Yêu cầu đăng nhập
 router.use(protect);
+
+// Cập nhật avatar (mọi user đã đăng nhập)
+router.put('/me/avatar', uploadAvatar.single('avatar'), updateAvatar);
 
 // Sinh viên & người dùng xem danh sách bạn học gợi ý
 router.get('/students', getSuggestedStudents);

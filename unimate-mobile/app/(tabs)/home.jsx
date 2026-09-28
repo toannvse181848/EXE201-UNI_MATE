@@ -17,6 +17,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { MOCK_VENUES } from '../../src/data/mockVenues';
 import { SUGGESTED_MATES } from '../../src/data/mockUsers';
 import { userApi } from '../../src/api/userApi';
+import { chatApi } from '../../src/api/chatApi';
 import { formatStudentYear } from '../../src/constants/academic';
 
 const QUICK_ACTIONS = [
@@ -56,6 +57,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const displayName = user?.fullName || 'Bạn mới';
   const [realStudents, setRealStudents] = useState([]);
+  const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -69,7 +71,21 @@ export default function HomeScreen() {
         // Fallback sang mock nếu chưa đăng nhập hoặc offline
       }
     };
+
+    const checkUnread = async () => {
+      try {
+        const res = await chatApi.getConversations();
+        if (isMounted && res.data?.data) {
+          const unread = res.data.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+          setHasUnread(unread > 0);
+        }
+      } catch {
+        if (isMounted) setHasUnread(false);
+      }
+    };
+
     loadStudents();
+    checkUnread();
     return () => { isMounted = false; };
   }, [user]);
 
@@ -109,10 +125,10 @@ export default function HomeScreen() {
           </View>
           <TouchableOpacity
             style={styles.bellBtn}
-            onPress={() => router.push('/voucher-detail')}
+            onPress={() => router.push('/(tabs)/chat')}
           >
             <Ionicons name="notifications-outline" size={22} color={COLORS.text} />
-            <View style={styles.badgeDot} />
+            {hasUnread && <View style={styles.badgeDot} />}
           </TouchableOpacity>
         </View>
 

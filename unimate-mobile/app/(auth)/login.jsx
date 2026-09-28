@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -70,13 +71,12 @@ export default function Login() {
           >
             {/* Header */}
             <View style={styles.header}>
-              <View style={styles.logoContainer}>
-                <LinearGradient
-                  colors={[COLORS.primary, COLORS.secondary]}
-                  style={styles.logo}
-                >
-                  <Ionicons name="school" size={32} color={COLORS.white} />
-                </LinearGradient>
+              <View style={styles.coverWrapper}>
+                <Image
+                  source={require('../../assets/cover.png')}
+                  style={styles.coverBanner}
+                  resizeMode="contain"
+                />
               </View>
               <Text style={styles.title}>Chào mừng trở lại</Text>
               <Text style={styles.subtitle}>Đăng nhập để tiếp tục hành trình của bạn</Text>
@@ -154,19 +154,15 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
   },
-  header: { alignItems: 'center', marginBottom: 36 },
-  logoContainer: { marginBottom: 24 },
-  logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
+  header: { alignItems: 'center', marginBottom: 28 },
+  coverWrapper: {
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
+    marginBottom: 16,
+  },
+  coverBanner: {
+    width: 260,
+    height: 98,
   },
   title: {
     color: COLORS.text,

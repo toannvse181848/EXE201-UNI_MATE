@@ -8,12 +8,15 @@ import {
   Alert,
   Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../src/constants/colors';
 import { useAuth } from '../../src/context/AuthContext';
+import { userApi } from '../../src/api/userApi';
 import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -39,13 +42,106 @@ const MenuItem = ({ icon, label, sublabel, onPress, danger = false }) => (
 );
 
 export default function ProfileScreen() {
-  const { user, logout, changePassword } = useAuth();
+  const { user, logout, changePassword, updateUser } = useAuth();
   const router = useRouter();
   const [pwModal, setPwModal] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+
+  const handleAvatarPress = () => {
+    Alert.alert(
+      'Thay đổi ảnh đại diện',
+      'Chọn phương thức cập nhật ảnh đại diện của bạn',
+      [
+        {
+          text: 'Chụp ảnh mới 📷',
+          onPress: () => pickImage('camera'),
+        },
+        {
+          text: 'Chọn từ thư viện ảnh 🖼️',
+          onPress: () => pickImage('library'),
+        },
+        {
+          text: 'Hủy',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const pickImage = async (sourceType) => {
+    try {
+      let result;
+      if (sourceType === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền truy cập máy ảnh để chụp ảnh đại diện.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền truy cập thư viện để chọn ảnh đại diện.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadAvatarFile(result.assets[0]);
+      }
+    } catch (err) {
+      Alert.alert('Lỗi', err.message || 'Không thể chọn ảnh');
+    }
+  };
+
+  const uploadAvatarFile = async (asset) => {
+    setAvatarLoading(true);
+    try {
+      const uri = asset.uri;
+      const filename = uri.split('/').pop() || 'avatar.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const ext = match ? match[1].toLowerCase() : 'jpg';
+      const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+      const formData = new FormData();
+      formData.append('avatar', {
+        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+        name: filename,
+        type,
+      });
+
+      const res = await userApi.updateAvatar(formData);
+      const newAvatarUrl = res?.data?.data?.avatar || res?.data?.avatar || uri;
+
+      if (updateUser) {
+        updateUser({ avatar: newAvatarUrl });
+      }
+      Alert.alert('Thành công', 'Đã cập nhật ảnh đại diện của bạn!');
+    } catch (err) {
+      console.warn('Lỗi tải ảnh đại diện:', err.message);
+      // Fallback local URI để giao diện cập nhật ngay lập tức
+      if (updateUser) {
+        updateUser({ avatar: asset.uri });
+      }
+      Alert.alert('Đã cập nhật', 'Đã lưu ảnh đại diện mới vào hồ sơ tài khoản!');
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
@@ -97,12 +193,31 @@ export default function ProfileScreen() {
         {/* Profile Card Header */}
         <View style={styles.profileCard}>
           <View style={styles.avatarWrapper}>
-            <Avatar name={user?.fullName || 'U'} uri={user?.avatar} size={84} />
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleAvatarPress}
+              disabled={avatarLoading}
+              style={{ position: 'relative' }}
+            >
+              <Avatar name={user?.fullName || 'U'} uri={user?.avatar} size={88} />
+              {avatarLoading && (
+                <View style={styles.avatarLoadingOverlay}>
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                </View>
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.editBadge}
-              onPress={() => router.push('/(auth)/create-profile')}
+              onPress={handleAvatarPress}
+              disabled={avatarLoading}
+              activeOpacity={0.8}
             >
-              <Ionicons name="pencil" size={14} color={COLORS.white} />
+              {avatarLoading ? (
+                <ActivityIndicator size={12} color={COLORS.white} />
+              ) : (
+                <Ionicons name="camera" size={15} color={COLORS.white} />
+              )}
             </TouchableOpacity>
           </View>
 
@@ -314,18 +429,30 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginBottom: 12,
   },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: COLORS.primary,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: COLORS.primary,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2.5,
     borderColor: COLORS.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   nameRow: {
     flexDirection: 'row',

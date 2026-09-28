@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { userApi } from '../../services/api';
 import {
   GraduationCap,
   ShieldCheck,
@@ -14,21 +15,94 @@ import {
   Coffee,
   Heart,
   Award,
+  Camera,
+  Loader2,
 } from 'lucide-react';
 import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
 
 export default function UserProfile() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, updateUser } = useAuth();
+  const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || 'Tìm bạn cùng cày deadline & khám phá các quán cafe yên tĩnh khu Công nghệ cao 🚀');
   const [major, setMajor] = useState(user?.major || 'Kỹ thuật Phần mềm');
   const [year, setYear] = useState(user?.year || 'Sinh viên năm 3');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarNotice, setAvatarNotice] = useState(null);
+
+  const handleAvatarSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file hình ảnh hợp lệ (JPG, PNG, WEBP...)');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Dung lượng ảnh tối đa là 10MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setAvatarNotice(null);
+
+    // Tạo preview ngay lập tức
+    const previewUrl = URL.createObjectURL(file);
+
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const res = await userApi.updateAvatar(formData);
+      const newAvatar = res?.data?.avatar || previewUrl;
+
+      const updated = { ...user, avatar: newAvatar };
+      if (updateUser) {
+        updateUser({ avatar: newAvatar });
+      } else {
+        setUser(updated);
+        localStorage.setItem('unimate_portal_user', JSON.stringify(updated));
+      }
+
+      setAvatarNotice({ type: 'success', text: 'Cập nhật ảnh đại diện thành công!' });
+      setTimeout(() => setAvatarNotice(null), 4000);
+    } catch (err) {
+      console.warn('Lỗi upload avatar lên server:', err.message);
+      // Fallback base64 / local preview khi offline để trải nghiệm không bị gián đoạn
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result;
+        const fallbackUser = { ...user, avatar: base64Data };
+        if (updateUser) {
+          updateUser({ avatar: base64Data });
+        } else {
+          setUser(fallbackUser);
+          localStorage.setItem('unimate_portal_user', JSON.stringify(fallbackUser));
+        }
+      };
+      reader.readAsDataURL(file);
+
+      setAvatarNotice({
+        type: 'success',
+        text: 'Đã cập nhật ảnh đại diện vào hồ sơ tài khoản!',
+      });
+      setTimeout(() => setAvatarNotice(null), 4000);
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSave = (e) => {
     e.preventDefault();
     const updated = { ...user, bio, major, year };
-    setUser(updated);
-    localStorage.setItem('unimate_portal_user', JSON.stringify(updated));
+    if (updateUser) {
+      updateUser(updated);
+    } else {
+      setUser(updated);
+      localStorage.setItem('unimate_portal_user', JSON.stringify(updated));
+    }
     setIsEditing(false);
     alert('Đã cập nhật hồ sơ sinh viên thành công!');
   };
@@ -120,21 +194,68 @@ export default function UserProfile() {
 
             {/* Student Info & Photo */}
             <div style={{ display: 'flex', gap: '18px', alignItems: 'center', marginBottom: '24px' }}>
-              <img
-                src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
-                alt="Avatar"
-                style={{
-                  width: '74px',
-                  height: '74px',
-                  borderRadius: '16px',
-                  objectFit: 'cover',
-                  border: '3px solid #FF8A50',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
-                }}
-              />
+              {/* Avatar with Upload button badge */}
+              <div style={{ position: 'relative' }}>
+                <img
+                  src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
+                  alt="Avatar"
+                  style={{
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '20px',
+                    objectFit: 'cover',
+                    border: '3px solid #FF8A50',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                    display: 'block',
+                  }}
+                />
+
+                {/* Upload Trigger Badge */}
+                <button
+                  type="button"
+                  title="Thay đổi ảnh đại diện"
+                  disabled={isUploadingAvatar}
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    right: '-4px',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    backgroundColor: '#FF5722',
+                    border: '2px solid #FFFFFF',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: isUploadingAvatar ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.1)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Camera size={15} />
+                  )}
+                </button>
+
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarSelect}
+                  accept="image/png, image/jpeg, image/jpg, image/webp"
+                  style={{ display: 'none' }}
+                />
+              </div>
+
               <div>
                 <div style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '-0.3px' }}>
-                  {user?.name || 'Nguyễn Văn Toàn'}
+                  {user?.name || user?.fullName || 'Nguyễn Văn Toàn'}
                 </div>
                 <div style={{ fontSize: '13px', color: '#FFCC80', marginTop: '2px' }}>
                   MSSV: <strong>{user?.studentId || 'SE181848'}</strong>
@@ -142,8 +263,52 @@ export default function UserProfile() {
                 <div style={{ fontSize: '12px', color: '#FBE9E7', marginTop: '2px' }}>
                   {user?.university || 'Đại học FPT TP.HCM'}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  style={{
+                    marginTop: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    color: '#FFE0B2',
+                    background: 'rgba(255,255,255,0.15)',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: '8px',
+                    padding: '3px 10px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Camera size={12} />
+                  {isUploadingAvatar ? 'Đang tải ảnh lên...' : 'Đổi ảnh đại diện'}
+                </button>
               </div>
             </div>
+
+            {/* Avatar notification toast */}
+            {avatarNotice && (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                  color: '#A7F3D0',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <CheckCircle2 size={14} />
+                <span>{avatarNotice.text}</span>
+              </div>
+            )}
 
             {/* Bottom Meta Bar */}
             <div

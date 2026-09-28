@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../src/constants/colors';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
@@ -91,22 +92,36 @@ export default function CreateProfileScreen() {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
             <TouchableOpacity
-              style={styles.cameraBadge}
-              onPress={() => {
-                // Mock avatar change
-                setAvatarUri(
-                  avatarUri.includes('1534528741775')
-                    ? 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=500'
-                    : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500'
-                );
+              activeOpacity={0.8}
+              onPress={async () => {
+                try {
+                  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                  if (status !== 'granted') {
+                    Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền truy cập thư viện để chọn ảnh.');
+                    return;
+                  }
+                  const res = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.8,
+                  });
+                  if (!res.canceled && res.assets && res.assets.length > 0) {
+                    setAvatarUri(res.assets[0].uri);
+                  }
+                } catch {
+                  // Fallback
+                }
               }}
             >
-              <Ionicons name="camera" size={18} color={COLORS.white} />
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+              <View style={styles.cameraBadge}>
+                <Ionicons name="camera" size={18} color={COLORS.white} />
+              </View>
             </TouchableOpacity>
           </View>
-          <Text style={styles.avatarHint}>Chạm vào để đổi ảnh đại diện</Text>
+          <Text style={styles.avatarHint}>Chạm vào để chọn ảnh đại diện từ thiết bị</Text>
         </View>
 
         {/* Form Inputs */}

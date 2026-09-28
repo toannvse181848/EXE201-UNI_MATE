@@ -200,6 +200,12 @@ export const userApi = {
     const res = await client.patch(`/api/users/${userId}/status`, { status });
     return res.data;
   },
+  updateAvatar: async (formData) => {
+    const res = await client.put('/api/users/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
 };
 
 // === ONBOARDING & MATCHING API ===
