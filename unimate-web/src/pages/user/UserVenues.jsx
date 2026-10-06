@@ -13,9 +13,12 @@ import {
   ExternalLink,
   RefreshCw,
   Store,
+  X,
+  Sparkles,
+  Phone,
 } from 'lucide-react';
 import { venueApi, voucherApi } from '../../services/api';
-
+import VenueImageCarousel from '../../components/VenueImageCarousel';
 
 export default function UserVenues() {
   const [venues, setVenues] = useState([]);
@@ -23,6 +26,7 @@ export default function UserVenues() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('Tất cả');
   const [claimedCodes, setClaimedCodes] = useState({});
+  const [selectedVenueModal, setSelectedVenueModal] = useState(null);
 
   const fetchVenues = useCallback(async () => {
     try {
@@ -31,25 +35,49 @@ export default function UserVenues() {
       const realData = res.data || [];
 
       if (realData.length > 0) {
-        const formatted = realData.map((v, idx) => ({
-          id: v._id,
-          name: v.name,
-          address: v.address,
-          distance: `${(Math.random() * 2 + 0.3).toFixed(1)} km`,
-          image:
-            v.images?.[0] ||
-            (idx % 2 === 0
-              ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600'
-              : 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600'),
-          rating: v.rating || 4.8,
-          reviews: v.reviewCount || 120 + idx * 25,
-          priceRange: v.priceRange ? `${v.priceRange.min?.toLocaleString('vi-VN')}đ - ${v.priceRange.max?.toLocaleString('vi-VN')}đ` : '35.000đ - 55.000đ',
-          amenities: v.amenities?.length > 0 ? v.amenities : ['Wifi tốc độ cao', 'Ổ cắm điện', 'Máy lạnh 24/7'],
-          tags: ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
-          hours: v.openingHours || '07:00 - 23:00',
-          voucher: 'Ưu đãi dành riêng cho sinh viên UNI-MATE',
-          voucherCode: `UNI-${v.name.slice(0, 3).toUpperCase()}-20`,
-        }));
+        const formatted = realData.map((v, idx) => {
+          // Chuẩn hóa danh sách ảnh (nhiều ảnh để vuốt)
+          const venueImages =
+            Array.isArray(v.images) && v.images.length > 0
+              ? v.images
+              : v.image
+              ? [
+                  v.image,
+                  'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
+                  'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=800',
+                ]
+              : [
+                  idx % 2 === 0
+                    ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800'
+                    : 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
+                  'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=800',
+                  'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800',
+                ];
+
+          return {
+            id: v._id,
+            name: v.name,
+            address: v.address,
+            phone: v.phone || '0901 234 567',
+            description: v.description || 'Không gian học tập và kết nối lý tưởng dành cho sinh viên.',
+            distance: `${(Math.random() * 2 + 0.3).toFixed(1)} km`,
+            image: venueImages[0],
+            images: venueImages,
+            rating: v.rating || 4.8,
+            reviews: v.reviewCount || 120 + idx * 25,
+            priceRange: v.priceRange
+              ? `${v.priceRange.min?.toLocaleString('vi-VN')}đ - ${v.priceRange.max?.toLocaleString('vi-VN')}đ`
+              : '35.000đ - 55.000đ',
+            amenities:
+              v.amenities && Array.isArray(v.amenities) && v.amenities.length > 0
+                ? v.amenities
+                : ['Wifi tốc độ cao', 'Ổ cắm điện', 'Máy lạnh 24/7'],
+            tags: v.tags?.length > 0 ? v.tags : ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
+            hours: v.openingHours || v.openHours || '07:00 - 23:00',
+            voucher: 'Ưu đãi dành riêng cho sinh viên UNI-MATE',
+            voucherCode: `UNI-${v.name.slice(0, 3).toUpperCase()}-20`,
+          };
+        });
         setVenues(formatted);
       } else {
         setVenues([]);
@@ -90,7 +118,7 @@ export default function UserVenues() {
           Quán Cafe & Không gian Học bài Sinh viên ☕📚
         </h1>
         <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-          Tuyển chọn quán cafe đối tác của UNI-MATE có wifi mạnh, ổ cắm điện đầy đủ, không gian yên tĩnh và ưu đãi riêng cho sinh viên.
+          Tuyển chọn quán cafe đối tác của UNI-MATE. Bạn có thể <strong>vuốt trái/phải</strong> trên ảnh quán để xem nhiều góc không gian học tập và menu đồ uống.
         </p>
       </div>
 
@@ -120,91 +148,81 @@ export default function UserVenues() {
           <Search size={18} color="var(--text-muted)" style={{ marginRight: '10px' }} />
           <input
             type="text"
+            placeholder="Tìm theo tên quán, địa chỉ (VD: The Coffee House, Quận 10...)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm quán theo tên, khu vực (Q.10, Thủ Đức, Bình Thạnh...)"
-            style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13.5px' }}
+            style={{
+              border: 'none',
+              outline: 'none',
+              width: '100%',
+              fontSize: '14px',
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary)',
+            }}
           />
         </div>
 
-        <button
-          onClick={fetchVenues}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '10px 16px',
-            borderRadius: '12px',
-            border: '1.5px solid var(--border-color)',
-            backgroundColor: '#FFFFFF',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '13px',
-          }}
-        >
-          <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          <span>Làm mới</span>
-        </button>
-
-        {/* Filter Pills */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {['Tất cả', 'Có Voucher SV', 'Mở 24/7', 'Yên tĩnh'].map((filter) => {
-            const isActive = activeFilter === filter;
-            return (
-              <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                style={{
-                  padding: '9px 16px',
-                  borderRadius: '12px',
-                  fontSize: '12.5px',
-                  fontWeight: '700',
-                  backgroundColor: isActive ? '#FF5722' : '#FFFFFF',
-                  color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
-                  border: isActive ? '1px solid #FF5722' : '1.5px solid var(--border-color)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {filter}
-              </button>
-            );
-          })}
+          {['Tất cả', 'Có Voucher SV', 'Mở 24/7', 'Yên tĩnh'].map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setActiveFilter(filter)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: activeFilter === filter ? 'none' : '1px solid var(--border-color)',
+                backgroundColor: activeFilter === filter ? 'var(--primary)' : '#FFFFFF',
+                color: activeFilter === filter ? '#FFFFFF' : 'var(--text-secondary)',
+                fontWeight: activeFilter === filter ? '700' : '500',
+                fontSize: '13px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {filter}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Loading state */}
+      {/* Loading Skeleton */}
       {loading ? (
         <div
           style={{
-            padding: '60px',
-            textAlign: 'center',
-            backgroundColor: '#fff',
-            borderRadius: '16px',
-            border: '1px solid var(--border-color)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '24px',
           }}
         >
-          <RefreshCw size={32} className="spin" style={{ margin: '0 auto 12px', color: '#FF5722' }} />
-          <p style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>
-            Đang tải danh sách quán cafe đối tác từ máy chủ...
-          </p>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div
+              key={i}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '20px',
+                height: '380px',
+                border: '1px solid var(--border-color)',
+                animation: 'pulse 1.5s infinite ease-in-out',
+              }}
+            />
+          ))}
         </div>
       ) : filteredVenues.length === 0 ? (
         <div
           style={{
-            padding: '60px',
             textAlign: 'center',
-            backgroundColor: '#fff',
-            borderRadius: '16px',
+            padding: '60px 20px',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '20px',
             border: '1px solid var(--border-color)',
           }}
         >
-          <Store size={40} style={{ margin: '0 auto 12px', opacity: 0.4, color: '#FF5722' }} />
-          <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '6px' }}>
-            Không tìm thấy quán cafe nào
+          <Coffee size={48} color="#FFCCBC" style={{ marginBottom: '16px' }} />
+          <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)' }}>
+            Không tìm thấy quán phù hợp
           </h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Hãy thử tìm với từ khoá khác hoặc chọn bộ lọc "Tất cả".
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '6px' }}>
+            Hãy thử tìm bằng từ khoá khác hoặc bỏ bớt bộ lọc bạn nhé!
           </p>
         </div>
       ) : (
@@ -227,73 +245,87 @@ export default function UserVenues() {
                 boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
                 display: 'flex',
                 flexDirection: 'column',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               }}
             >
-              {/* Image & Badges */}
-              <div style={{ position: 'relative', height: '200px' }}>
-                <img
-                  src={venue.image}
-                  alt={venue.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    right: '12px',
-                    backgroundColor: '#FFFFFF',
-                    padding: '4px 10px',
-                    borderRadius: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '12px',
-                    fontWeight: '800',
-                    color: '#B45309',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                  }}
-                >
-                  <Star size={13} fill="#F59E0B" color="#F59E0B" />
-                  <span>{venue.rating}</span>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>
-                    ({venue.reviews})
-                  </span>
-                </div>
+              {/* Image Carousel (Hỗ trợ vuốt trái / phải) */}
+              <VenueImageCarousel
+                images={venue.images}
+                height="210px"
+                borderRadius="19px 19px 0 0"
+                alt={venue.name}
+                showDots={true}
+                showArrows={true}
+                showCounter={true}
+                onImageClick={() => setSelectedVenueModal(venue)}
+                overlayBadges={
+                  <>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '12px',
+                        backgroundColor: '#FFFFFF',
+                        padding: '4px 10px',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        color: '#B45309',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                        zIndex: 4,
+                      }}
+                    >
+                      <Star size={13} fill="#F59E0B" color="#F59E0B" />
+                      <span>{venue.rating}</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>
+                        ({venue.reviews})
+                      </span>
+                    </div>
 
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '12px',
-                    left: '12px',
-                    backgroundColor: 'rgba(0,0,0,0.7)',
-                    backdropFilter: 'blur(4px)',
-                    padding: '4px 10px',
-                    borderRadius: '12px',
-                    color: '#FFFFFF',
-                    fontSize: '11.5px',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <Clock size={12} color="#FFB74D" />
-                  <span>{venue.hours}</span>
-                </div>
-              </div>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '12px',
+                        left: '12px',
+                        backgroundColor: 'rgba(0,0,0,0.7)',
+                        backdropFilter: 'blur(4px)',
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        color: '#FFFFFF',
+                        fontSize: '11.5px',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        zIndex: 4,
+                      }}
+                    >
+                      <Clock size={12} color="#FFB74D" />
+                      <span>{venue.hours}</span>
+                    </div>
+                  </>
+                }
+              />
 
               {/* Content Details */}
               <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <h3
-                  style={{
-                    fontSize: '17px',
-                    fontWeight: '800',
-                    color: 'var(--text-primary)',
-                    marginBottom: '4px',
-                  }}
-                >
-                  {venue.name}
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                  <h3
+                    onClick={() => setSelectedVenueModal(venue)}
+                    style={{
+                      fontSize: '17px',
+                      fontWeight: '800',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      flex: 1,
+                    }}
+                  >
+                    {venue.name}
+                  </h3>
+                </div>
 
                 <div
                   style={{
@@ -302,13 +334,32 @@ export default function UserVenues() {
                     gap: '6px',
                     fontSize: '12px',
                     color: 'var(--text-secondary)',
-                    marginBottom: '12px',
+                    marginBottom: '10px',
                   }}
                 >
                   <MapPin size={14} color="#FF5722" />
-                  <span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {venue.address} • <strong>{venue.distance}</strong>
                   </span>
+                </div>
+
+                {/* Tags */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '12px' }}>
+                  {venue.tags.map((tag, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: '#FFECE6',
+                        color: 'var(--primary)',
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
                 </div>
 
                 {/* Amenities */}
@@ -379,6 +430,135 @@ export default function UserVenues() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal xem chi tiết quán & Phóng to album ảnh */}
+      {selectedVenueModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => setSelectedVenueModal(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '24px',
+              maxWidth: '680px',
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              position: 'relative',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedVenueModal(null)}
+              style={{
+                position: 'absolute',
+                top: '14px',
+                right: '14px',
+                zIndex: 10,
+                backgroundColor: 'rgba(0,0,0,0.6)',
+                color: '#fff',
+                border: 'none',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            {/* Modal Image Carousel: Vuốt ảnh lớn */}
+            <div style={{ width: '100%' }}>
+              <VenueImageCarousel
+                images={selectedVenueModal.images}
+                height="320px"
+                borderRadius="0"
+                alt={selectedVenueModal.name}
+                showDots={true}
+                showArrows={true}
+                showCounter={true}
+              />
+            </div>
+
+            {/* Modal Body Info */}
+            <div style={{ padding: '24px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                <h2 style={{ fontSize: '22px', fontWeight: '900', color: 'var(--text-primary)' }}>
+                  {selectedVenueModal.name}
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#FEF3C7', padding: '4px 10px', borderRadius: '8px' }}>
+                  <Star size={14} fill="#F59E0B" color="#F59E0B" />
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#D97706' }}>
+                    {selectedVenueModal.rating} ({selectedVenueModal.reviews} đánh giá)
+                  </span>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '22px' }}>
+                {selectedVenueModal.description}
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <MapPin size={16} color="var(--primary)" />
+                  <span>{selectedVenueModal.address}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <Clock size={16} color="#10B981" />
+                  <span>{selectedVenueModal.hours}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <Phone size={16} color="#6366F1" />
+                  <span>{selectedVenueModal.phone}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <Coffee size={16} color="#F59E0B" />
+                  <span>{selectedVenueModal.priceRange}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '16px' }}>
+                <button
+                  onClick={() => handleClaimVoucher(selectedVenueModal.id, selectedVenueModal.voucherCode)}
+                  className="btn btn-primary"
+                  style={{ flex: 1, padding: '12px' }}
+                >
+                  <Ticket size={16} />
+                  <span>{claimedCodes[selectedVenueModal.id] ? 'Đã lưu voucher vào ví' : 'Lấy mã ưu đãi ngay'}</span>
+                </button>
+                <button
+                  onClick={() => setSelectedVenueModal(null)}
+                  className="btn btn-secondary"
+                  style={{ padding: '12px 20px' }}
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

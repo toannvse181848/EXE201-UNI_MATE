@@ -13,8 +13,15 @@ import {
   BatteryCharging,
   Sparkles,
   Check,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  Plus,
+  Crown,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { venueApi } from '../../services/api';
+import VenueImageCarousel from '../../components/VenueImageCarousel';
 
 export default function VenueManagement() {
   const [venueId, setVenueId] = useState(null);
@@ -29,9 +36,16 @@ export default function VenueManagement() {
     closeTime: '22:30',
     tags: ['Cafe', 'Học tập', 'Wifi mạnh', 'Yên tĩnh'],
     voucherTitle: 'Giảm 20% tổng hoá đơn',
+    images: [
+      'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800',
+      'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
+      'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=800',
+      'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800',
+    ],
   });
 
   const [newTag, setNewTag] = useState('');
+  const [imageUrlInput, setImageUrlInput] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isBoosted, setIsBoosted] = useState(false);
 
@@ -49,6 +63,11 @@ export default function VenueManagement() {
             phone: v.phone || prev.phone,
             address: v.address || prev.address,
             tags: v.tags?.length ? v.tags : prev.tags,
+            images: v.images?.length
+              ? v.images
+              : v.image
+              ? [v.image]
+              : prev.images,
           }));
         }
       } catch (err) {
@@ -57,6 +76,62 @@ export default function VenueManagement() {
     };
     loadMyVenue();
   }, []);
+
+  // Xử lý upload nhiều ảnh từ máy tính
+  const handleFileUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    files.forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Url = event.target?.result;
+        if (base64Url) {
+          setFormData((prev) => ({
+            ...prev,
+            images: [...prev.images, base64Url],
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input file value để có thể chọn lại cùng file nếu muốn
+    e.target.value = '';
+  };
+
+  // Thêm ảnh bằng URL dán từ ngoài
+  const handleAddImageUrl = (e) => {
+    e.preventDefault();
+    if (imageUrlInput.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        images: [...prev.images, imageUrlInput.trim()],
+      }));
+      setImageUrlInput('');
+    }
+  };
+
+  // Xóa 1 ảnh
+  const handleRemoveImage = (indexToRemove) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, idx) => idx !== indexToRemove),
+    }));
+  };
+
+  // Đặt làm ảnh bìa chính (đưa lên đầu danh sách)
+  const handleSetCoverImage = (index) => {
+    setFormData((prev) => {
+      const selected = prev.images[index];
+      const remaining = prev.images.filter((_, idx) => idx !== index);
+      return {
+        ...prev,
+        images: [selected, ...remaining],
+      };
+    });
+  };
 
   const handleAddTag = (e) => {
     e.preventDefault();
@@ -78,30 +153,27 @@ export default function VenueManagement() {
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
 
+    const payload = {
+      name: formData.name,
+      description: formData.description,
+      phone: formData.phone,
+      address: formData.address,
+      tags: formData.tags,
+      images: formData.images,
+      image: formData.images[0] || '',
+    };
+
     try {
       if (venueId) {
-        await venueApi.updateVenue(venueId, {
-          name: formData.name,
-          description: formData.description,
-          phone: formData.phone,
-          address: formData.address,
-          tags: formData.tags,
-        });
+        await venueApi.updateVenue(venueId, payload);
       } else {
-        const res = await venueApi.createVenue({
-          name: formData.name,
-          description: formData.description,
-          phone: formData.phone,
-          address: formData.address,
-          tags: formData.tags,
-        });
+        const res = await venueApi.createVenue(payload);
         if (res?.data?._id) setVenueId(res.data._id);
       }
     } catch (err) {
       console.log('Backend sync note:', err.message);
     }
   };
-
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -112,7 +184,7 @@ export default function VenueManagement() {
             Quản lý địa điểm
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-            Cập nhật thông tin cơ sở và xem trước giao diện trực tiếp trên app di động UNI-MATE.
+            Cập nhật thông tin cơ sở, ảnh không gian và xem trước giao diện vuốt ảnh trực tiếp trên app di động UNI-MATE.
           </p>
         </div>
 
@@ -153,7 +225,7 @@ export default function VenueManagement() {
           }}
         >
           <Check size={18} />
-          <span>Thông tin địa điểm đã được cập nhật đồng bộ lên toàn hệ thống app UNI-MATE!</span>
+          <span>Thông tin địa điểm và album ảnh đã được cập nhật đồng bộ lên toàn hệ thống app UNI-MATE!</span>
         </div>
       )}
 
@@ -161,6 +233,263 @@ export default function VenueManagement() {
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '28px' }}>
         {/* Form Section */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Photos Upload Card */}
+          <div className="portal-card" style={{ border: '1.5px solid rgba(255, 87, 34, 0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ImageIcon size={20} color="var(--primary)" />
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                  Hình ảnh cơ sở / Không gian quán ({formData.images.length} ảnh)
+                </h3>
+              </div>
+              <span className="badge badge-orange" style={{ fontSize: '11px' }}>
+                Vuốt đa ảnh trên App
+              </span>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '18px' }}>
+              Tải lên nhiều góc ảnh đẹp: mặt tiền, khu vực bàn học, ổ cắm điện, thực đơn đồ uống. Sinh viên có thể <strong>vuốt trái/phải</strong> để xem toàn bộ album ảnh của quán trên app.
+            </p>
+
+            {/* Upload Buttons Box */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1.2fr 1fr',
+                gap: '12px',
+                marginBottom: '16px',
+              }}
+            >
+              {/* File Input Trigger */}
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '16px',
+                  backgroundColor: '#FFF7ED',
+                  border: '2px dashed var(--primary)',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FFEDD5')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFF7ED')}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(255, 87, 34, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--primary)',
+                  }}
+                >
+                  <Upload size={18} />
+                </div>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--primary)', display: 'block' }}>
+                    Tải ảnh từ máy tính
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Chọn nhiều ảnh cùng lúc (PNG, JPG, WEBP)
+                  </span>
+                </div>
+              </label>
+
+              {/* URL Input */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '12px 14px',
+                  backgroundColor: '#F8FAFC',
+                  border: '1.5px solid var(--border-color)',
+                  borderRadius: '12px',
+                }}
+              >
+                <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>
+                  Hoặc dán URL ảnh trực tiếp:
+                </label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="url"
+                    placeholder="https://images.unsplash..."
+                    value={imageUrlInput}
+                    onChange={(e) => setImageUrlInput(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      fontSize: '12px',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddImageUrl}
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  >
+                    <Plus size={14} /> Thêm
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Images Grid Showcase */}
+            {formData.images.length === 0 ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '24px',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '12px',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                }}
+              >
+                Chưa có ảnh nào. Vui lòng tải ít nhất 1 ảnh để hiển thị quán trên ứng dụng!
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                  gap: '12px',
+                }}
+              >
+                {formData.images.map((imgUrl, index) => {
+                  const isCover = index === 0;
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        position: 'relative',
+                        height: '95px',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        border: isCover ? '2.5px solid var(--primary)' : '1px solid var(--border-color)',
+                        boxShadow: isCover ? '0 4px 10px rgba(255, 87, 34, 0.25)' : 'none',
+                        group: 'image-card',
+                      }}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`Quán ${index + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.target.src = 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400';
+                        }}
+                      />
+
+                      {/* Badge Cover */}
+                      {isCover ? (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            left: '4px',
+                            backgroundColor: 'var(--primary)',
+                            color: '#fff',
+                            fontSize: '9px',
+                            fontWeight: '800',
+                            padding: '2px 6px',
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                        >
+                          <Crown size={10} />
+                          <span>Ảnh bìa</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSetCoverImage(index)}
+                          title="Đặt làm ảnh bìa chính"
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            left: '4px',
+                            backgroundColor: 'rgba(0,0,0,0.6)',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '3px 6px',
+                            borderRadius: '6px',
+                            fontSize: '9px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                          }}
+                        >
+                          <Star size={9} /> Bìa
+                        </button>
+                      )}
+
+                      {/* Delete button */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        title="Xoá ảnh này"
+                        style={{
+                          position: 'absolute',
+                          top: '4px',
+                          right: '4px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          width: '22px',
+                          height: '22px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '3px',
+                          right: '4px',
+                          backgroundColor: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          fontSize: '9px',
+                          fontWeight: '700',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        #{index + 1}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* General Info Card */}
           <div className="portal-card">
             <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '16px' }}>
@@ -288,7 +617,7 @@ export default function VenueManagement() {
                       <button
                         type="button"
                         onClick={() => handleRemoveTag(tg)}
-                        style={{ color: '#EF4444', fontWeight: '900', fontSize: '13px' }}
+                        style={{ color: '#EF4444', fontWeight: '900', fontSize: '13px', cursor: 'pointer', border: 'none', background: 'transparent' }}
                       >
                         ×
                       </button>
@@ -382,7 +711,7 @@ export default function VenueManagement() {
           </div>
         </div>
 
-        {/* Right Side: LIVE MOBILE APP PREVIEW */}
+        {/* Right Side: LIVE MOBILE APP PREVIEW WITH SWIPEABLE CAROUSEL */}
         <div>
           <div style={{ position: 'sticky', top: '90px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -393,7 +722,7 @@ export default function VenueManagement() {
                 <span className="badge badge-orange">LIVE</span>
               </div>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Hiển thị thời gian thực
+                👉 Có thể vuốt ảnh trái / phải
               </span>
             </div>
 
@@ -420,56 +749,68 @@ export default function VenueManagement() {
                   borderBottomRightRadius: '14px',
                   width: '140px',
                   margin: '0 auto',
+                  position: 'relative',
+                  zIndex: 10,
                 }}
               />
 
-              {/* Mobile Screen Header */}
-              <div style={{ position: 'relative', height: '170px' }}>
-                <img
-                  src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600"
-                  alt="Venue"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                {isBoosted && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '10px',
-                      left: '10px',
-                      backgroundColor: 'var(--primary)',
-                      color: '#fff',
-                      fontSize: '10px',
-                      fontWeight: '800',
-                      padding: '3px 8px',
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                    }}
-                  >
-                    <Zap size={10} />
-                    <span>NỔI BẬT</span>
-                  </div>
-                )}
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '10px',
-                    right: '10px',
-                    backgroundColor: 'rgba(0,0,0,0.65)',
-                    color: '#fff',
-                    fontSize: '10px',
-                    fontWeight: '700',
-                    padding: '3px 8px',
-                    borderRadius: '8px',
-                  }}
-                >
-                  Cách 650m
-                </div>
-              </div>
+              {/* Mobile Screen Header: Interactive Multi-Image Swipe Carousel */}
+              <VenueImageCarousel
+                images={formData.images}
+                height="175px"
+                borderRadius="0px"
+                showDots={true}
+                showArrows={true}
+                showCounter={true}
+                alt={formData.name}
+                overlayBadges={
+                  <>
+                    {isBoosted && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '10px',
+                          left: '10px',
+                          backgroundColor: 'var(--primary)',
+                          color: '#fff',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          zIndex: 4,
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        <Zap size={10} />
+                        <span>NỔI BẬT</span>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '10px',
+                        right: '10px',
+                        backgroundColor: 'rgba(0,0,0,0.65)',
+                        backdropFilter: 'blur(4px)',
+                        color: '#fff',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        padding: '3px 8px',
+                        borderRadius: '8px',
+                        zIndex: 4,
+                      }}
+                    >
+                      Cách 650m
+                    </div>
+                  </>
+                }
+              />
 
               {/* Mobile Content Area */}
-              <div style={{ padding: '16px', backgroundColor: '#FFFFFF', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', marginTop: '-12px' }}>
+              <div style={{ padding: '16px', backgroundColor: '#FFFFFF', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', marginTop: '-12px', position: 'relative', zIndex: 5 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#1A1A24', flex: 1, marginRight: '6px' }}>
                     {formData.name || 'Tên quán'}
@@ -560,6 +901,8 @@ export default function VenueManagement() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '4px',
+                    border: 'none',
+                    cursor: 'pointer',
                   }}
                 >
                   <Sparkles size={14} />
