@@ -35,6 +35,17 @@ const errorHandler = (err, req, res, next) => {
     message = 'Dữ liệu gửi lên không đúng định dạng JSON';
   }
 
+  // Lỗi upload file (multer)
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    const multerMessages = {
+      LIMIT_FILE_SIZE: 'Ảnh quá lớn, dung lượng tối đa 10MB',
+      LIMIT_FILE_COUNT: 'Chỉ được tải tối đa 10 ảnh mỗi lần',
+      LIMIT_UNEXPECTED_FILE: 'Tên trường file không đúng hoặc quá nhiều file',
+    };
+    message = multerMessages[err.code] || err.message;
+  }
+
   // Token hỏng / hết hạn
   if (err.name === 'JsonWebTokenError') {
     statusCode = 401;

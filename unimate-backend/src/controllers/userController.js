@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
-const { cloudinary } = require('../config/cloudinary');
+const { cloudinary, getUploadedFileUrl } = require('../config/cloudinary');
 
 // Sinh viên: Lấy danh sách bạn học gợi ý (loại trừ chính mình)
 const getSuggestedStudents = catchAsync(async (req, res) => {
@@ -63,13 +63,14 @@ const getAllUsers = catchAsync(async (req, res) => {
   });
 });
 
-// Admin: Cập nhật trạng thái người dùng (active / banned)
+// Admin: Cập nhật trạng thái người dùng (active / suspended)
 const updateUserStatus = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  // 'banned' là tên cũ phía frontend, lưu trong DB là 'suspended'
+  const status = req.body.status === 'banned' ? 'suspended' : req.body.status;
 
-  if (!['active', 'banned'].includes(status)) {
-    throw new ApiError(400, 'Trạng thái không hợp lệ. Chỉ chấp nhận active hoặc banned');
+  if (!['active', 'suspended'].includes(status)) {
+    throw new ApiError(400, 'Trạng thái không hợp lệ. Chỉ chấp nhận active hoặc suspended');
   }
 
   const user = await User.findById(id);
@@ -104,18 +105,15 @@ const updateAvatar = catchAsync(async (req, res) => {
   }
 
   // Nếu dùng Cloudinary, req.file.path là URL Cloudinary. Nếu local, tạo link static.
-  let avatarUrl = req.file.path;
-  if (!avatarUrl.startsWith('http://') && !avatarUrl.startsWith('https://')) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    avatarUrl = `${baseUrl}/uploads/avatars/${req.file.filename}`;
-  }
+  const avatarUrl = getUploadedFileUrl(req, req.file, 'avatars');
 
   // Xoá ảnh cũ trên Cloudinary nếu có (tránh tốn dung lượng)
-  const currentUser = await User.findById(req.user._id);
-  if (currentUser && currentUser.avatar && currentUser.avatar.includes('cloudinary.com')) {
+  // URL dạng .../image/upload/v123/unimate/avatars/abc.jpg → public_id = unimate/avatars/abc
+  const oldAvatar = req.user.avatar;
+  const publicIdMatch = oldAvatar?.match(/\/upload\/(?:v\d+\/)?(unimate\/.+)\.[^./]+$/);
+  if (publicIdMatch) {
     try {
-      const publicId = currentUser.avatar.split('/').slice(-2).join('/').replace(/\.[^.]+$/, '');
-      await cloudinary.uploader.destroy(publicId);
+      await cloudinary.uploader.destroy(publicIdMatch[1]);
     } catch {
       // Bỏ qua lỗi xoá ảnh cũ nếu có
     }
@@ -138,9 +136,47 @@ const updateAvatar = catchAsync(async (req, res) => {
   });
 });
 
+// PUT /api/users/me — cập nhật hồ sơ của chính mình
+const PROFILE_FIELDS = ['studentId', 'university', 'major', 'year', 'gender', 'bio', 'interests', 'objectives'];
+
+const updateMe = catchAsync(async (req, res) => {
+  const user = req.user;
+  const { fullName, phone, businessName } = req.body;
+
+  if (fullName !== undefined) {
+    if (!String(fullName).trim()) throw new ApiError(400, 'Họ tên không được để trống');
+    user.fullName = String(fullName).trim();
+  }
+  if (phone !== undefined) user.phone = phone || null;
+
+  if (user.role === 'student' || user.role === 'user') {
+    // Nhận cả dạng phẳng { major, bio } lẫn lồng { studentProfile: { major, bio } }
+    const source = { ...req.body, ...(req.body.studentProfile || {}) };
+    PROFILE_FIELDS.forEach((field) => {
+      if (source[field] !== undefined) user.studentProfile[field] = source[field];
+    });
+    user.isProfileCompleted = Boolean(
+      user.studentProfile.studentId && user.studentProfile.university && user.studentProfile.major
+    );
+  }
+
+  if (user.role === 'partner' && businessName !== undefined) {
+    user.partnerProfile = { ...(user.partnerProfile || {}), businessName };
+  }
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Cập nhật hồ sơ thành công',
+    data: { user: user.toPublicJSON() },
+  });
+});
+
 module.exports = {
   getSuggestedStudents,
   getAllUsers,
   updateUserStatus,
   updateAvatar,
+  updateMe,
 };

@@ -8,11 +8,15 @@ const reportRoutes = require('./routes/reportRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 
 const path = require('path');
 
 const app = express();
+
+// Render chạy sau proxy HTTPS — cần để req.protocol trả về https cho link ảnh local
+app.set('trust proxy', 1);
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -22,9 +26,9 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'UNI-MATE API v1.2.0',
-    version: '1.2.0',
-    features: ['Auth', 'Venues', 'Vouchers + Wallet', 'Match/Swipe', 'Real-time Chat', 'Reports', 'Users', 'Onboarding & AI Matching'],
+    message: 'UNI-MATE API v1.3.0',
+    version: '1.3.0',
+    features: ['Auth', 'Venues', 'Vouchers + Wallet', 'Match/Swipe', 'Real-time Chat', 'Reports', 'Users', 'Onboarding & AI Matching', 'Image Upload', 'Admin Stats'],
     endpoints: {
       auth: '/api/auth',
       venues: '/api/venues',
@@ -34,6 +38,7 @@ app.get('/', (req, res) => {
       reports: '/api/reports',
       users: '/api/users',
       onboarding: '/api/onboarding',
+      admin: '/api/admin',
     },
   });
 });
@@ -46,6 +51,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Hai dòng này phải nằm CUỐI CÙNG
 app.use(notFound);

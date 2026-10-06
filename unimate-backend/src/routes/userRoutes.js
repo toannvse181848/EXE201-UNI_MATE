@@ -5,6 +5,7 @@ const {
   getAllUsers,
   updateUserStatus,
   updateAvatar,
+  updateMe,
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middlewares/auth');
 const { uploadAvatar } = require('../config/cloudinary');
@@ -12,7 +13,8 @@ const { uploadAvatar } = require('../config/cloudinary');
 // Yêu cầu đăng nhập
 router.use(protect);
 
-// Cập nhật avatar (mọi user đã đăng nhập)
+// Cập nhật hồ sơ & avatar (mọi user đã đăng nhập)
+router.put('/me', updateMe);
 router.put('/me/avatar', uploadAvatar.single('avatar'), updateAvatar);
 
 // Sinh viên & người dùng xem danh sách bạn học gợi ý

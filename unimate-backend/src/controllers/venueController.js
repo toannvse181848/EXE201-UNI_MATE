@@ -1,6 +1,7 @@
 const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { getUploadedFileUrl } = require('../config/cloudinary');
 
 // Lấy danh sách địa điểm đã duyệt (Dành cho Sinh viên / Public)
 const getVenues = catchAsync(async (req, res) => {
@@ -60,10 +61,49 @@ const getMyVenues = catchAsync(async (req, res) => {
   });
 });
 
+// Các trường partner được phép tự sửa. status / rejectionReason / rating chỉ admin đổi qua API riêng.
+const EDITABLE_FIELDS = [
+  'name',
+  'description',
+  'address',
+  'district',
+  'city',
+  'location',
+  'phone',
+  'openHours',
+  'priceRange',
+  'image',
+  'images',
+  'category',
+  'tags',
+  'amenities',
+];
+
+const pickEditableFields = (body) =>
+  EDITABLE_FIELDS.reduce((acc, field) => {
+    if (body[field] !== undefined) acc[field] = body[field];
+    return acc;
+  }, {});
+
+// Dành cho Partner: Upload ảnh quán (tối đa 10 ảnh / lần), trả về danh sách URL
+const uploadVenueImages = catchAsync(async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    throw new ApiError(400, 'Vui lòng chọn ít nhất 1 ảnh');
+  }
+
+  const urls = req.files.map((file) => getUploadedFileUrl(req, file, 'venues'));
+
+  res.status(201).json({
+    success: true,
+    message: `Đã tải lên ${urls.length} ảnh`,
+    data: { urls },
+  });
+});
+
 // Dành cho Partner: Đăng ký quán cafe mới (Mặc định status: pending chờ duyệt)
 const createVenue = catchAsync(async (req, res) => {
   const venueData = {
-    ...req.body,
+    ...pickEditableFields(req.body),
     partnerId: req.user._id,
     status: 'pending', // Phải qua admin duyệt
   };
@@ -93,7 +133,7 @@ const updateVenue = catchAsync(async (req, res) => {
   }
 
   // Cập nhật
-  const updated = await Venue.findByIdAndUpdate(req.params.id, req.body, {
+  const updated = await Venue.findByIdAndUpdate(req.params.id, pickEditableFields(req.body), {
     new: true,
     runValidators: true,
   });
@@ -155,6 +195,7 @@ module.exports = {
   getVenues,
   getVenueById,
   getMyVenues,
+  uploadVenueImages,
   createVenue,
   updateVenue,
   getAllVenuesAdmin,

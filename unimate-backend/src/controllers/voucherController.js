@@ -1,6 +1,7 @@
 const Voucher = require('../models/Voucher');
 const UserVoucher = require('../models/UserVoucher');
 const Venue = require('../models/Venue');
+const Redemption = require('../models/Redemption');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const crypto = require('crypto');
@@ -9,7 +10,7 @@ const crypto = require('crypto');
 
 /** Danh sách voucher công khai còn hạn (Sinh viên xem) */
 const getPublicVouchers = catchAsync(async (req, res) => {
-  const { venueId } = req.query;
+  const { venueId, code } = req.query;
   const filter = {
     isActive: true,
     validUntil: { $gte: new Date() },
@@ -17,6 +18,7 @@ const getPublicVouchers = catchAsync(async (req, res) => {
   };
 
   if (venueId) filter.venueId = venueId;
+  if (code) filter.code = String(code).toUpperCase().trim();
 
   const vouchers = await Voucher.find(filter)
     .populate('venueId', 'name address image rating category')
@@ -102,69 +104,171 @@ const getMyWallet = catchAsync(async (req, res) => {
   });
 });
 
-/** Partner: Quét QR để đối soát & tiêu voucher của sinh viên */
-const redeemVoucher = catchAsync(async (req, res) => {
-  const { code, qrPayload } = req.body;
+/**
+ * Tìm voucher cần đối soát từ body { code } hoặc { qrPayload } và kiểm tra hợp lệ.
+ * - qrPayload (UVM-xxxx): voucher trong ví của một sinh viên cụ thể
+ * - code: mã voucher chung của quán
+ * Partner chỉ được đối soát voucher của chính mình, admin thì được tất cả.
+ */
+const findRedeemTarget = async (req) => {
+  let { code, qrPayload } = req.body;
+  code = typeof code === 'string' ? code.trim().toUpperCase() : '';
+  qrPayload = typeof qrPayload === 'string' ? qrPayload.trim().toUpperCase() : '';
+
+  // Thu ngân có thể dán QR payload vào ô nhập mã
+  if (!qrPayload && code.startsWith('UVM-')) {
+    qrPayload = code;
+    code = '';
+  }
 
   if (!code && !qrPayload) {
     throw new ApiError(400, 'Vui lòng cung cấp mã code hoặc QR payload');
   }
 
   let voucher;
-  let userVoucher;
+  let userVoucher = null;
 
   if (qrPayload) {
-    // Quét QR từ ví sinh viên
-    userVoucher = await UserVoucher.findOne({ qrPayload })
-      .populate('voucherId')
-      .populate('userId', 'fullName studentProfile');
-
+    userVoucher = await UserVoucher.findOne({ qrPayload }).populate(
+      'userId',
+      'fullName avatar studentProfile'
+    );
     if (!userVoucher) throw new ApiError(404, 'Mã QR không hợp lệ');
     if (userVoucher.status === 'used') throw new ApiError(400, 'Voucher này đã được sử dụng');
     if (userVoucher.status === 'expired') throw new ApiError(400, 'Voucher đã hết hạn');
 
-    voucher = userVoucher.voucherId;
-    if (!voucher.isActive) throw new ApiError(400, 'Voucher đã bị tạm ngưng');
-    if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn sử dụng');
-
-    // Đánh dấu đã dùng
-    userVoucher.status = 'used';
-    userVoucher.usedAt = new Date();
-    await userVoucher.save();
-
-    voucher.usedCount += 1;
-    await voucher.save();
+    voucher = await Voucher.findById(userVoucher.voucherId).populate('venueId', 'name address');
+    if (!voucher) throw new ApiError(404, 'Voucher không còn tồn tại');
   } else {
-    // Quét bằng code trực tiếp (legacy)
-    voucher = await Voucher.findOne({ code: code.toUpperCase().trim() })
-      .populate('venueId', 'name address partnerId');
-
+    voucher = await Voucher.findOne({ code }).populate('venueId', 'name address');
     if (!voucher) throw new ApiError(404, 'Mã voucher không tồn tại');
-    if (!voucher.isActive) throw new ApiError(400, 'Voucher đã bị tạm ngưng');
-    if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn sử dụng');
     if (voucher.usedCount >= voucher.quantity) throw new ApiError(400, 'Voucher đã hết số lượng');
-
-    voucher.usedCount += 1;
-    await voucher.save();
   }
+
+  if (req.user.role !== 'admin' && voucher.partnerId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, 'Voucher này không thuộc quán của bạn');
+  }
+  if (!voucher.isActive) throw new ApiError(400, 'Voucher đã bị tạm ngưng');
+  if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn sử dụng');
+
+  return { voucher, userVoucher };
+};
+
+const toStudentInfo = (student) =>
+  student
+    ? {
+        id: student._id,
+        fullName: student.fullName,
+        avatar: student.avatar,
+        studentId: student.studentProfile?.studentId || null,
+        university: student.studentProfile?.university || null,
+      }
+    : null;
+
+/** Partner: Kiểm tra voucher trước khi áp dụng (không trừ lượt) */
+const verifyVoucher = catchAsync(async (req, res) => {
+  const { voucher, userVoucher } = await findRedeemTarget(req);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      method: userVoucher ? 'qr' : 'code',
+      code: voucher.code,
+      qrPayload: userVoucher?.qrPayload || null,
+      title: voucher.title,
+      description: voucher.description,
+      discountPercent: voucher.discountPercent,
+      discountAmount: voucher.discountAmount,
+      minBill: voucher.minBill,
+      validUntil: voucher.validUntil,
+      venueName: voucher.venueId?.name || null,
+      remainingCount: voucher.quantity - voucher.usedCount,
+      student: toStudentInfo(userVoucher?.userId),
+    },
+  });
+});
+
+/** Partner: Quét QR để đối soát & tiêu voucher của sinh viên */
+const redeemVoucher = catchAsync(async (req, res) => {
+  const { voucher, userVoucher } = await findRedeemTarget(req);
+
+  if (userVoucher) {
+    // Cập nhật có điều kiện để 2 lần quét cùng lúc không tiêu voucher 2 lần
+    const marked = await UserVoucher.findOneAndUpdate(
+      { _id: userVoucher._id, status: 'saved' },
+      { status: 'used', usedAt: new Date() }
+    );
+    if (!marked) throw new ApiError(400, 'Voucher này đã được sử dụng');
+    await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } });
+  } else {
+    const updated = await Voucher.updateOne(
+      { _id: voucher._id, $expr: { $lt: ['$usedCount', '$quantity'] } },
+      { $inc: { usedCount: 1 } }
+    );
+    if (updated.modifiedCount === 0) throw new ApiError(400, 'Voucher đã hết số lượng');
+  }
+
+  const redemption = await Redemption.create({
+    voucherId: voucher._id,
+    venueId: voucher.venueId?._id,
+    partnerId: voucher.partnerId,
+    redeemedBy: req.user._id,
+    userId: userVoucher?.userId?._id || null,
+    userVoucherId: userVoucher?._id || null,
+    method: userVoucher ? 'qr' : 'code',
+  });
 
   res.status(200).json({
     success: true,
     message: 'Đối soát & áp dụng voucher thành công! 🎉',
     data: {
+      id: redemption._id,
       code: voucher.code,
       title: voucher.title,
       discountPercent: voucher.discountPercent,
       discountAmount: voucher.discountAmount,
       venueName: voucher.venueId?.name,
       student: userVoucher?.userId?.fullName || null,
-      remainingCount: voucher.quantity - voucher.usedCount,
-      redeemedAt: new Date(),
+      remainingCount: voucher.quantity - voucher.usedCount - 1,
+      redeemedAt: redemption.createdAt,
     },
   });
 });
 
+/** Partner: Lịch sử check-in / đối soát voucher tại quán */
+const getPartnerRedemptions = catchAsync(async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const filter = { partnerId: req.user._id };
+
+  const [total, redemptions] = await Promise.all([
+    Redemption.countDocuments(filter),
+    Redemption.find(filter)
+      .populate('voucherId', 'code title discountPercent discountAmount')
+      .populate('userId', 'fullName avatar studentProfile.studentId studentProfile.university')
+      .populate('redeemedBy', 'fullName')
+      .sort({ createdAt: -1 })
+      .limit(limit),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    total,
+    count: redemptions.length,
+    data: redemptions,
+  });
+});
+
 // ─── PARTNER ─────────────────────────────────────────────────────────────────
+
+/** Gắn thêm claimedCount (số lượt sinh viên đã lưu vào ví) cho từng voucher */
+const withClaimedCount = async (vouchers) => {
+  const counts = await UserVoucher.aggregate([
+    { $match: { voucherId: { $in: vouchers.map((v) => v._id) } } },
+    { $group: { _id: '$voucherId', count: { $sum: 1 } } },
+  ]);
+  const countById = new Map(counts.map((c) => [c._id.toString(), c.count]));
+  return vouchers.map((v) => ({ ...v.toObject(), claimedCount: countById.get(v._id.toString()) || 0 }));
+};
 
 /** Partner: Lấy danh sách voucher do mình phát hành */
 const getMyPartnerVouchers = catchAsync(async (req, res) => {
@@ -175,7 +279,7 @@ const getMyPartnerVouchers = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: vouchers.length,
-    data: vouchers,
+    data: await withClaimedCount(vouchers),
   });
 });
 
@@ -287,7 +391,7 @@ const getAllVouchersAdmin = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: vouchers.length,
-    data: vouchers,
+    data: await withClaimedCount(vouchers),
   });
 });
 
@@ -295,7 +399,9 @@ module.exports = {
   getPublicVouchers,
   claimVoucher,
   getMyWallet,
+  verifyVoucher,
   redeemVoucher,
+  getPartnerRedemptions,
   getMyPartnerVouchers,
   createVoucher,
   toggleVoucherStatus,

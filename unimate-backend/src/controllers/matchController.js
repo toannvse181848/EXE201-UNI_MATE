@@ -178,6 +178,11 @@ const proposeVenue = catchAsync(async (req, res) => {
     throw new ApiError(404, 'Không tìm thấy thông tin ghép đôi');
   }
 
+  const userId = req.user._id.toString();
+  if (match.user1.toString() !== userId && match.user2.toString() !== userId) {
+    throw new ApiError(403, 'Bạn không thuộc cặp ghép đôi này');
+  }
+
   match.proposedVenue = venueId;
   await match.save();
 
