@@ -35,7 +35,7 @@ export default function VoucherManagement() {
     type: 'Phần trăm (%)',
     value: '',
     total: 500,
-    expiry: '31/12/2026',
+    expiry: '2026-12-31',
   });
 
   const loadVenues = async () => {
@@ -104,11 +104,28 @@ export default function VoucherManagement() {
     try {
       const valNum = parseInt(newVoucher.value) || 0;
       const effectiveVenueId = selectedVenueId || (venues.length > 0 ? (venues[0]._id || venues[0].id) : undefined);
+
+      let parsedDate = null;
+      if (newVoucher.expiry) {
+        if (newVoucher.expiry.includes('/')) {
+          const parts = newVoucher.expiry.split('/');
+          if (parts.length === 3) {
+            parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+          }
+        } else {
+          parsedDate = new Date(newVoucher.expiry);
+        }
+      }
+      if (!parsedDate || isNaN(parsedDate.getTime())) {
+        parsedDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+      }
+
       const payload = {
         venueId: effectiveVenueId,
         title: newVoucher.name,
         code: newVoucher.code.toUpperCase().trim(),
         quantity: Number(newVoucher.total) || 500,
+        validUntil: parsedDate.toISOString(),
         ...(newVoucher.type === 'Phần trăm (%)' ? { discountPercent: valNum || 20 } : {}),
         ...(newVoucher.type === 'Tiền mặt (VNĐ)' ? { discountAmount: valNum || 50000 } : {}),
       };
@@ -121,7 +138,7 @@ export default function VoucherManagement() {
         type: 'Phần trăm (%)',
         value: '',
         total: 500,
-        expiry: '31/12/2026',
+        expiry: '2026-12-31',
       });
       await fetchVouchers();
     } catch (err) {
@@ -504,14 +521,23 @@ export default function VoucherManagement() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                  Hạn sử dụng
+                  Hạn sử dụng *
                 </label>
                 <input
-                  type="text"
+                  type="date"
+                  required
                   value={newVoucher.expiry}
                   onChange={(e) => setNewVoucher({ ...newVoucher, expiry: e.target.value })}
-                  placeholder="31/12/2024"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                  }}
                 />
               </div>
 

@@ -219,9 +219,29 @@ const createVoucher = catchAsync(async (req, res) => {
   const existing = await Voucher.findOne({ code: code.toUpperCase().trim() });
   if (existing) throw new ApiError(400, 'Mã voucher này đã tồn tại');
 
+  // Xử lý hạn sử dụng (validUntil / expiry)
+  let rawDate = req.body.validUntil || req.body.expiry;
+  let parsedDate = null;
+  if (rawDate) {
+    if (typeof rawDate === 'string' && rawDate.includes('/')) {
+      const parts = rawDate.split('/');
+      if (parts.length === 3) {
+        parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+      }
+    } else {
+      parsedDate = new Date(rawDate);
+    }
+  }
+
+  if (!parsedDate || isNaN(parsedDate.getTime())) {
+    // Mặc định hạn dùng 6 tháng sau nếu không truyền hoặc không hợp lệ
+    parsedDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+  }
+
   const voucher = await Voucher.create({
     ...req.body,
     venueId: venue._id,
+    validUntil: parsedDate,
     code: code.toUpperCase().trim(),
     partnerId: req.user._id,
   });
