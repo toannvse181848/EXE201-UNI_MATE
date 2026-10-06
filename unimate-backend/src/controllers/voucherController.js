@@ -181,10 +181,34 @@ const getMyPartnerVouchers = catchAsync(async (req, res) => {
 
 /** Partner: Tạo voucher khuyến mãi mới */
 const createVoucher = catchAsync(async (req, res) => {
-  const { venueId, code } = req.body;
+  let { venueId, code } = req.body;
 
-  const venue = await Venue.findById(venueId);
-  if (!venue) throw new ApiError(404, 'Không tìm thấy địa điểm');
+  if (!code) {
+    throw new ApiError(400, 'Vui lòng nhập mã voucher');
+  }
+
+  let venue = null;
+  if (venueId) {
+    venue = await Venue.findById(venueId);
+  }
+
+  // Nếu không truyền venueId hoặc không tìm thấy theo id, tự động lấy venue của chính partner
+  if (!venue) {
+    venue = await Venue.findOne({ partnerId: req.user._id });
+  }
+
+  // Nếu partner vẫn chưa tạo venue nào, khởi tạo nhanh 1 cơ sở mặc định để có thể phát hành voucher ngay
+  if (!venue) {
+    venue = await Venue.create({
+      name: req.user.partnerProfile?.businessName || req.user.fullName || 'Địa điểm đối tác UNI-MATE',
+      partnerId: req.user._id,
+      address: req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương',
+      description: 'Quán đối tác liên kết của UNI-MATE dành cho sinh viên.',
+      phone: req.user.phone || '0901234567',
+      status: 'approved',
+    });
+  }
+
   if (
     venue.partnerId.toString() !== req.user._id.toString() &&
     req.user.role !== 'admin'
@@ -197,6 +221,7 @@ const createVoucher = catchAsync(async (req, res) => {
 
   const voucher = await Voucher.create({
     ...req.body,
+    venueId: venue._id,
     code: code.toUpperCase().trim(),
     partnerId: req.user._id,
   });

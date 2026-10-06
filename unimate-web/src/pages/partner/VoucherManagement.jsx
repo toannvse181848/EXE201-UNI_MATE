@@ -16,10 +16,12 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react';
-import { voucherApi } from '../../services/api';
+import { voucherApi, venueApi } from '../../services/api';
 
 export default function VoucherManagement() {
   const [vouchers, setVouchers] = useState([]);
+  const [venues, setVenues] = useState([]);
+  const [selectedVenueId, setSelectedVenueId] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -35,6 +37,19 @@ export default function VoucherManagement() {
     total: 500,
     expiry: '31/12/2026',
   });
+
+  const loadVenues = async () => {
+    try {
+      const res = await venueApi.getMyVenues();
+      const vList = res?.data || [];
+      setVenues(vList);
+      if (vList.length > 0) {
+        setSelectedVenueId(vList[0]._id || vList[0].id);
+      }
+    } catch (err) {
+      console.log('Load venues note:', err.message);
+    }
+  };
 
   const fetchVouchers = async () => {
     setLoading(true);
@@ -64,6 +79,7 @@ export default function VoucherManagement() {
 
   useEffect(() => {
     fetchVouchers();
+    loadVenues();
   }, []);
 
   const handleToggleStatus = async (id) => {
@@ -87,7 +103,9 @@ export default function VoucherManagement() {
     setSubmitting(true);
     try {
       const valNum = parseInt(newVoucher.value) || 0;
+      const effectiveVenueId = selectedVenueId || (venues.length > 0 ? (venues[0]._id || venues[0].id) : undefined);
       const payload = {
+        venueId: effectiveVenueId,
         title: newVoucher.name,
         code: newVoucher.code.toUpperCase().trim(),
         quantity: Number(newVoucher.total) || 500,
@@ -371,6 +389,47 @@ export default function VoucherManagement() {
             </div>
 
             <form onSubmit={handleCreateVoucher} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
+                  Cơ sở / Quán áp dụng voucher *
+                </label>
+                {venues.length > 0 ? (
+                  <select
+                    value={selectedVenueId}
+                    onChange={(e) => setSelectedVenueId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: '#fff',
+                      fontSize: '13px',
+                      outline: 'none',
+                    }}
+                  >
+                    {venues.map((v) => (
+                      <option key={v._id || v.id} value={v._id || v.id}>
+                        {v.name} — {v.address}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      backgroundColor: '#FFF7ED',
+                      border: '1px solid #FFEDD5',
+                      color: '#C2410C',
+                      fontSize: '12px',
+                      lineHeight: '18px',
+                    }}
+                  >
+                    💡 Hệ thống sẽ tự động liên kết cơ sở của bạn hoặc bạn có thể vào mục <strong>"Quản lý Địa điểm"</strong> để tuỳ chỉnh cơ sở trước.
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
                   Tên chương trình voucher *
