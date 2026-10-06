@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../src/constants/colors';
 import { Button } from '../../src/components/Button';
 import { onboardingApi } from '../../src/api/onboardingApi';
+import { userApi, buildAvatarFormData } from '../../src/api/userApi';
 import { useAuth } from '../../src/context/AuthContext';
 
 const CATEGORIES = [
@@ -97,13 +98,28 @@ export default function InterestsScreen() {
       };
 
       const res = await onboardingApi.savePreferences(payload);
-      if (res.data?.data) {
-        updateUser({
-          ...res.data.data,
-          ...(params.fullName ? { fullName: params.fullName, name: params.fullName } : {}),
-          ...(params.avatarUri ? { avatar: params.avatarUri } : {}),
-        });
+
+      // Lưu họ tên / trường / ngành nhập ở bước 1 vào DB
+      const profileRes = await userApi
+        .updateMe({ fullName: params.fullName, university: params.university, major: params.major })
+        .catch((err) => console.warn('Lỗi lưu hồ sơ:', err.message));
+
+      // Avatar chọn từ máy (file://...) cần upload lên server mới có link dùng được
+      let uploadedAvatar = null;
+      if (params.avatarUri && !/^https?:\/\//.test(params.avatarUri)) {
+        try {
+          const avatarRes = await userApi.updateAvatar(buildAvatarFormData(params.avatarUri));
+          uploadedAvatar = avatarRes.data?.data?.avatar || null;
+        } catch (err) {
+          Alert.alert('Chưa lưu được ảnh đại diện', `${err.message}. Bạn có thể đổi lại trong trang Hồ sơ.`);
+        }
       }
+
+      updateUser({
+        ...(res.data?.data || {}),
+        ...(profileRes?.data?.data?.user || {}),
+        ...(uploadedAvatar ? { avatar: uploadedAvatar } : {}),
+      });
       router.replace('/(tabs)/home');
     } catch (err) {
       console.warn('Lỗi lưu sở thích:', err.message);

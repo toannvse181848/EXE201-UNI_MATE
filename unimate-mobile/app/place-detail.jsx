@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,16 @@ import {
   TouchableOpacity,
   Dimensions,
   Share,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../src/constants/colors';
-import { MOCK_VENUES } from '../src/data/mockVenues';
+import { venueApi } from '../src/api/venueApi';
+import { voucherApi } from '../src/api/voucherApi';
+import { toVenueCard, formatDaysLeft } from '../src/utils/venueMapper';
 
 
 const { width } = Dimensions.get('window');
@@ -22,10 +26,50 @@ export default function PlaceDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [isSaved, setIsSaved] = useState(false);
+  const [venue, setVenue] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [claiming, setClaiming] = useState(false);
 
-  const venueId = params.id || 'v1';
+  const venueId = params.id;
   const partnerName = params.partnerName;
-  const venue = MOCK_VENUES.find((v) => v.id === venueId) || MOCK_VENUES[0];
+
+  useEffect(() => {
+    if (!venueId) {
+      setLoadError('Không tìm thấy quán');
+      return;
+    }
+    let isMounted = true;
+    Promise.all([
+      venueApi.getVenueById(venueId),
+      voucherApi.getVouchers({ venueId }).catch(() => null),
+    ])
+      .then(([venueRes, vouchersRes]) => {
+        if (!isMounted) return;
+        const voucher = vouchersRes?.data?.data?.[0] || null;
+        setVenue(toVenueCard(venueRes.data.data, voucher));
+      })
+      .catch((err) => isMounted && setLoadError(err.message));
+    return () => {
+      isMounted = false;
+    };
+  }, [venueId]);
+
+  if (!venue) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        {loadError ? (
+          <>
+            <Text style={{ color: COLORS.textSecondary, marginBottom: 16, textAlign: 'center' }}>{loadError}</Text>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Quay lại</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <ActivityIndicator color={COLORS.primary} />
+        )}
+      </SafeAreaView>
+    );
+  }
 
   const handleShare = async () => {
     try {
@@ -37,15 +81,34 @@ export default function PlaceDetailScreen() {
     }
   };
 
-  const handleClaimVoucher = () => {
-    router.push({
-      pathname: '/voucher-detail',
-      params: {
-        venueName: venue.name,
-        voucherTitle: venue.voucherBadge,
-        voucherCode: venue.voucherCode,
-      },
-    });
+  // Lưu voucher vào ví (nếu chưa lưu) rồi mở mã QR để đưa thu ngân quét
+  const handleClaimVoucher = async () => {
+    if (!venue.voucherId || claiming) return;
+    setClaiming(true);
+    try {
+      const walletRes = await voucherApi.getMyWallet();
+      let item = (walletRes.data?.data || []).find(
+        (uv) => (uv.voucherId?._id || uv.voucherId) === venue.voucherId
+      );
+      if (!item) {
+        const claimRes = await voucherApi.claimVoucher(venue.voucherId);
+        item = claimRes.data?.data;
+      }
+      router.push({
+        pathname: '/voucher-detail',
+        params: {
+          venueName: venue.name,
+          voucherTitle: venue.voucherBadge,
+          qrPayload: item.qrPayload,
+          validUntil: venue.voucherValidUntil || '',
+          status: item.status || 'saved',
+        },
+      });
+    } catch (err) {
+      Alert.alert('Không thể lưu voucher', err.message);
+    } finally {
+      setClaiming(false);
+    }
   };
 
   const handleSelectAsMeetup = () => {
@@ -150,14 +213,22 @@ export default function PlaceDetailScreen() {
                 <Ionicons name="gift" size={24} color={COLORS.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.voucherTitle}>{venue.voucherBadge}</Text>
-                <Text style={styles.voucherSub}>Áp dụng cho mọi hóa đơn đồ uống</Text>
-                <Text style={styles.voucherExpiry}>Hạn dùng: Còn 5 ngày</Text>
+                <Text style={styles.voucherTitle}>
+                  {venue.voucherId ? venue.voucherBadge : 'Quán chưa có voucher đang chạy'}
+                </Text>
+                {venue.voucherId && (
+                  <>
+                    <Text style={styles.voucherSub}>Lưu vào ví rồi đưa mã QR cho thu ngân</Text>
+                    <Text style={styles.voucherExpiry}>Hạn dùng: {formatDaysLeft(venue.voucherValidUntil)}</Text>
+                  </>
+                )}
               </View>
             </View>
-            <TouchableOpacity style={styles.claimBtn} onPress={handleClaimVoucher}>
-              <Text style={styles.claimBtnText}>Mã QR</Text>
-            </TouchableOpacity>
+            {venue.voucherId && (
+              <TouchableOpacity style={styles.claimBtn} onPress={handleClaimVoucher} disabled={claiming}>
+                <Text style={styles.claimBtnText}>{claiming ? '...' : 'Mã QR'}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Amenities Grid */}
@@ -166,19 +237,21 @@ export default function PlaceDetailScreen() {
           <View style={styles.amenitiesGrid}>
             <View style={styles.amenityItem}>
               <Ionicons name="wifi" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>Wifi 150 Mbps</Text>
+              <Text style={styles.amenityText}>Wifi {venue.amenities.wifiSpeed || 'miễn phí'}</Text>
             </View>
             <View style={styles.amenityItem}>
               <Ionicons name="battery-charging" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>Mỗi bàn 2 ổ cắm</Text>
+              <Text style={styles.amenityText}>{venue.amenities.powerSockets || 'Có ổ cắm'}</Text>
             </View>
             <View style={styles.amenityItem}>
               <Ionicons name="snow" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>Điều hòa mát</Text>
+              <Text style={styles.amenityText}>{venue.amenities.airConditioning || 'Điều hòa mát'}</Text>
             </View>
             <View style={styles.amenityItem}>
               <Ionicons name="volume-mute" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>Khu vực yên tĩnh</Text>
+              <Text style={styles.amenityText}>
+                {venue.amenities.quietScore ? `Yên tĩnh ${venue.amenities.quietScore}` : 'Khu vực yên tĩnh'}
+              </Text>
             </View>
           </View>
         </View>

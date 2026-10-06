@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +15,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../src/constants/colors';
 import { useAuth } from '../../src/context/AuthContext';
-import { userApi } from '../../src/api/userApi';
+import { userApi, buildAvatarFormData } from '../../src/api/userApi';
 import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -111,33 +110,17 @@ export default function ProfileScreen() {
   const uploadAvatarFile = async (asset) => {
     setAvatarLoading(true);
     try {
-      const uri = asset.uri;
-      const filename = uri.split('/').pop() || 'avatar.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const ext = match ? match[1].toLowerCase() : 'jpg';
-      const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-
-      const formData = new FormData();
-      formData.append('avatar', {
-        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
-        name: filename,
-        type,
-      });
-
-      const res = await userApi.updateAvatar(formData);
-      const newAvatarUrl = res?.data?.data?.avatar || res?.data?.avatar || uri;
+      const res = await userApi.updateAvatar(buildAvatarFormData(asset.uri));
+      const newAvatarUrl = res?.data?.data?.avatar;
+      if (!newAvatarUrl) throw new Error('Máy chủ không trả về ảnh đại diện mới');
 
       if (updateUser) {
         updateUser({ avatar: newAvatarUrl });
       }
       Alert.alert('Thành công', 'Đã cập nhật ảnh đại diện của bạn!');
     } catch (err) {
-      console.warn('Lỗi tải ảnh đại diện:', err.message);
-      // Fallback local URI để giao diện cập nhật ngay lập tức
-      if (updateUser) {
-        updateUser({ avatar: asset.uri });
-      }
-      Alert.alert('Đã cập nhật', 'Đã lưu ảnh đại diện mới vào hồ sơ tài khoản!');
+      // Không hiển thị ảnh local như đã lưu — ảnh chưa vào DB
+      Alert.alert('Tải ảnh thất bại', err.message || 'Không thể cập nhật ảnh đại diện');
     } finally {
       setAvatarLoading(false);
     }

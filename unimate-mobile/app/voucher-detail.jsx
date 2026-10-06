@@ -7,39 +7,65 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../src/constants/colors';
+import { voucherApi } from '../src/api/voucherApi';
+import { formatDaysLeft, qrImageUrl } from '../src/utils/venueMapper';
 
 const { width } = Dimensions.get('window');
 
 export default function VoucherDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const [redeemed, setRedeemed] = useState(false);
+  const [status, setStatus] = useState(params.status || 'saved');
+  const [checking, setChecking] = useState(false);
 
-  const venueName = params.venueName || 'The Coffee House - Sư Vạn Hạnh';
-  const voucherTitle = params.voucherTitle || 'Giảm 20% tổng hoá đơn';
-  const voucherCode = params.voucherCode || 'VCH-2024-X9F2';
+  const venueName = params.venueName || 'Quán đối tác UNI-MATE';
+  const voucherTitle = params.voucherTitle || 'Voucher ưu đãi';
+  // Mã riêng của voucher trong ví — thu ngân quét/nhập mã này để trừ đúng voucher của bạn
+  const qrPayload = params.qrPayload;
+  const redeemed = status === 'used';
 
-  const handleRedeem = () => {
-    Alert.alert(
-      'Xác nhận sử dụng',
-      'Đưa mã này cho thu ngân quán để quét mã check-in. Bạn có muốn xác nhận?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xác nhận',
-          onPress: () => {
-            setRedeemed(true);
-            Alert.alert('Thành công', 'Voucher đã được ghi nhận check-in tại quán!');
-          },
-        },
-      ]
-    );
+  // Thu ngân xác nhận trên web partner → server đổi trạng thái sang "used"
+  const handleCheckStatus = async () => {
+    if (!qrPayload || checking) return;
+    setChecking(true);
+    try {
+      const res = await voucherApi.getMyWallet();
+      const item = (res.data?.data || []).find((uv) => uv.qrPayload === qrPayload);
+      if (!item) throw new Error('Không tìm thấy voucher trong ví');
+      setStatus(item.status);
+      Alert.alert(
+        'Trạng thái voucher',
+        item.status === 'used'
+          ? 'Voucher đã được quán xác nhận sử dụng 🎉'
+          : item.status === 'expired'
+          ? 'Voucher đã hết hạn'
+          : 'Voucher chưa được sử dụng. Hãy đưa mã QR cho thu ngân quét.'
+      );
+    } catch (err) {
+      Alert.alert('Lỗi', err.message);
+    } finally {
+      setChecking(false);
+    }
   };
+
+  if (!qrPayload) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 }}>
+          Chưa chọn voucher. Hãy mở voucher trong ví hoặc lưu voucher từ một quán đối tác.
+        </Text>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)/explore')}>
+          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Đến ví voucher</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -79,28 +105,17 @@ export default function VoucherDetailScreen() {
           {/* QR Code Section */}
           <View style={styles.qrSection}>
             <View style={styles.qrFrame}>
-              {/* Clean Mock QR Pattern */}
-              <View style={styles.qrGrid}>
-                {/* Simulated QR Code Blocks */}
-                <View style={styles.qrCornerTL}>
-                  <View style={styles.qrInnerSquare} />
-                </View>
-                <View style={styles.qrCornerTR}>
-                  <View style={styles.qrInnerSquare} />
-                </View>
-                <View style={styles.qrCornerBL}>
-                  <View style={styles.qrInnerSquare} />
-                </View>
-                <Ionicons name="qr-code" size={140} color={COLORS.textDark} />
-              </View>
+              <Image source={{ uri: qrImageUrl(qrPayload) }} style={styles.qrImage} />
             </View>
 
-            <Text style={styles.codeText}>{voucherCode}</Text>
+            <Text style={styles.codeText}>{qrPayload}</Text>
 
             {/* Countdown Badge */}
             <View style={styles.countdownBox}>
               <Ionicons name="timer-outline" size={15} color={COLORS.primary} />
-              <Text style={styles.countdownText}>Hết hạn trong: 04 ngày 18:32:10</Text>
+              <Text style={styles.countdownText}>
+                Hạn dùng: {status === 'expired' ? 'Đã hết hạn' : formatDaysLeft(params.validUntil || null)}
+              </Text>
             </View>
           </View>
 
@@ -154,14 +169,14 @@ export default function VoucherDetailScreen() {
         {/* Actions */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.primaryAction, redeemed && styles.disabledAction]}
-            onPress={handleRedeem}
-            disabled={redeemed}
+            style={[styles.primaryAction, (redeemed || checking) && styles.disabledAction]}
+            onPress={handleCheckStatus}
+            disabled={redeemed || checking}
             activeOpacity={0.85}
           >
-            <Ionicons name="scan-outline" size={18} color={COLORS.white} style={{ marginRight: 8 }} />
+            <Ionicons name="refresh" size={18} color={COLORS.white} style={{ marginRight: 8 }} />
             <Text style={styles.primaryActionText}>
-              {redeemed ? 'Voucher đã dùng' : 'Quét xác nhận tại quầy'}
+              {redeemed ? 'Voucher đã dùng' : checking ? 'Đang kiểm tra...' : 'Kiểm tra trạng thái sau khi quét'}
             </Text>
           </TouchableOpacity>
 
@@ -296,16 +311,15 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
   },
-  qrGrid: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
+  qrImage: {
+    width: 180,
+    height: 180,
   },
   codeText: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
     color: COLORS.text,
-    letterSpacing: 3,
+    letterSpacing: 1,
     marginTop: 14,
   },
   countdownBox: {

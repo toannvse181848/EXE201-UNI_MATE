@@ -1,48 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   TextInput,
   Image,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../src/constants/colors';
-import { MOCK_VENUES, TAG_FILTERS } from '../../src/data/mockVenues';
-import { MOCK_MY_VOUCHERS } from '../../src/data/mockVouchers';
-import { venueApi } from '../../src/api/venueApi';
+import { TAG_FILTERS } from '../../src/constants/venueFilters';
+import { voucherApi } from '../../src/api/voucherApi';
+import { useVenues } from '../../src/hooks/useVenues';
+import { toWalletVoucher, formatDaysLeft } from '../../src/utils/venueMapper';
 
 export default function ExploreScreen() {
   const router = useRouter();
-  const [venuesList, setVenuesList] = useState(MOCK_VENUES);
+  const { venues: venuesList, loading: venuesLoading, error: venuesError, reload } = useVenues();
+  const [myVouchers, setMyVouchers] = useState([]);
   const [activeTab, setActiveTab] = useState('venues'); // 'venues' | 'vouchers'
   const [search, setSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('all');
 
-  useEffect(() => {
-    const fetchVenues = async () => {
-      try {
-        const res = await venueApi.getVenues();
-        if (res.data?.data && res.data.data.length > 0) {
-          setVenuesList(res.data.data);
-        }
-      } catch {
-        // Fallback to MOCK_VENUES
-      }
-    };
-    fetchVenues();
-  }, []);
+  // Tải lại ví mỗi khi quay về màn này (vd: vừa lưu voucher ở trang chi tiết quán)
+  useFocusEffect(
+    useCallback(() => {
+      voucherApi
+        .getMyWallet()
+        .then((res) => setMyVouchers((res.data?.data || []).map(toWalletVoucher)))
+        .catch(() => setMyVouchers([]));
+    }, [])
+  );
 
+  const keyword = search.toLowerCase();
   const filteredVenues = venuesList.filter((v) => {
     const matchSearch =
-      v.name.toLowerCase().includes(search.toLowerCase()) ||
-      v.address.toLowerCase().includes(search.toLowerCase());
-    return matchSearch;
+      v.name.toLowerCase().includes(keyword) || v.address.toLowerCase().includes(keyword);
+    const matchTag =
+      selectedTag === 'all' ||
+      v.category === selectedTag ||
+      v.tags.some((t) => t.toLowerCase().includes(selectedTag));
+    return matchSearch && matchTag;
   });
 
 
@@ -56,7 +58,7 @@ export default function ExploreScreen() {
         </View>
         <TouchableOpacity
           style={styles.notificationBtn}
-          onPress={() => router.push('/voucher-detail')}
+          onPress={() => setActiveTab('vouchers')}
         >
           <Ionicons name="qr-code-outline" size={20} color={COLORS.text} />
         </TouchableOpacity>
@@ -107,7 +109,7 @@ export default function ExploreScreen() {
                 activeTab === 'vouchers' && styles.segmentTextActive,
               ]}
             >
-              Voucher của tôi ({MOCK_MY_VOUCHERS.filter((v) => !v.used).length})
+              Voucher của tôi ({myVouchers.filter((v) => !v.used).length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -164,6 +166,17 @@ export default function ExploreScreen() {
           </ScrollView>
 
           {/* Venues Grid / List */}
+          {venuesLoading && <ActivityIndicator color={COLORS.primary} style={{ marginTop: 32 }} />}
+          {!venuesLoading && venuesError && (
+            <TouchableOpacity onPress={reload} style={styles.emptyBox}>
+              <Text style={styles.emptyText}>Không tải được danh sách quán. Chạm để thử lại.</Text>
+            </TouchableOpacity>
+          )}
+          {!venuesLoading && !venuesError && filteredVenues.length === 0 && (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>Chưa có quán nào phù hợp.</Text>
+            </View>
+          )}
           {filteredVenues.map((item) => (
             <TouchableOpacity
               key={item.id}
@@ -230,7 +243,15 @@ export default function ExploreScreen() {
             Đưa mã QR voucher cho nhân viên thu ngân tại quán để được giảm giá trực tiếp!
           </Text>
 
-          {MOCK_MY_VOUCHERS.map((v) => (
+          {myVouchers.length === 0 && (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>
+                Ví voucher đang trống. Mở một quán đối tác và bấm "Lưu voucher" để nhận ưu đãi.
+              </Text>
+            </View>
+          )}
+
+          {myVouchers.map((v) => (
             <TouchableOpacity
               key={v.id}
               style={[styles.myVoucherCard, v.used && styles.myVoucherUsed]}
@@ -241,7 +262,9 @@ export default function ExploreScreen() {
                   params: {
                     venueName: v.venueName,
                     voucherTitle: v.title,
-                    voucherCode: v.code,
+                    qrPayload: v.qrPayload,
+                    validUntil: v.validUntil || '',
+                    status: v.status,
                   },
                 })
               }
@@ -260,7 +283,11 @@ export default function ExploreScreen() {
                       v.used ? styles.expiryUsed : styles.expiryActive,
                     ]}
                   >
-                    {v.used ? 'Đã sử dụng' : `Còn ${v.expiresIn}`}
+                    {v.status === 'used'
+                      ? 'Đã sử dụng'
+                      : v.status === 'expired'
+                      ? 'Đã hết hạn'
+                      : formatDaysLeft(v.validUntil)}
                   </Text>
                 </View>
               </View>
@@ -283,6 +310,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  emptyBox: {
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 19,
   },
   header: {
     flexDirection: 'row',

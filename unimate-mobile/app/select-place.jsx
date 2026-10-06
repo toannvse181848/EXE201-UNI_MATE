@@ -6,14 +6,15 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../src/constants/colors';
-
-import { MOCK_VENUES } from '../src/data/mockVenues';
-export { MOCK_VENUES };
+import { useVenues } from '../src/hooks/useVenues';
+import { matchApi } from '../src/api/matchApi';
 
 
 const FILTERS = [
@@ -27,15 +28,28 @@ export default function SelectPlaceScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [activeFilter, setActiveFilter] = useState('all');
+  const { venues, loading } = useVenues();
 
-  const partnerName = params.partnerName || 'Lê Phương Thảo';
+  // chat-room truyền buddyName, màn match truyền partnerName
+  const partnerName = params.partnerName || params.buddyName || 'bạn của bạn';
+  const matchId = params.matchId;
 
   const filteredVenues =
     activeFilter === 'all'
-      ? MOCK_VENUES
-      : MOCK_VENUES.filter((v) => v.category === activeFilter);
+      ? venues
+      : venues.filter((v) => v.category === activeFilter);
 
-  const handleSelectVenue = (venue) => {
+  const handleSelectVenue = async (venue) => {
+    // Lưu quán được đề xuất vào cặp ghép đôi (nếu mở từ phòng chat)
+    if (matchId) {
+      try {
+        await matchApi.proposeVenue(matchId, venue.id);
+      } catch (err) {
+        Alert.alert('Không thể gửi lời mời', err.message);
+        return;
+      }
+    }
+
     // Navigate to Chat and pass place invite info
     router.push({
       pathname: '/(tabs)/chat',
@@ -102,9 +116,13 @@ export default function SelectPlaceScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionHeader}>
-          {filteredVenues.length} quán đối tác UNI-MATE có ưu đãi gần bạn
-        </Text>
+        {loading ? (
+          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 32 }} />
+        ) : (
+          <Text style={styles.sectionHeader}>
+            {filteredVenues.length} quán đối tác UNI-MATE có ưu đãi gần bạn
+          </Text>
+        )}
 
         {filteredVenues.map((item) => (
           <View key={item.id} style={styles.venueCard}>

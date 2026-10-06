@@ -14,9 +14,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../src/constants/colors';
 import { useAuth } from '../../src/context/AuthContext';
 import { Avatar } from '../../src/components/Avatar';
-import { MOCK_VENUES } from '../../src/data/mockVenues';
-import { SUGGESTED_MATES } from '../../src/data/mockUsers';
 import { userApi } from '../../src/api/userApi';
+import { useVenues } from '../../src/hooks/useVenues';
 import { chatApi } from '../../src/api/chatApi';
 import { formatStudentYear } from '../../src/constants/academic';
 
@@ -58,6 +57,7 @@ export default function HomeScreen() {
   const displayName = user?.fullName || 'Bạn mới';
   const [realStudents, setRealStudents] = useState([]);
   const [hasUnread, setHasUnread] = useState(false);
+  const { venues } = useVenues();
 
   useEffect(() => {
     let isMounted = true;
@@ -68,7 +68,7 @@ export default function HomeScreen() {
           setRealStudents(res.data.data);
         }
       } catch {
-        // Fallback sang mock nếu chưa đăng nhập hoặc offline
+        // Chưa đăng nhập hoặc offline: để trống danh sách gợi ý
       }
     };
 
@@ -89,22 +89,20 @@ export default function HomeScreen() {
     return () => { isMounted = false; };
   }, [user]);
 
-  // Chuẩn hoá danh sách hiển thị (ưu tiên dữ liệu thật từ DB)
-  const displayMates = realStudents.length > 0
-    ? realStudents.map((s, idx) => ({
-        id: s._id,
-        name: s.fullName,
-        school: [
-          s.studentProfile?.university,
-          s.studentProfile?.year ? formatStudentYear(s.studentProfile.year) : null,
-        ].filter(Boolean).join(' • ') || 'Đại học',
-        major: s.studentProfile?.major || '',
-        avatar: s.avatar || (idx % 2 === 0
-          ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
-          : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'),
-        score: `${s.studentProfile?.trustScore || 95}% Hợp`,
-      }))
-    : SUGGESTED_MATES;
+  // Chuẩn hoá danh sách sinh viên gợi ý lấy từ DB
+  const displayMates = realStudents.map((s, idx) => ({
+    id: s._id,
+    name: s.fullName,
+    school: [
+      s.studentProfile?.university,
+      s.studentProfile?.year ? formatStudentYear(s.studentProfile.year) : null,
+    ].filter(Boolean).join(' • ') || 'Đại học',
+    major: s.studentProfile?.major || '',
+    avatar: s.avatar || (idx % 2 === 0
+      ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
+      : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'),
+    score: `${s.studentProfile?.trustScore || 95}% Hợp`,
+  }));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -223,12 +221,12 @@ export default function HomeScreen() {
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Địa điểm hot gần bạn</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
-            <Text style={styles.seeAllText}>Tất cả ({MOCK_VENUES.length})</Text>
+            <Text style={styles.seeAllText}>Tất cả ({venues.length})</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.venuesContainer}>
-          {MOCK_VENUES.slice(0, 2).map((item) => (
+          {venues.slice(0, 2).map((item) => (
             <TouchableOpacity
               key={item.id}
               style={styles.homeVenueCard}
