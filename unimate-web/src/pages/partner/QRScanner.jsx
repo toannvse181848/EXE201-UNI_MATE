@@ -14,60 +14,60 @@ import {
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
 
-const MOCK_CHECKINS = [
-  { id: 'ck_1', code: 'TCH-UNI20', student: 'Lê Phương Thảo (ĐH Bách Khoa)', discount: 'Giảm 20%', time: '10:32 Hôm nay', cashier: 'Thu ngân 01' },
-  { id: 'ck_2', code: 'CONG-B1G1', student: 'Trần Hoàng Nam (ĐH Kinh Tế)', discount: 'Mua 1 tặng 1', time: '09:45 Hôm nay', cashier: 'Thu ngân 01' },
-  { id: 'ck_3', code: 'WS-BG2H', student: 'Nguyễn Hà My (ĐH RMIT)', discount: 'Tặng 2h Boardgame', time: 'Hôm qua, 19:20', cashier: 'Thu ngân 02' },
-];
-
 export default function QRScanner() {
   const [inputCode, setInputCode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
+  const [scanError, setScanError] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
-  const [history, setHistory] = useState(MOCK_CHECKINS);
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('unimate_partner_checkins');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const handleVerifyCode = async (codeToVerify) => {
-    const code = codeToVerify || inputCode;
-    if (!code.trim()) return;
+    const rawInput = (codeToVerify || inputCode).trim();
+    if (!rawInput) return;
 
     setScanning(true);
     setConfirmed(false);
+    setScanError(null);
+    setScanResult(null);
+
+    // Xử lý mã có kèm MSSV dạng: CODE|STUDENT_ID
+    const parts = rawInput.split('|');
+    const code = (parts[0] || '').trim().toUpperCase();
+    const studentId = parts[1]?.trim() || '';
 
     try {
-      // Thử gọi backend để kiểm tra voucher
-      const res = await voucherApi.getPublicVouchers({ code: code.trim().toUpperCase() });
+      const res = await voucherApi.getPublicVouchers({ code });
       const found = res?.data?.[0];
+
+      if (!found) {
+        setScanError('Không tìm thấy voucher tương ứng với mã ' + code + ' hoặc voucher đã hết hạn.');
+        setScanning(false);
+        return;
+      }
 
       setScanning(false);
       setScanResult({
-        code: code.toUpperCase(),
+        code: found.code || code,
         valid: true,
-        title: found?.title || 'Giảm 20% tổng hoá đơn đồ uống',
-        studentName: 'Lê Phương Thảo',
-        studentSchool: 'ĐH Bách Khoa TP.HCM (K21)',
+        title: found.title || `Voucher ${code}`,
+        studentName: studentId ? `Sinh viên (MSSV: ${studentId})` : 'Khách sinh viên UNI-MATE',
+        studentSchool: 'Cộng đồng sinh viên UNI-MATE',
         studentAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-        venue: found?.venueId?.name || 'The Coffee House - Sư Vạn Hạnh',
-        expiry: 'Còn hạn sử dụng',
-        meetupPartner: 'Trần Hoàng Nam',
+        venue: found.venueId?.name || 'Cửa hàng đối tác',
+        expiry: found.validUntil ? new Date(found.validUntil).toLocaleDateString('vi-VN') : 'Còn hạn sử dụng',
       });
-    } catch {
-      // Fallback
-      setTimeout(() => {
-        setScanning(false);
-        setScanResult({
-          code: code.toUpperCase(),
-          valid: true,
-          title: 'Giảm 20% tổng hoá đơn đồ uống',
-          studentName: 'Lê Phương Thảo',
-          studentSchool: 'ĐH Bách Khoa TP.HCM (K21)',
-          studentAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-          venue: 'The Coffee House - Sư Vạn Hạnh',
-          expiry: 'Còn hạn sử dụng',
-          meetupPartner: 'Trần Hoàng Nam',
-        });
-      }, 500);
+    } catch (err) {
+      setScanning(false);
+      setScanError(err.message || 'Lỗi kiểm tra voucher từ hệ thống');
     }
   };
 
@@ -75,21 +75,23 @@ export default function QRScanner() {
     if (!scanResult) return;
     setRedeeming(true);
     try {
-      await voucherApi.redeemVoucher(scanResult.code);
-    } catch (err) {
-      console.log('Backend redeem log:', err.message);
-    } finally {
-      setRedeeming(false);
+      await voucherApi.redeemVoucher({ code: scanResult.code });
       setConfirmed(true);
       const newEntry = {
         id: `ck_${Date.now()}`,
         code: scanResult.code,
-        student: `${scanResult.studentName} (${scanResult.studentSchool.split(' ')[0]})`,
-        discount: scanResult.title || 'Giảm 20%',
+        student: scanResult.studentName,
+        discount: scanResult.title || 'Voucher áp dụng',
         time: 'Vừa xong',
-        cashier: 'Thu ngân 01',
+        cashier: 'Quầy thu ngân',
       };
-      setHistory([newEntry, ...history]);
+      const updatedHistory = [newEntry, ...history];
+      setHistory(updatedHistory);
+      localStorage.setItem('unimate_partner_checkins', JSON.stringify(updatedHistory));
+    } catch (err) {
+      alert('Không thể áp dụng voucher: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setRedeeming(false);
     }
   };
 
@@ -286,12 +288,24 @@ export default function QRScanner() {
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                         {scanResult.studentSchool}
                       </p>
-                      <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '700' }}>
-                        Đi cùng bạn match: {scanResult.meetupPartner}
-                      </span>
+                      {scanResult.meetupPartner && (
+                        <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '700' }}>
+                          Đi cùng bạn match: {scanResult.meetupPartner}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
+              </div>
+            ) : scanError ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <AlertCircle size={48} style={{ margin: '0 auto 12px', color: '#EF4444' }} />
+                <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#EF4444' }}>
+                  Không tìm thấy voucher
+                </h4>
+                <p style={{ fontSize: '13px', marginTop: '6px', color: 'var(--text-secondary)' }}>
+                  {scanError}
+                </p>
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
@@ -300,7 +314,7 @@ export default function QRScanner() {
                   Chưa có voucher nào được quét
                 </h4>
                 <p style={{ fontSize: '13px', marginTop: '4px' }}>
-                  Quét mã QR của khách hoặc bấm nút quét mẫu bên trái để xem thông tin
+                  Quét mã QR của khách hoặc nhập mã bên trái để xem thông tin
                 </p>
               </div>
             )}

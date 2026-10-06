@@ -10,100 +10,47 @@ import {
   Phone,
   Calendar,
   Filter,
+  Loader2,
 } from 'lucide-react';
 import { venueApi } from '../../services/api';
 
-const INITIAL_VENUES = [
-  {
-    id: 'v1',
-    name: 'The Coffee House - Sư Vạn Hạnh',
-    owner: 'Nguyễn Văn Hùng',
-    phone: '0901 234 567',
-    district: 'Quận 10, TP.HCM',
-    registeredAt: '12/10/2024',
-    status: 'active', // 'active' | 'pending' | 'suspended'
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200',
-    vouchersCount: 3,
-  },
-  {
-    id: 'v2',
-    name: 'Highlands Coffee - Vạn Hạnh Mall',
-    owner: 'Trần Thị Thu Thảo',
-    phone: '0912 345 678',
-    district: 'Quận 10, TP.HCM',
-    registeredAt: '14/10/2024',
-    status: 'active',
-    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200',
-    vouchersCount: 2,
-  },
-  {
-    id: 'v3',
-    name: 'The Workshop Boardgame Cafe',
-    owner: 'Lê Minh Tuấn',
-    phone: '0988 765 432',
-    district: 'Quận 5, TP.HCM',
-    registeredAt: '18/10/2024',
-    status: 'pending',
-    image: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=200',
-    vouchersCount: 1,
-  },
-  {
-    id: 'v4',
-    name: 'Trà Sữa KOI Thé - Nguyễn Tri Phương',
-    owner: 'Phạm Hoàng Khang',
-    phone: '0933 112 233',
-    district: 'Quận 10, TP.HCM',
-    registeredAt: '19/10/2024',
-    status: 'pending',
-    image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200',
-    vouchersCount: 2,
-  },
-  {
-    id: 'v5',
-    name: 'Tiệm Trà Tháng 5 (Gần ĐH Bách Khoa)',
-    owner: 'Võ Quốc Bảo',
-    phone: '0977 445 566',
-    district: 'Quận 10, TP.HCM',
-    registeredAt: '05/09/2024',
-    status: 'suspended',
-    image: 'https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=200',
-    vouchersCount: 0,
-  },
-];
-
 export default function VenueModeration() {
-  const [venues, setVenues] = useState(INITIAL_VENUES);
+  const [venues, setVenues] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState(null);
 
-  React.useEffect(() => {
-    const fetchVenues = async () => {
-      try {
-        const res = await venueApi.getAllVenuesAdmin();
-        if (res?.data && res.data.length > 0) {
-          const mapped = res.data.map((v) => ({
-            id: v._id || v.id,
-            name: v.name,
-            owner: v.partnerId?.fullName || 'Đối tác',
-            phone: v.partnerId?.phone || '0901 234 567',
-            district: v.district || 'TP.HCM',
-            registeredAt: new Date(v.createdAt).toLocaleDateString('vi-VN'),
-            status: v.status === 'approved' ? 'active' : v.status,
-            image: v.image,
-            vouchersCount: 2,
-          }));
-          setVenues(mapped);
-        }
-      } catch (err) {
-        console.log('Backend venues note:', err.message);
-      }
-    };
+  const fetchVenues = async () => {
+    setLoading(true);
+    try {
+      const res = await venueApi.getAllVenuesAdmin();
+      const raw = res?.data || [];
+      const mapped = raw.map((v) => ({
+        id: v._id || v.id,
+        name: v.name,
+        owner: v.partnerId?.fullName || v.partnerId?.name || 'Đối tác',
+        phone: v.partnerId?.phone || 'Chưa cập nhật',
+        district: v.district || v.address || 'TP.HCM',
+        registeredAt: v.createdAt ? new Date(v.createdAt).toLocaleDateString('vi-VN') : 'Mới',
+        status: v.status === 'approved' ? 'active' : v.status,
+        image: v.image || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200',
+        vouchersCount: v.vouchersCount || 0,
+      }));
+      setVenues(mapped);
+    } catch (err) {
+      console.log('Backend venues note:', err.message);
+      setVenues([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchVenues();
   }, []);
 
   const handleAction = async (id, newStatus, venueName) => {
-    // Cập nhật UI ngay lập tức
     setVenues(
       venues.map((v) => (v.id === id ? { ...v, status: newStatus } : v))
     );
@@ -116,15 +63,13 @@ export default function VenueModeration() {
     setFeedbackMsg(actionText);
     setTimeout(() => setFeedbackMsg(null), 3500);
 
-    // Gửi request lên backend nếu có ID từ database
     try {
-      const backendStatus = newStatus === 'active' ? 'approved' : newStatus === 'suspended' ? 'rejected' : 'rejected';
+      const backendStatus = newStatus === 'active' ? 'approved' : 'rejected';
       await venueApi.updateVenueStatus(id, backendStatus);
     } catch (err) {
       console.log('Backend sync notice:', err.message);
     }
   };
-
 
   const filteredVenues = venues.filter((v) => {
     const matchSearch =
@@ -140,7 +85,7 @@ export default function VenueModeration() {
       {/* Header */}
       <div>
         <h1 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>
-          Quản lý & Duyệt Địa điểm (187 quán)
+          Quản lý & Duyệt Địa điểm ({venues.length} quán)
         </h1>
         <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
           Kiểm duyệt hồ sơ đối tác mới và giám sát các cơ sở cafe đang hiển thị trên ứng dụng UNI-MATE.
@@ -245,7 +190,23 @@ export default function VenueModeration() {
               </tr>
             </thead>
             <tbody>
-              {filteredVenues.map((v) => (
+              {loading ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+                    <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary)' }} />
+                    <p style={{ fontSize: '14px', fontWeight: '600' }}>Đang tải danh sách địa điểm đối tác...</p>
+                  </td>
+                </tr>
+              ) : filteredVenues.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+                    <Store size={36} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                    <p style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-secondary)' }}>Không tìm thấy địa điểm nào</p>
+                    <p style={{ fontSize: '13px', marginTop: '4px' }}>Chưa có địa điểm đối tác nào phù hợp với bộ lọc hiện tại</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredVenues.map((v) => (
                 <tr key={v.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <td style={{ padding: '14px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -327,7 +288,7 @@ export default function VenueModeration() {
                     )}
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

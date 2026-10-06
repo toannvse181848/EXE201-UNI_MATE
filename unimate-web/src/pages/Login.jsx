@@ -2,21 +2,22 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import cover from '../assets/cover.png';
 import { useAuth } from '../context/AuthContext';
-import { GraduationCap, Coffee, ShieldCheck, ArrowRight, Lock, Mail, Sparkles, UserPlus } from 'lucide-react';
+import { GraduationCap, Coffee, ShieldCheck, ArrowRight, ArrowLeft, Lock, Mail, UserPlus } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [role, setRole] = useState('user'); // 'user' | 'partner' | 'admin'
-  const [email, setEmail] = useState('toan.nguyen@fpt.edu.vn');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const roleConfigs = {
     user: {
       title: 'Sinh viên & Người dùng',
       desc: 'Dành cho sinh viên kết nối bạn học, khám phá quán cafe & đổi voucher',
-      email: 'toan.nguyen@fpt.edu.vn',
+      email: '',
+      placeholder: 'vd: ho.ten@fpt.edu.vn',
       color: '#FF5722',
       bgLight: '#FBE9E7',
       icon: GraduationCap,
@@ -27,7 +28,8 @@ export default function Login() {
     partner: {
       title: 'Đối tác Quán Cafe',
       desc: 'Dành cho chủ quán quản lý chi nhánh, phát hành voucher & quét mã QR',
-      email: 'partner@thecoffeehouse.vn',
+      email: '',
+      placeholder: 'vd: partner@quancafe.vn',
       color: '#FF5722',
       bgLight: '#FFECE6',
       icon: Coffee,
@@ -38,7 +40,8 @@ export default function Login() {
     admin: {
       title: 'Quản trị viên (Admin)',
       desc: 'Dành cho ban quản trị duyệt địa điểm, kiểm duyệt voucher & xử lý báo cáo',
-      email: 'admin@unimate.vn',
+      email: '',
+      placeholder: 'vd: admin@unimate.vn',
       color: '#4F46E5',
       bgLight: '#EEF2FF',
       icon: ShieldCheck,
@@ -52,7 +55,8 @@ export default function Login() {
 
   const handleRoleChange = (newRole) => {
     setRole(newRole);
-    setEmail(roleConfigs[newRole].email);
+    setEmail('');
+    setPassword('');
   };
 
   const handleSubmit = async (e) => {
@@ -68,22 +72,14 @@ export default function Login() {
     }
   };
 
-  const handleQuickLogin = async (quickRole) => {
-    setRole(quickRole);
-    setLoading(true);
-    try {
-      await login(roleConfigs[quickRole].email, 'password123', quickRole);
-      navigate(roleConfigs[quickRole].path);
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   return (
     <div
       style={{
         minHeight: '100vh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#F8FAFC',
@@ -92,6 +88,42 @@ export default function Login() {
         backgroundSize: '24px 24px',
       }}
     >
+      {/* Back to Home Button (Clean, prominent, perfectly clickable) */}
+      <div style={{ width: '100%', maxWidth: '520px', marginBottom: '14px', display: 'flex', justifyContent: 'flex-start' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: '12px',
+            backgroundColor: '#FFFFFF',
+            border: '1.5px solid #E2E8F0',
+            color: '#334155',
+            fontSize: '14px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#FF5722';
+            e.currentTarget.style.borderColor = '#FF5722';
+            e.currentTarget.style.backgroundColor = '#FFF7ED';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#334155';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+          }}
+        >
+          <ArrowLeft size={16} />
+          <span>Quay về Trang chủ UNI-MATE</span>
+        </button>
+      </div>
+
       <div
         style={{
           width: '100%',
@@ -299,7 +331,7 @@ export default function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={currentConfig.email}
+                placeholder={currentConfig.placeholder}
                 style={{
                   border: 'none',
                   outline: 'none',
@@ -389,68 +421,7 @@ export default function Login() {
           </Link>
         </div>
 
-        {/* 1-Click Fast Login for Demo */}
-        <div style={{ marginTop: '26px', paddingTop: '20px', borderTop: '1px solid var(--border-light)', textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '12px' }}>
-            <Sparkles size={14} color="#F59E0B" />
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>
-              Đăng nhập nhanh 1-Click theo Role:
-            </span>
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('user')}
-              style={{
-                padding: '8px 6px',
-                fontSize: '12px',
-                fontWeight: '700',
-                borderRadius: '8px',
-                backgroundColor: '#FBE9E7',
-                color: '#E64A19',
-                border: '1px solid #FFCCBC',
-                transition: 'all 0.2s',
-              }}
-            >
-              🎓 Sinh viên
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('partner')}
-              style={{
-                padding: '8px 6px',
-                fontSize: '12px',
-                fontWeight: '700',
-                borderRadius: '8px',
-                backgroundColor: 'var(--primary-light)',
-                color: 'var(--primary)',
-                border: '1px solid #FFCCBC',
-                transition: 'all 0.2s',
-              }}
-            >
-              ☕ Đối tác Quán
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('admin')}
-              style={{
-                padding: '8px 6px',
-                fontSize: '12px',
-                fontWeight: '700',
-                borderRadius: '8px',
-                backgroundColor: 'var(--indigo-light)',
-                color: 'var(--indigo)',
-                border: '1px solid #C7D2FE',
-                transition: 'all 0.2s',
-              }}
-            >
-              🛡️ Super Admin
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

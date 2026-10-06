@@ -98,7 +98,11 @@ export default function InterestsScreen() {
 
       const res = await onboardingApi.savePreferences(payload);
       if (res.data?.data) {
-        updateUser(res.data.data);
+        updateUser({
+          ...res.data.data,
+          ...(params.fullName ? { fullName: params.fullName, name: params.fullName } : {}),
+          ...(params.avatarUri ? { avatar: params.avatarUri } : {}),
+        });
       }
       router.replace('/(tabs)/home');
     } catch (err) {

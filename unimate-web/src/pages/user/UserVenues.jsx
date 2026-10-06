@@ -16,23 +16,6 @@ import {
 } from 'lucide-react';
 import { venueApi, voucherApi } from '../../services/api';
 
-const MOCK_FALLBACK_VENUES = [
-  {
-    id: 'v1',
-    name: 'The Coffee House - Sư Vạn Hạnh',
-    address: 'Vạn Hạnh Mall, Q.10, TP.HCM',
-    distance: '0.6 km',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600',
-    rating: 4.8,
-    reviews: 240,
-    priceRange: '35.000đ - 55.000đ',
-    amenities: ['Wifi 150Mbps', 'Ổ điện mọi bàn', 'Bàn lớn học nhóm', 'Máy lạnh 24/24'],
-    tags: ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
-    hours: '07:00 - 23:00',
-    voucher: 'Giảm 25% tổng bill cho sinh viên',
-    voucherCode: 'UNI-TCH-25',
-  },
-];
 
 export default function UserVenues() {
   const [venues, setVenues] = useState([]);
@@ -44,7 +27,7 @@ export default function UserVenues() {
   const fetchVenues = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await venueApi.getVenues();
+      const res = await venueApi.getPublicVenues();
       const realData = res.data || [];
 
       if (realData.length > 0) {
@@ -69,11 +52,11 @@ export default function UserVenues() {
         }));
         setVenues(formatted);
       } else {
-        setVenues(MOCK_FALLBACK_VENUES);
+        setVenues([]);
       }
     } catch (err) {
       console.error('Lỗi lấy danh sách quán:', err);
-      setVenues(MOCK_FALLBACK_VENUES);
+      setVenues([]);
     } finally {
       setLoading(false);
     }

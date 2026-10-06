@@ -16,6 +16,7 @@ import { COLORS } from '../../src/constants/colors';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { MAJORS, UNIVERSITIES } from '../../src/constants/academic';
+import { useAuth } from '../../src/context/AuthContext';
 
 const PURPOSES = [
   { id: 'study', label: 'Tìm bạn học bài', icon: 'book-outline', emoji: '📚' },
@@ -28,17 +29,18 @@ const PURPOSES = [
 
 export default function CreateProfileScreen() {
   const router = useRouter();
+  const { user } = useAuth();
 
   // Form State
-  const [fullName, setFullName] = useState('');
+  const [fullName, setFullName] = useState(user?.fullName || user?.name || '');
   const [birthYear, setBirthYear] = useState('');
-  const [university, setUniversity] = useState(UNIVERSITIES[0]);
-  const [major, setMajor] = useState(MAJORS[0]);
+  const [university, setUniversity] = useState(user?.university || UNIVERSITIES[0]);
+  const [major, setMajor] = useState(user?.major || MAJORS[0]);
   const [showMajorPicker, setShowMajorPicker] = useState(false);
   const [district, setDistrict] = useState('Quận 10, TP.HCM');
-  const [bio, setBio] = useState('');
+  const [bio, setBio] = useState(user?.bio || '');
   const [selectedPurposes, setSelectedPurposes] = useState(['study', 'cafe']);
-  const [avatarUri, setAvatarUri] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500');
+  const [avatarUri, setAvatarUri] = useState(user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500');
 
   const togglePurpose = (id) => {
     if (selectedPurposes.includes(id)) {
@@ -58,6 +60,8 @@ export default function CreateProfileScreen() {
     router.push({
       pathname: '/(auth)/interests',
       params: {
+        fullName: fullName.trim(),
+        avatarUri,
         objectives: JSON.stringify(selectedPurposes),
         bio: bio.trim(),
         university,

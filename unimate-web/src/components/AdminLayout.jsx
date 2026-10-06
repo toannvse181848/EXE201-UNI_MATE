@@ -11,12 +11,10 @@ import {
   Search,
   Bell,
   LogOut,
-  Coffee,
-  GraduationCap,
 } from 'lucide-react';
 
 export default function AdminLayout() {
-  const { user, logout, switchRole } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -114,60 +112,6 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        {/* Switch Portal buttons */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #312E81', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: '#A5B4FC', textTransform: 'uppercase', marginBottom: '2px' }}>
-            Chuyển nhanh vai trò
-          </div>
-          <button
-            onClick={() => {
-              switchRole('user');
-              navigate('/user/discover');
-            }}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              padding: '7px 12px',
-              borderRadius: '8px',
-              backgroundColor: 'rgba(13, 148, 136, 0.2)',
-              border: '1px solid #14B8A6',
-              color: '#2DD4BF',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-            }}
-          >
-            <GraduationCap size={15} />
-            <span>Mở Cổng Sinh viên</span>
-          </button>
-          <button
-            onClick={() => {
-              switchRole('partner');
-              navigate('/partner/dashboard');
-            }}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              padding: '7px 12px',
-              borderRadius: '8px',
-              backgroundColor: 'rgba(255, 87, 34, 0.15)',
-              border: '1px solid var(--primary)',
-              color: 'var(--primary)',
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-            }}
-          >
-            <Coffee size={15} />
-            <span>Mở Partner Portal</span>
-          </button>
-        </div>
 
         {/* Logout */}
         <div style={{ padding: '16px', borderTop: '1px solid #312E81' }}>

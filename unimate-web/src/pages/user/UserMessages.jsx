@@ -38,45 +38,6 @@ const formatTime = (dateStr) => {
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 };
 
-// Fallback demo conversations nếu chưa có dữ liệu thật từ backend
-const DEMO_CONVERSATIONS = [
-  {
-    matchId: 'demo_m1',
-    matchedAt: new Date(Date.now() - 3600000).toISOString(),
-    buddy: {
-      id: 'demo_u1',
-      fullName: 'Lê Minh Thảo',
-      university: 'Đại học FPT TP.HCM',
-      major: 'Truyền thông Đa phương tiện',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200',
-    },
-    lastMessage: {
-      text: 'Okie bạn nè, hẹn 2h chiều mai ở The Coffee House Sư Vạn Hạnh nhé! ☕',
-      isFromMe: false,
-      createdAt: new Date(Date.now() - 900000).toISOString(),
-      isRead: false,
-    },
-    unreadCount: 1,
-  },
-  {
-    matchId: 'demo_m2',
-    matchedAt: new Date(Date.now() - 86400000).toISOString(),
-    buddy: {
-      id: 'demo_u2',
-      fullName: 'Trần Quốc Bảo',
-      university: 'ĐH Bách Khoa TP.HCM',
-      major: 'Khoa học Máy tính',
-      avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200',
-    },
-    lastMessage: {
-      text: 'Tối nay bạn có cày LeetCode ở Cheese Coffee không?',
-      isFromMe: false,
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-      isRead: true,
-    },
-    unreadCount: 0,
-  },
-];
 
 export default function UserMessages() {
   const { user } = useAuth();
@@ -126,27 +87,14 @@ export default function UserMessages() {
         realReceived = receivedRes.value.data;
       }
 
-      // Nếu có dữ liệu thật thì dùng dữ liệu thật, nếu rỗng và chưa có token thì dự phòng demo
-      if (realConvs.length > 0 || realSent.length > 0 || realReceived.length > 0) {
-        setConversations(realConvs);
-        setSentLikes(realSent);
-        setReceivedLikes(realReceived);
-
-        // Tự động chọn hội thoại đầu tiên nếu chưa chọn
-        if (!selectedMatchId && realConvs.length > 0) {
-          setSelectedMatchId(realConvs[0].matchId);
-        }
-      } else {
-        // Fallback demo để giao diện luôn trực quan
-        setConversations(DEMO_CONVERSATIONS);
-        if (!selectedMatchId) {
-          setSelectedMatchId(DEMO_CONVERSATIONS[0].matchId);
-        }
+      setConversations(realConvs);
+      setSentLikes(realSent);
+      setReceivedLikes(realReceived);
+      if (!selectedMatchId && realConvs.length > 0) {
+        setSelectedMatchId(realConvs[0].matchId);
       }
     } catch (err) {
       console.log('Lỗi tải dữ liệu chat:', err.message);
-      setConversations(DEMO_CONVERSATIONS);
-      if (!selectedMatchId) setSelectedMatchId(DEMO_CONVERSATIONS[0].matchId);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -162,33 +110,8 @@ export default function UserMessages() {
     async (matchId, isPolling = false) => {
       if (!matchId) return;
 
-      // Xử lý demo conversation
-      if (matchId.startsWith('demo_')) {
-        const demoChat = DEMO_CONVERSATIONS.find((c) => c.matchId === matchId);
-        if (demoChat) {
-          setMessages([
-            {
-              _id: 'd1',
-              sender: { _id: demoChat.buddy.id, fullName: demoChat.buddy.fullName },
-              text: `Chào bạn! Mình là ${demoChat.buddy.fullName}, rất vui được kết nối cùng bạn nhé! ✨`,
-              createdAt: demoChat.matchedAt,
-            },
-            {
-              _id: 'd2',
-              sender: { _id: currentUserId || 'me', fullName: user?.name || 'Tôi' },
-              text: 'Chào bạn! Mình cũng rất vui được kết nối.',
-              createdAt: new Date(Date.now() - 1200000).toISOString(),
-            },
-            {
-              _id: 'd3',
-              sender: { _id: demoChat.buddy.id, fullName: demoChat.buddy.fullName },
-              text: demoChat.lastMessage.text,
-              createdAt: demoChat.lastMessage.createdAt,
-            },
-          ]);
-        }
-        return;
-      }
+      // Bỏ qua matchId không hợp lệ
+      if (!matchId || matchId.startsWith('demo_')) return;
 
       try {
         if (!isPolling) setLoadingMessages(true);

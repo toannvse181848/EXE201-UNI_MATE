@@ -9,6 +9,7 @@ import PartnerLayout from './components/PartnerLayout';
 import AdminLayout from './components/AdminLayout';
 
 // Public Pages
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
@@ -113,8 +114,8 @@ export default function App() {
           </Route>
 
           {/* Root & Fallback Dynamic Routing */}
-          <Route path="/" element={<RootRedirect />} />
-          <Route path="*" element={<RootRedirect />} />
+          <Route path="/" element={<Home />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

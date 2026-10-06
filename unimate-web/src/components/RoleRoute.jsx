@@ -1,10 +1,10 @@
 import React from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShieldAlert, ArrowRight, RotateCcw } from 'lucide-react';
+import { ShieldAlert, ArrowRight, LogOut } from 'lucide-react';
 
 export default function RoleRoute({ allowedRole, children }) {
-  const { user, switchRole } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   if (!user) {
@@ -16,7 +16,7 @@ export default function RoleRoute({ allowedRole, children }) {
     return children;
   }
 
-  // Role mismatch fallback UI
+  // Role mismatch — show access denied UI
   const roleNames = {
     user: 'Sinh viên / Người dùng',
     partner: 'Đối tác Quán Cafe',
@@ -29,8 +29,9 @@ export default function RoleRoute({ allowedRole, children }) {
     admin: '/admin/dashboard',
   };
 
-  const handleSwitchAndStay = () => {
-    switchRole(allowedRole);
+  const handleLogoutAndLogin = () => {
+    logout();
+    navigate('/login');
   };
 
   return (
@@ -73,7 +74,7 @@ export default function RoleRoute({ allowedRole, children }) {
         </div>
 
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px' }}>
-          Phân quyền Truy cập
+          Không có quyền truy cập
         </h2>
 
         <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '24px' }}>
@@ -85,11 +86,11 @@ export default function RoleRoute({ allowedRole, children }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button
-            onClick={handleSwitchAndStay}
+            onClick={() => navigate(portalHome[user.role] || '/login')}
             style={{
               padding: '12px 16px',
               borderRadius: '12px',
-              backgroundColor: '#0D9488',
+              backgroundColor: '#FF5722',
               color: '#FFFFFF',
               fontWeight: '700',
               fontSize: '14px',
@@ -97,21 +98,20 @@ export default function RoleRoute({ allowedRole, children }) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
               cursor: 'pointer',
             }}
           >
-            <RotateCcw size={16} />
-            <span>Chuyển sang vai trò {roleNames[allowedRole]}</span>
+            <span>Quay về trang của tôi</span>
+            <ArrowRight size={16} />
           </button>
 
           <button
-            onClick={() => navigate(portalHome[user.role] || '/login')}
+            onClick={handleLogoutAndLogin}
             style={{
               padding: '12px 16px',
               borderRadius: '12px',
               backgroundColor: '#F1F5F9',
-              color: 'var(--text-primary)',
+              color: '#DC2626',
               fontWeight: '700',
               fontSize: '14px',
               display: 'flex',
@@ -121,8 +121,8 @@ export default function RoleRoute({ allowedRole, children }) {
               cursor: 'pointer',
             }}
           >
-            <span>Quay về Cổng {roleNames[user.role]}</span>
-            <ArrowRight size={16} />
+            <LogOut size={16} />
+            <span>Đăng xuất & Đăng nhập lại</span>
           </button>
         </div>
       </div>

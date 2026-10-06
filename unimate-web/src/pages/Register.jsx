@@ -6,6 +6,7 @@ import {
   GraduationCap,
   Coffee,
   ArrowRight,
+  ArrowLeft,
   Lock,
   Mail,
   User,
@@ -128,6 +129,7 @@ export default function Register() {
       style={{
         minHeight: '100vh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '36px 16px',
@@ -135,6 +137,42 @@ export default function Register() {
         fontFamily: 'Inter, system-ui, sans-serif',
       }}
     >
+      {/* Back to Home Button (Clean, prominent, perfectly clickable) */}
+      <div style={{ width: '100%', maxWidth: '560px', marginBottom: '14px', display: 'flex', justifyContent: 'flex-start' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: '12px',
+            backgroundColor: '#FFFFFF',
+            border: '1.5px solid #E2E8F0',
+            color: '#334155',
+            fontSize: '14px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#FF5722';
+            e.currentTarget.style.borderColor = '#FF5722';
+            e.currentTarget.style.backgroundColor = '#FFF7ED';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#334155';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+            e.currentTarget.style.backgroundColor = '#FFFFFF';
+          }}
+        >
+          <ArrowLeft size={16} />
+          <span>Quay về Trang chủ UNI-MATE</span>
+        </button>
+      </div>
+
       <div
         style={{
           width: '100%',

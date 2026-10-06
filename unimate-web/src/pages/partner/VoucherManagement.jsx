@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Ticket,
   Plus,
@@ -13,64 +13,18 @@ import {
   Trash2,
   Calendar,
   Layers,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
-
-const INITIAL_VOUCHERS = [
-  {
-    id: 'vch_01',
-    name: 'Giảm 20% Hóa Đơn Trưa',
-    code: 'LUNCH20',
-    type: 'Phần trăm (%)',
-    value: '20% (Tối đa 50k)',
-    total: 1000,
-    issued: 450,
-    used: 320,
-    expiry: '30/11/2024',
-    status: 'active', // 'active' | 'pending' | 'paused' | 'expired'
-  },
-  {
-    id: 'vch_02',
-    name: 'Tặng Nước Ngọt Tự Chọn',
-    code: 'FREEDRINK',
-    type: 'Quà tặng',
-    value: '1 Nước ngọt',
-    total: 500,
-    issued: 120,
-    used: 85,
-    expiry: '15/12/2024',
-    status: 'active',
-  },
-  {
-    id: 'vch_03',
-    name: 'Giảm 50K Hóa Đơn > 300K',
-    code: 'MIN50K',
-    type: 'Tiền mặt (VNĐ)',
-    value: '50,000đ',
-    total: 2000,
-    issued: 1890,
-    used: 1500,
-    expiry: '31/10/2024',
-    status: 'paused',
-  },
-  {
-    id: 'vch_04',
-    name: 'Miễn phí Giờ học Boardgame',
-    code: 'BGSTUDY',
-    type: 'Quà tặng',
-    value: 'Tặng 2 giờ máy',
-    total: 300,
-    issued: 300,
-    used: 300,
-    expiry: '01/10/2024',
-    status: 'expired',
-  },
-];
+import { voucherApi } from '../../services/api';
 
 export default function VoucherManagement() {
-  const [vouchers, setVouchers] = useState(INITIAL_VOUCHERS);
+  const [vouchers, setVouchers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // New Voucher Form State
   const [newVoucher, setNewVoucher] = useState({
@@ -79,53 +33,84 @@ export default function VoucherManagement() {
     type: 'Phần trăm (%)',
     value: '',
     total: 500,
-    expiry: '31/12/2024',
+    expiry: '31/12/2026',
   });
 
-  const handleToggleStatus = (id) => {
-    setVouchers(
-      vouchers.map((v) => {
-        if (v.id === id) {
-          return {
-            ...v,
-            status: v.status === 'active' ? 'paused' : 'active',
-          };
-        }
-        return v;
-      })
-    );
+  const fetchVouchers = async () => {
+    setLoading(true);
+    try {
+      const res = await voucherApi.getMyPartnerVouchers();
+      const raw = res?.data || [];
+      const formatted = raw.map((v) => ({
+        id: v._id || v.id,
+        name: v.title,
+        code: v.code,
+        type: v.discountPercent ? 'Phần trăm (%)' : (v.discountAmount ? 'Tiền mặt (VNĐ)' : 'Quà tặng'),
+        value: v.discountPercent ? `${v.discountPercent}%` : (v.discountAmount ? `${v.discountAmount.toLocaleString()}đ` : v.title),
+        total: v.quantity || 500,
+        issued: v.claimedCount || 0,
+        used: v.usedCount || 0,
+        expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : 'Không thời hạn',
+        status: v.isActive ? 'active' : 'paused',
+      }));
+      setVouchers(formatted);
+    } catch (err) {
+      console.error('Lỗi tải voucher partner:', err.message);
+      setVouchers([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCreateVoucher = (e) => {
+  useEffect(() => {
+    fetchVouchers();
+  }, []);
+
+  const handleToggleStatus = async (id) => {
+    try {
+      await voucherApi.toggleVoucher(id);
+      setVouchers((prev) =>
+        prev.map((v) => (v.id === id ? { ...v, status: v.status === 'active' ? 'paused' : 'active' } : v))
+      );
+    } catch (err) {
+      alert('Không thể cập nhật trạng thái voucher: ' + err.message);
+    }
+  };
+
+  const handleCreateVoucher = async (e) => {
     e.preventDefault();
     if (!newVoucher.name || !newVoucher.code) {
       alert('Vui lòng điền đủ tên và mã voucher');
       return;
     }
 
-    const created = {
-      id: `vch_${Date.now()}`,
-      name: newVoucher.name,
-      code: newVoucher.code.toUpperCase(),
-      type: newVoucher.type,
-      value: newVoucher.value || 'Giảm 20%',
-      total: Number(newVoucher.total) || 500,
-      issued: 0,
-      used: 0,
-      expiry: newVoucher.expiry,
-      status: 'active',
-    };
+    setSubmitting(true);
+    try {
+      const valNum = parseInt(newVoucher.value) || 0;
+      const payload = {
+        title: newVoucher.name,
+        code: newVoucher.code.toUpperCase().trim(),
+        quantity: Number(newVoucher.total) || 500,
+        ...(newVoucher.type === 'Phần trăm (%)' ? { discountPercent: valNum || 20 } : {}),
+        ...(newVoucher.type === 'Tiền mặt (VNĐ)' ? { discountAmount: valNum || 50000 } : {}),
+      };
 
-    setVouchers([created, ...vouchers]);
-    setShowCreateModal(false);
-    setNewVoucher({
-      name: '',
-      code: '',
-      type: 'Phần trăm (%)',
-      value: '',
-      total: 500,
-      expiry: '31/12/2024',
-    });
+      await voucherApi.createVoucher(payload);
+      setShowCreateModal(false);
+      setNewVoucher({
+        name: '',
+        code: '',
+        type: 'Phần trăm (%)',
+        value: '',
+        total: 500,
+        expiry: '31/12/2026',
+      });
+      await fetchVouchers();
+    } catch (err) {
+      alert('Lỗi tạo voucher: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const filteredVouchers = vouchers.filter((v) => {
@@ -250,7 +235,23 @@ export default function VoucherManagement() {
               </tr>
             </thead>
             <tbody>
-              {filteredVouchers.map((item) => (
+              {loading ? (
+                <tr>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+                    <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary)' }} />
+                    <p style={{ fontSize: '14px', fontWeight: '600' }}>Đang tải danh sách voucher...</p>
+                  </td>
+                </tr>
+              ) : filteredVouchers.length === 0 ? (
+                <tr>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+                    <Ticket size={36} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                    <p style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-secondary)' }}>Chưa có voucher nào</p>
+                    <p style={{ fontSize: '13px', marginTop: '4px' }}>Nhấn nút "Tạo voucher mới" phía trên để phát hành ưu đãi đầu tiên</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredVouchers.map((item) => (
                 <tr
                   key={item.id}
                   style={{
@@ -306,7 +307,7 @@ export default function VoucherManagement() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

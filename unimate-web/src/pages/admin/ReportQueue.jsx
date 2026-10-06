@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle,
   CheckCircle,
@@ -9,55 +9,57 @@ import {
   Store,
   FileText,
   Send,
+  Loader2,
 } from 'lucide-react';
-
-const INITIAL_REPORTS = [
-  {
-    id: 'REP-902',
-    priority: 'high',
-    studentName: 'Lê Phương Thảo (ĐH Bách Khoa)',
-    studentPhone: '0934 112 233',
-    venueName: 'Highlands Coffee - Vạn Hạnh Mall',
-    reportedAt: '10:45 Hôm nay',
-    issue: 'Nhân viên thu ngân từ chối áp dụng voucher giảm 15k với lý do không biết chương trình UNI-MATE, dù mã QR trên app hiển thị còn hạn.',
-    evidence: 'Ảnh chụp bill 115.000đ không được giảm trừ',
-    status: 'pending', // 'pending' | 'resolved'
-  },
-  {
-    id: 'REP-894',
-    priority: 'high',
-    studentName: 'Đặng Quốc Huy (ĐH FPT)',
-    studentPhone: '0988 223 344',
-    venueName: 'The Workshop Boardgame Cafe',
-    reportedAt: 'Hôm qua, 20:15',
-    issue: 'Quán thu thêm phụ phí bàn 30.000đ dù voucher cam kết tặng miễn phí 2 giờ chơi game cho cặp đôi sinh viên.',
-    evidence: 'Ảnh tin nhắn xác nhận lịch hẹn',
-    status: 'pending',
-  },
-  {
-    id: 'REP-880',
-    priority: 'medium',
-    studentName: 'Nguyễn Hà My (ĐH RMIT)',
-    studentPhone: '0912 334 455',
-    venueName: 'Tiệm Trà Tháng 5 (Gần ĐH Bách Khoa)',
-    reportedAt: '2 ngày trước',
-    issue: 'Quán ghi trên app là có wifi mạnh và nhiều ổ cắm, nhưng thực tế cả phòng chỉ có 1 ổ cắm và wifi không kết nối được để học nhóm.',
-    evidence: 'Phản ánh chất lượng dịch vụ',
-    status: 'pending',
-  },
-];
+import { reportApi } from '../../services/api';
 
 export default function ReportQueue() {
-  const [reports, setReports] = useState(INITIAL_REPORTS);
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const handleResolve = (id, note) => {
-    setReports(
-      reports.map((r) => (r.id === id ? { ...r, status: 'resolved' } : r))
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const res = await reportApi.getAllReportsAdmin();
+      const raw = res?.data || [];
+      const mapped = raw.map((r) => ({
+        id: r._id || r.id,
+        priority: r.priority || 'high',
+        studentName: r.reporter?.fullName || 'Sinh viên UNI-MATE',
+        studentPhone: r.reporter?.email || 'Chưa cung cấp',
+        venueName: r.targetType === 'venue' ? (r.targetId?.name || 'Quán đối tác') : 'Báo cáo người dùng',
+        reportedAt: r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : 'Gần đây',
+        issue: r.description || r.reason || 'Nội dung phản ánh dịch vụ',
+        evidence: r.reason || 'Báo cáo vi phạm',
+        status: r.status === 'resolved' ? 'resolved' : 'pending',
+      }));
+      setReports(mapped);
+    } catch (err) {
+      console.log('Backend reports note:', err.message);
+      setReports([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const handleResolve = async (id, note) => {
+    setReports((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, status: 'resolved' } : r))
     );
-    setActionSuccess(`Đã xử lý report #${id}: ${note}`);
+    setActionSuccess(`Đã xử lý report #${id.slice(-6)}: ${note}`);
     setTimeout(() => setActionSuccess(null), 3500);
+
+    try {
+      await reportApi.resolveReport(id, 'resolved', note);
+    } catch (err) {
+      console.log('Lỗi cập nhật report:', err.message);
+    }
   };
 
   const filtered = reports.filter((r) => {
@@ -124,7 +126,19 @@ export default function ReportQueue() {
 
       {/* Reports List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {filtered.map((item) => (
+        {loading ? (
+          <div className="portal-card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary)' }} />
+            <p style={{ fontSize: '14px', fontWeight: '600' }}>Đang tải danh sách khiếu nại...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="portal-card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+            <CheckCircle size={36} style={{ margin: '0 auto 12px', opacity: 0.4, color: '#10B981' }} />
+            <p style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-secondary)' }}>Không có khiếu nại nào</p>
+            <p style={{ fontSize: '13px', marginTop: '4px' }}>Tất cả khiếu nại đã được xử lý hoặc chưa phát sinh khiếu nại mới</p>
+          </div>
+        ) : (
+          filtered.map((item) => (
           <div
             key={item.id}
             className="portal-card"
@@ -215,7 +229,7 @@ export default function ReportQueue() {
               </div>
             )}
           </div>
-        ))}
+        )))}
       </div>
     </div>
   );

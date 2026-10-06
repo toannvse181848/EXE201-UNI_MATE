@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye,
@@ -17,18 +17,40 @@ import {
   Clock,
   Star,
 } from 'lucide-react';
+import { voucherApi } from '../../services/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [boostActive, setBoostActive] = useState(false);
+  const [partnerVouchers, setPartnerVouchers] = useState([]);
+  const [checkinsCount, setCheckinsCount] = useState(0);
+
+  useEffect(() => {
+    voucherApi
+      .getMyPartnerVouchers()
+      .then((res) => {
+        setPartnerVouchers(res?.data || []);
+      })
+      .catch(() => {});
+
+    try {
+      const saved = localStorage.getItem('unimate_partner_checkins');
+      if (saved) setCheckinsCount(JSON.parse(saved).length);
+    } catch {}
+  }, []);
+
+  const totalIssued = partnerVouchers.reduce((acc, v) => acc + (v.claimedCount || 0), 0);
+  const totalUsed = partnerVouchers.reduce((acc, v) => acc + (v.usedCount || 0), 0) + checkinsCount;
+  const usageRate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + '%' : (totalUsed > 0 ? '100%' : '0%');
+  const estimatedRevenue = totalUsed > 0 ? `${(totalUsed * 45000).toLocaleString('vi-VN')} đ` : '0 đ';
 
   const kpis = [
-    { label: 'LƯỢT HIỂN THỊ', val: '12,450', change: '+14% vs tháng trước', icon: Eye, color: '#3B82F6' },
-    { label: 'LƯỢT ĐƯỢC CHỌN', val: '3,210', change: '+8% vs tháng trước', icon: Heart, color: '#EC4899' },
-    { label: 'VOUCHER ĐÃ PHÁT', val: '1,850', change: '+12% vs tháng trước', icon: Ticket, color: '#8B5CF6' },
-    { label: 'VOUCHER ĐÃ DÙNG', val: '945', change: '+22% vs tháng trước', icon: CheckCircle, color: '#10B981' },
-    { label: 'TỶ LỆ SỬ DỤNG', val: '51.1%', change: '+3.2% vs tháng trước', icon: Percent, color: '#F59E0B' },
-    { label: 'DOANH THU ƯỚC TÍNH', val: '28.5M VNĐ', change: '+21% vs tháng trước', icon: DollarSign, color: '#FF5722' },
+    { label: 'TỔNG SỐ VOUCHER', val: partnerVouchers.length.toString(), change: 'Chương trình phát hành', icon: Eye, color: '#3B82F6' },
+    { label: 'VOUCHER ĐÃ PHÁT', val: totalIssued.toString(), change: 'Được lưu vào ví sinh viên', icon: Ticket, color: '#8B5CF6' },
+    { label: 'CHECK-IN ĐÃ DÙNG', val: totalUsed.toString(), change: 'Lượt đổi tại quầy', icon: CheckCircle, color: '#10B981' },
+    { label: 'TỶ LỆ QUY ĐỔI', val: usageRate, change: 'Hiệu quả chiến dịch', icon: Percent, color: '#F59E0B' },
+    { label: 'DOANH THU ĐỐI SOÁT', val: estimatedRevenue, change: 'Ước tính từ voucher', icon: DollarSign, color: '#FF5722' },
+    { label: 'ĐỊA ĐIỂM HOẠT ĐỘNG', val: 'Đã kết nối', change: 'Hệ sinh thái UNI-MATE', icon: Heart, color: '#EC4899' },
   ];
 
   return (

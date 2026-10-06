@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export default function UserLayout() {
-  const { user, logout, switchRole } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -213,11 +213,6 @@ export default function UserLayout() {
               <div style={{ fontSize: '13px', fontWeight: '700', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user?.name || 'Nguyễn Văn Toàn'}
               </div>
-              <div style={{ fontSize: '11px', color: '#FFB74D', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>{user?.studentId || 'SE181848'}</span>
-                <span>•</span>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.university?.split(' ')[0] || 'FPTU'}</span>
-              </div>
             </div>
           </div>
         </div>
@@ -270,65 +265,6 @@ export default function UserLayout() {
           })}
         </nav>
 
-        {/* Role Switcher in Sidebar */}
-        <div style={{ padding: '14px 16px', borderTop: '1px solid #3D1A00', backgroundColor: 'rgba(0,0,0,0.15)' }}>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: '#FF8A50', marginBottom: '8px', textTransform: 'uppercase' }}>
-            Chuyển nhanh Cổng (Role)
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <button
-              onClick={() => {
-                switchRole('partner');
-                navigate('/partner/dashboard');
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(255, 87, 34, 0.15)',
-                color: '#FF8A65',
-                border: '1px solid rgba(255, 87, 34, 0.3)',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Coffee size={14} />
-                <span>Cổng Quán Cafe (Partner)</span>
-              </div>
-              <ExternalLink size={12} />
-            </button>
-
-            <button
-              onClick={() => {
-                switchRole('admin');
-                navigate('/admin/dashboard');
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(79, 70, 229, 0.15)',
-                color: '#A5B4FC',
-                border: '1px solid rgba(79, 70, 229, 0.3)',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <ShieldCheck size={14} />
-                <span>Cổng Quản trị (Admin)</span>
-              </div>
-              <ExternalLink size={12} />
-            </button>
-          </div>
-        </div>
 
         {/* User Footer / Logout */}
         <div style={{ padding: '14px 16px', borderTop: '1px solid #3D1A00', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -437,98 +373,6 @@ export default function UserLayout() {
               </span>
             </div>
 
-            {/* Quick Role Switcher Pill */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '7px 12px',
-                  backgroundColor: '#F1F5F9',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-color)',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ color: '#FF5722' }}>Vai trò:</span>
-                <span>🎓 Sinh viên</span>
-                <ChevronDown size={14} />
-              </button>
-
-              {roleMenuOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    right: 0,
-                    marginTop: '6px',
-                    width: '210px',
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                    border: '1px solid var(--border-color)',
-                    padding: '6px',
-                    zIndex: 100,
-                  }}
-                >
-                  <div style={{ padding: '6px 10px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)' }}>
-                    CHUYỂN GIAO DIỆN
-                  </div>
-                  <button
-                    onClick={() => {
-                      switchRole('partner');
-                      setRoleMenuOpen(false);
-                      navigate('/partner/dashboard');
-                    }}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      color: 'var(--text-primary)',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <Coffee size={16} color="var(--primary)" />
-                    <span>Cổng Quán Cafe</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      switchRole('admin');
-                      setRoleMenuOpen(false);
-                      navigate('/admin/dashboard');
-                    }}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      color: 'var(--text-primary)',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <ShieldCheck size={16} color="var(--indigo)" />
-                    <span>Cổng Quản trị viên</span>
-                  </button>
-                </div>
-              )}
-            </div>
 
             {/* Profile Avatar */}
             <NavLink to="/user/profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

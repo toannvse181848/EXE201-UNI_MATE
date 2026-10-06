@@ -24,9 +24,9 @@ export default function UserProfile() {
   const { user, setUser, updateUser } = useAuth();
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [bio, setBio] = useState(user?.bio || 'Tìm bạn cùng cày deadline & khám phá các quán cafe yên tĩnh khu Công nghệ cao 🚀');
-  const [major, setMajor] = useState(user?.major || 'Kỹ thuật Phần mềm');
-  const [year, setYear] = useState(user?.year || 'Sinh viên năm 3');
+  const [bio, setBio] = useState(user?.bio || '');
+  const [major, setMajor] = useState(user?.major || '');
+  const [year, setYear] = useState(user?.year || '');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarNotice, setAvatarNotice] = useState(null);
 
@@ -255,13 +255,13 @@ export default function UserProfile() {
 
               <div>
                 <div style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '-0.3px' }}>
-                  {user?.name || user?.fullName || 'Nguyễn Văn Toàn'}
+                  {user?.name || user?.fullName || 'Sinh viên'}
                 </div>
                 <div style={{ fontSize: '13px', color: '#FFCC80', marginTop: '2px' }}>
-                  MSSV: <strong>{user?.studentId || 'SE181848'}</strong>
+                  MSSV: <strong>{user?.studentId || '—'}</strong>
                 </div>
                 <div style={{ fontSize: '12px', color: '#FBE9E7', marginTop: '2px' }}>
-                  {user?.university || 'Đại học FPT TP.HCM'}
+                  {user?.university || '—'}
                 </div>
                 <button
                   type="button"

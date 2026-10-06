@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Ticket,
   Search,
@@ -8,26 +8,55 @@ import {
   PlayCircle,
   ShieldCheck,
   TrendingUp,
+  Loader2,
 } from 'lucide-react';
-
-const SYSTEM_VOUCHERS = [
-  { id: 'sv_1', venue: 'The Coffee House - Sư Vạn Hạnh', name: 'Giảm 20% Hóa Đơn Trưa', code: 'LUNCH20', discount: '20% (Tối đa 50k)', issued: 450, used: 320, risk: 'An toàn', status: 'active' },
-  { id: 'sv_2', venue: 'Highlands Coffee - Vạn Hạnh Mall', name: 'Giảm 15k ly Size L', code: 'HL-SIZEL', discount: '15,000đ', issued: 1200, used: 850, risk: 'An toàn', status: 'active' },
-  { id: 'sv_3', venue: 'The Workshop Boardgame Cafe', name: 'Tặng 2 giờ máy chơi game', code: 'WS-BG2H', discount: '2 giờ máy', issued: 300, used: 280, risk: 'Cảnh báo lạm dụng', status: 'flagged' },
-  { id: 'sv_4', venue: 'Cộng Cà Phê - Tô Hiến Thành', name: 'Mua 1 tặng 1 đồ uống', code: 'CONG-B1G1', discount: 'Mua 1 Tặng 1', issued: 800, used: 410, risk: 'An toàn', status: 'active' },
-  { id: 'sv_5', venue: 'Trà Sữa KOI Thé', name: 'Giảm 50% cho sinh viên', code: 'KOI50', discount: '50%', issued: 1500, used: 1450, risk: 'Đã tạm dừng do gian lận', status: 'paused' },
-];
+import { voucherApi } from '../../services/api';
 
 export default function VoucherOversight() {
-  const [vouchers, setVouchers] = useState(SYSTEM_VOUCHERS);
+  const [vouchers, setVouchers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  const togglePause = (id) => {
-    setVouchers(
-      vouchers.map((v) =>
-        v.id === id ? { ...v, status: v.status === 'active' ? 'paused' : 'active' } : v
-      )
-    );
+  const fetchVouchers = async () => {
+    setLoading(true);
+    try {
+      const res = await voucherApi.getAllVouchersAdmin();
+      const raw = res?.data || [];
+      const mapped = raw.map((v) => ({
+        id: v._id || v.id,
+        venue: v.venueId?.name || 'Đối tác UNI-MATE',
+        name: v.title,
+        code: v.code,
+        discount: v.discountPercent ? `${v.discountPercent}%` : (v.discountAmount ? `${v.discountAmount.toLocaleString()}đ` : v.title),
+        issued: v.claimedCount || 0,
+        used: v.usedCount || 0,
+        risk: v.usedCount > (v.quantity || 500) ? 'Cảnh báo lạm dụng' : 'An toàn',
+        status: v.isActive ? 'active' : 'paused',
+      }));
+      setVouchers(mapped);
+    } catch (err) {
+      console.log('Backend vouchers oversight note:', err.message);
+      setVouchers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVouchers();
+  }, []);
+
+  const togglePause = async (id) => {
+    try {
+      await voucherApi.toggleVoucher(id);
+      setVouchers((prev) =>
+        prev.map((v) =>
+          v.id === id ? { ...v, status: v.status === 'active' ? 'paused' : 'active' } : v
+        )
+      );
+    } catch (err) {
+      alert('Không thể cập nhật trạng thái voucher: ' + err.message);
+    }
   };
 
   const filtered = vouchers.filter(
@@ -37,11 +66,15 @@ export default function VoucherOversight() {
       v.code.toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalIssued = vouchers.reduce((acc, v) => acc + (v.issued || 0), 0);
+  const totalUsed = vouchers.reduce((acc, v) => acc + (v.used || 0), 0);
+  const conversionRate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + '%' : '0%';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
         <h1 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>
-          Giám sát Voucher Toàn Sàn
+          Giám sát Voucher Toàn Sàn ({vouchers.length} chương trình)
         </h1>
         <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
           Kiểm soát lưu lượng phát hành, tỷ lệ đổi quà và phát hiện hành vi gian lận mã ưu đãi.
@@ -52,23 +85,23 @@ export default function VoucherOversight() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         <div className="portal-card" style={{ padding: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>TỔNG CHƯƠNG TRÌNH</span>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--text-primary)', marginTop: '4px' }}>45</h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Từ 152 quán đang hoạt động</span>
+          <h2 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--text-primary)', marginTop: '4px' }}>{vouchers.length}</h2>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Đang được quản lý trên hệ thống</span>
         </div>
         <div className="portal-card" style={{ padding: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>VOUCHER ĐÃ PHÁT</span>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#8B5CF6', marginTop: '4px' }}>12,400</h2>
-          <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>+18% so với tháng trước</span>
+          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#8B5CF6', marginTop: '4px' }}>{totalIssued.toLocaleString()}</h2>
+          <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>Tổng lượt lưu vào ví</span>
         </div>
         <div className="portal-card" style={{ padding: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>VOUCHER ĐÃ SỬ DỤNG</span>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#10B981', marginTop: '4px' }}>6,850</h2>
+          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#10B981', marginTop: '4px' }}>{totalUsed.toLocaleString()}</h2>
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Check-in thành công tại quầy</span>
         </div>
         <div className="portal-card" style={{ padding: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>TỶ LỆ CHUYỂN ĐỔI (CR)</span>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--primary)', marginTop: '4px' }}>55.2%</h2>
-          <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>Hiệu quả kích cầu cao</span>
+          <h2 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--primary)', marginTop: '4px' }}>{conversionRate}</h2>
+          <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>Hiệu quả kích cầu đối soát</span>
         </div>
       </div>
 
@@ -103,7 +136,23 @@ export default function VoucherOversight() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((v) => (
+              {loading ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+                    <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--primary)' }} />
+                    <p style={{ fontSize: '14px', fontWeight: '600' }}>Đang tải danh sách voucher toàn sàn...</p>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
+                    <Ticket size={36} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                    <p style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-secondary)' }}>Không tìm thấy voucher nào</p>
+                    <p style={{ fontSize: '13px', marginTop: '4px' }}>Chưa có voucher nào trong hệ thống hoặc không khớp từ khóa tìm kiếm</p>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((v) => (
                 <tr key={v.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                   <td style={{ padding: '14px 18px', fontWeight: '800', color: 'var(--text-primary)' }}>{v.venue}</td>
                   <td style={{ padding: '14px 14px' }}>
@@ -135,7 +184,7 @@ export default function VoucherOversight() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

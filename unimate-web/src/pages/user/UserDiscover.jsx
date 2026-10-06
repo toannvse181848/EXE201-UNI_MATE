@@ -18,38 +18,6 @@ import {
 import { userApi, matchApi, onboardingApi } from '../../services/api';
 import { formatStudentYear } from '../../constants/academic';
 
-const MOCK_FALLBACK_STUDENTS = [
-  {
-    id: 's1',
-    name: 'Lê Minh Thảo',
-    age: 20,
-    gender: 'Nữ',
-    university: 'Đại học FPT TP.HCM',
-    major: 'Truyền thông Đa phương tiện',
-    year: 'Sinh viên năm 2',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500',
-    distance: '0.8 km',
-    trustScore: 99,
-    bio: 'Đang làm đồ án môn PR, tìm bạn cày deadline chung ở The Coffee House hoặc Highlands cuối tuần này! ✨',
-    interests: ['Chụp ảnh phim', 'Cafe chill', 'Thiết kế Canva', 'Acoustic'],
-    favoritePlace: 'The Coffee House - Sư Vạn Hạnh',
-  },
-  {
-    id: 's2',
-    name: 'Trần Quốc Bảo',
-    age: 21,
-    gender: 'Nam',
-    university: 'ĐH Bách Khoa TP.HCM',
-    major: 'Khoa học Máy tính',
-    year: 'Sinh viên năm 3',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=500',
-    distance: '1.5 km',
-    trustScore: 97,
-    bio: 'Dev Backend đang học LeetCode và chuẩn bị phỏng vấn thực tập. Tìm bạn ngồi code chung không gian yên tĩnh 💻',
-    interests: ['Lập trình Go/Java', 'Board game', 'Cafe 24h', 'Gym'],
-    favoritePlace: 'Cheese Coffee - D2 Bình Thạnh',
-  },
-];
 
 export default function UserDiscover() {
   const [students, setStudents] = useState([]);
@@ -124,11 +92,11 @@ export default function UserDiscover() {
         });
         setStudents(formatted);
       } else {
-        setStudents(MOCK_FALLBACK_STUDENTS);
+        setStudents([]);
       }
     } catch (err) {
       console.error('Lỗi lấy danh sách sinh viên:', err);
-      setStudents(MOCK_FALLBACK_STUDENTS);
+      setStudents([]);
     } finally {
       setLoading(false);
     }
