@@ -3,6 +3,9 @@ import axios from 'axios';
 export const API_BASE_URL =
   import.meta.env.VITE_API_URL || 'https://unimate-api.onrender.com';
 
+// Upload ảnh cần lâu hơn: Render free có thể đang ngủ + thời gian đẩy ảnh lên Cloudinary
+const UPLOAD_TIMEOUT = 60000;
+
 const client = axios.create({
   baseURL: API_BASE_URL,
   timeout: 8000,
@@ -72,6 +75,16 @@ export const venueApi = {
     const res = await client.get('/api/venues/admin/all', { params });
     return res.data;
   },
+  // Upload ảnh quán lên server (Cloudinary), trả về { urls: [...] }
+  uploadImages: async (files) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('images', file));
+    const res = await client.post('/api/venues/images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: UPLOAD_TIMEOUT,
+    });
+    return res.data;
+  },
   updateVenueStatus: async (id, status, rejectionReason) => {
     const res = await client.patch(`/api/venues/${id}/status`, {
       status,
@@ -103,8 +116,17 @@ export const voucherApi = {
     const res = await client.post('/api/vouchers', data);
     return res.data;
   },
+  // Partner: kiểm tra mã voucher / QR payload trước khi áp dụng (không trừ lượt)
+  verifyVoucher: async (payload) => {
+    const res = await client.post('/api/vouchers/verify', payload);
+    return res.data;
+  },
   redeemVoucher: async (payload) => {
     const res = await client.post('/api/vouchers/redeem', payload);
+    return res.data;
+  },
+  getPartnerRedemptions: async (limit = 50) => {
+    const res = await client.get('/api/vouchers/partner/redemptions', { params: { limit } });
     return res.data;
   },
   toggleVoucher: async (id) => {
@@ -203,7 +225,21 @@ export const userApi = {
   updateAvatar: async (formData) => {
     const res = await client.put('/api/users/me/avatar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: UPLOAD_TIMEOUT,
     });
+    return res.data;
+  },
+  // Cập nhật hồ sơ của chính mình (fullName, phone, bio, major, year...)
+  updateMe: async (data) => {
+    const res = await client.put('/api/users/me', data);
+    return res.data;
+  },
+};
+
+// === ADMIN API ===
+export const adminApi = {
+  getStats: async () => {
+    const res = await client.get('/api/admin/stats');
     return res.data;
   },
 };

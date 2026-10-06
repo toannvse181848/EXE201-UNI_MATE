@@ -23,7 +23,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [boostActive, setBoostActive] = useState(false);
   const [partnerVouchers, setPartnerVouchers] = useState([]);
-  const [checkinsCount, setCheckinsCount] = useState(0);
 
   useEffect(() => {
     voucherApi
@@ -32,15 +31,11 @@ export default function Dashboard() {
         setPartnerVouchers(res?.data || []);
       })
       .catch(() => {});
-
-    try {
-      const saved = localStorage.getItem('unimate_partner_checkins');
-      if (saved) setCheckinsCount(JSON.parse(saved).length);
-    } catch {}
   }, []);
 
   const totalIssued = partnerVouchers.reduce((acc, v) => acc + (v.claimedCount || 0), 0);
-  const totalUsed = partnerVouchers.reduce((acc, v) => acc + (v.usedCount || 0), 0) + checkinsCount;
+  // usedCount được backend tăng mỗi lần đối soát voucher tại quầy
+  const totalUsed = partnerVouchers.reduce((acc, v) => acc + (v.usedCount || 0), 0);
   const usageRate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + '%' : (totalUsed > 0 ? '100%' : '0%');
   const estimatedRevenue = totalUsed > 0 ? `${(totalUsed * 45000).toLocaleString('vi-VN')} đ` : '0 đ';
 

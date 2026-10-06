@@ -47,6 +47,8 @@ export default function VenueManagement() {
   const [newTag, setNewTag] = useState('');
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isBoosted, setIsBoosted] = useState(false);
 
   React.useEffect(() => {
@@ -77,28 +79,36 @@ export default function VenueManagement() {
     loadMyVenue();
   }, []);
 
-  // Xử lý upload nhiều ảnh từ máy tính
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    files.forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64Url = event.target?.result;
-        if (base64Url) {
-          setFormData((prev) => ({
-            ...prev,
-            images: [...prev.images, base64Url],
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-
+  // Xử lý upload nhiều ảnh từ máy tính: đẩy lên server (Cloudinary) rồi lưu URL trả về
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []).filter((file) => file.type.startsWith('image/'));
     // Reset input file value để có thể chọn lại cùng file nếu muốn
     e.target.value = '';
+    if (!files.length) return;
+
+    if (files.length > 10) {
+      alert('Chỉ được tải tối đa 10 ảnh mỗi lần');
+      return;
+    }
+    const tooLarge = files.find((file) => file.size > 10 * 1024 * 1024);
+    if (tooLarge) {
+      alert(`Ảnh "${tooLarge.name}" vượt quá 10MB`);
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const res = await venueApi.uploadImages(files);
+      const urls = res?.data?.urls || [];
+      setFormData((prev) => ({
+        ...prev,
+        images: [...prev.images, ...urls],
+      }));
+    } catch (err) {
+      alert('Tải ảnh thất bại: ' + err.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Thêm ảnh bằng URL dán từ ngoài
@@ -150,8 +160,7 @@ export default function VenueManagement() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    if (isSaving || isUploading) return;
 
     const payload = {
       name: formData.name,
@@ -163,6 +172,7 @@ export default function VenueManagement() {
       image: formData.images[0] || '',
     };
 
+    setIsSaving(true);
     try {
       if (venueId) {
         await venueApi.updateVenue(venueId, payload);
@@ -170,8 +180,12 @@ export default function VenueManagement() {
         const res = await venueApi.createVenue(payload);
         if (res?.data?._id) setVenueId(res.data._id);
       }
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
     } catch (err) {
-      console.log('Backend sync note:', err.message);
+      alert('Lưu thông tin quán thất bại: ' + err.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -202,9 +216,16 @@ export default function VenueManagement() {
             <span>{isBoosted ? 'Đang Boost (Ưu tiên)' : 'Boost địa điểm'}</span>
           </button>
 
-          <button onClick={handleSave} className="btn btn-primary" style={{ backgroundColor: '#10B981' }}>
+          <button
+            onClick={handleSave}
+            disabled={isSaving || isUploading}
+            className="btn btn-primary"
+            style={{ backgroundColor: '#10B981', opacity: isSaving || isUploading ? 0.7 : 1 }}
+          >
             <Save size={16} />
-            <span>{savedSuccess ? 'Đã lưu thay đổi!' : 'Lưu thay đổi'}</span>
+            <span>
+              {isSaving ? 'Đang lưu...' : isUploading ? 'Đang tải ảnh...' : savedSuccess ? 'Đã lưu thay đổi!' : 'Lưu thay đổi'}
+            </span>
           </button>
         </div>
       </div>
@@ -283,6 +304,7 @@ export default function VenueManagement() {
                   multiple
                   accept="image/*"
                   onChange={handleFileUpload}
+                  disabled={isUploading}
                   style={{ display: 'none' }}
                 />
                 <div
@@ -301,7 +323,7 @@ export default function VenueManagement() {
                 </div>
                 <div>
                   <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--primary)', display: 'block' }}>
-                    Tải ảnh từ máy tính
+                    {isUploading ? 'Đang tải ảnh lên...' : 'Tải ảnh từ máy tính'}
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     Chọn nhiều ảnh cùng lúc (PNG, JPG, WEBP)

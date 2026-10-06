@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { adminApi } from '../../services/api';
 import {
   Store,
   Users,
@@ -16,11 +17,47 @@ import {
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    adminApi
+      .getStats()
+      .then((res) => setData(res?.data || null))
+      .catch((err) => console.log('Lỗi tải thống kê admin:', err.message));
+  }, []);
+
+  // Hiển thị "…" khi chưa tải xong
+  const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('vi-VN') : '…');
+
   const stats = [
-    { label: 'TỔNG ĐỐI TÁC QUÁN', val: '187', change: '+12 quán mới tháng này', icon: Store, color: '#3B82F6' },
-    { label: 'SINH VIÊN HOẠT ĐỘNG', val: '4,520', change: '+24% tăng trưởng user', icon: Users, color: '#10B981' },
-    { label: 'LƯỢT MATCH & HẸN GẶP', val: '1,280', change: '+18% buổi hẹn cafe', icon: HeartHandshake, color: '#EC4899' },
-    { label: 'GIAO DỊCH VOUCHER', val: '142.5M VNĐ', change: '+32% doanh số kích cầu', icon: DollarSign, color: '#FF5722' },
+    {
+      label: 'ĐỊA ĐIỂM ĐÃ DUYỆT',
+      val: fmt(data?.venues?.approved),
+      change: `+${fmt(data?.venues?.newThisMonth)} quán mới tháng này`,
+      icon: Store,
+      color: '#3B82F6',
+    },
+    {
+      label: 'SINH VIÊN HOẠT ĐỘNG (30 NGÀY)',
+      val: fmt(data?.students?.activeLast30Days),
+      change: `Tổng ${fmt(data?.students?.total)} tài khoản · +${fmt(data?.students?.newThisMonth)} tháng này`,
+      icon: Users,
+      color: '#10B981',
+    },
+    {
+      label: 'LƯỢT MATCH THÀNH CÔNG',
+      val: fmt(data?.matches?.total),
+      change: `+${fmt(data?.matches?.thisMonth)} tháng này`,
+      icon: HeartHandshake,
+      color: '#EC4899',
+    },
+    {
+      label: 'LƯỢT ĐỔI VOUCHER',
+      val: fmt(data?.vouchers?.redeemed),
+      change: `${fmt(data?.vouchers?.claimed)} lượt lưu ví · +${fmt(data?.vouchers?.redeemedThisMonth)} lượt đổi tháng này`,
+      icon: DollarSign,
+      color: '#FF5722',
+    },
   ];
 
   return (
@@ -89,7 +126,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                12 Quán đối tác đang chờ duyệt
+                {fmt(data?.venues?.pending)} Quán đối tác đang chờ duyệt
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Các quán mới đăng ký cần xác thực giấy phép và menu
@@ -122,10 +159,10 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                3 Báo cáo khiếu nại mức cao (High)
+                {fmt(data?.reports?.pending)} Báo cáo đang chờ xử lý
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Sinh viên phản ánh quán từ chối voucher hoặc tính sai tiền
+                Phản ánh về người dùng, quán hoặc voucher cần Ban quản trị xem xét
               </p>
             </div>
           </div>
@@ -143,31 +180,35 @@ export default function AdminDashboard() {
       {/* Partner Breakdown Section */}
       <div className="portal-card">
         <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '16px' }}>
-          Phân bổ trạng thái 187 cơ sở đối tác
+          Phân bổ trạng thái {fmt(data?.venues?.total)} cơ sở đối tác
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
           <div style={{ padding: '16px', backgroundColor: '#ECFDF5', borderRadius: '14px', border: '1px solid #A7F3D0' }}>
             <span style={{ fontSize: '12px', fontWeight: '700', color: '#065F46' }}>ĐANG HOẠT ĐỘNG</span>
-            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#065F46', marginTop: '4px' }}>152</h2>
-            <span style={{ fontSize: '11px', color: '#059669' }}>81.2% trên toàn sàn</span>
+            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#065F46', marginTop: '4px' }}>{fmt(data?.venues?.approved)}</h2>
+            <span style={{ fontSize: '11px', color: '#059669' }}>
+              {data?.venues?.total
+                ? `${((data.venues.approved / data.venues.total) * 100).toFixed(1)}% trên toàn sàn`
+                : 'Chưa có cơ sở nào'}
+            </span>
           </div>
 
           <div style={{ padding: '16px', backgroundColor: '#FFFBEB', borderRadius: '14px', border: '1px solid #FDE68A' }}>
             <span style={{ fontSize: '12px', fontWeight: '700', color: '#92400E' }}>ĐANG CHỜ DUYỆT</span>
-            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#92400E', marginTop: '4px' }}>12</h2>
+            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#92400E', marginTop: '4px' }}>{fmt(data?.venues?.pending)}</h2>
             <span style={{ fontSize: '11px', color: '#D97706' }}>Cần xử lý trong 24h</span>
           </div>
 
           <div style={{ padding: '16px', backgroundColor: '#FEF2F2', borderRadius: '14px', border: '1px solid #FECACA' }}>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#991B1B' }}>BỊ TẠM KHOÁ</span>
-            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#991B1B', marginTop: '4px' }}>6</h2>
-            <span style={{ fontSize: '11px', color: '#DC2626' }}>Vi phạm chính sách sàn</span>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#991B1B' }}>BỊ TỪ CHỐI</span>
+            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#991B1B', marginTop: '4px' }}>{fmt(data?.venues?.rejected)}</h2>
+            <span style={{ fontSize: '11px', color: '#DC2626' }}>Hồ sơ không đạt yêu cầu</span>
           </div>
 
           <div style={{ padding: '16px', backgroundColor: '#EFF6FF', borderRadius: '14px', border: '1px solid #BFDBFE' }}>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#1E40AF' }}>ĐANG CHẠY BOOST</span>
-            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#1E40AF', marginTop: '4px' }}>17</h2>
-            <span style={{ fontSize: '11px', color: '#2563EB' }}>Gói quảng cáo trả phí</span>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#1E40AF' }}>VOUCHER ĐANG CHẠY</span>
+            <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#1E40AF', marginTop: '4px' }}>{fmt(data?.vouchers?.active)}</h2>
+            <span style={{ fontSize: '11px', color: '#2563EB' }}>Trên tổng {fmt(data?.vouchers?.total)} voucher đã tạo</span>
           </div>
         </div>
       </div>

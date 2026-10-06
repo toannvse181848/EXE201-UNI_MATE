@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   QrCode,
   Scan,
@@ -21,14 +21,30 @@ export default function QRScanner() {
   const [scanError, setScanError] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
-  const [history, setHistory] = useState(() => {
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  const loadHistory = async () => {
     try {
-      const saved = localStorage.getItem('unimate_partner_checkins');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
+      const res = await voucherApi.getPartnerRedemptions(50);
+      setHistory(res?.data || []);
+    } catch (err) {
+      console.log('Lỗi tải lịch sử check-in:', err.message);
+    } finally {
+      setHistoryLoading(false);
     }
-  });
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  // Chuyển nội dung quét/nhập thành payload gửi backend.
+  // QR trong ví sinh viên có dạng UVM-xxxx, còn lại coi là mã voucher chung của quán.
+  const toRedeemPayload = (rawInput) => {
+    const value = rawInput.trim().toUpperCase();
+    return value.startsWith('UVM-') ? { qrPayload: value } : { code: value };
+  };
 
   const handleVerifyCode = async (codeToVerify) => {
     const rawInput = (codeToVerify || inputCode).trim();
@@ -39,57 +55,42 @@ export default function QRScanner() {
     setScanError(null);
     setScanResult(null);
 
-    // Xử lý mã có kèm MSSV dạng: CODE|STUDENT_ID
-    const parts = rawInput.split('|');
-    const code = (parts[0] || '').trim().toUpperCase();
-    const studentId = parts[1]?.trim() || '';
+    const payload = toRedeemPayload(rawInput);
 
     try {
-      const res = await voucherApi.getPublicVouchers({ code });
-      const found = res?.data?.[0];
+      const res = await voucherApi.verifyVoucher(payload);
+      const found = res?.data;
+      const student = found?.student;
 
-      if (!found) {
-        setScanError('Không tìm thấy voucher tương ứng với mã ' + code + ' hoặc voucher đã hết hạn.');
-        setScanning(false);
-        return;
-      }
-
-      setScanning(false);
       setScanResult({
-        code: found.code || code,
+        payload,
+        code: found.code,
         valid: true,
-        title: found.title || `Voucher ${code}`,
-        studentName: studentId ? `Sinh viên (MSSV: ${studentId})` : 'Khách sinh viên UNI-MATE',
-        studentSchool: 'Cộng đồng sinh viên UNI-MATE',
-        studentAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-        venue: found.venueId?.name || 'Cửa hàng đối tác',
+        title: found.title || `Voucher ${found.code}`,
+        studentName: student?.fullName || 'Khách dùng mã chung (không qua ví)',
+        studentSchool: student
+          ? [student.university, student.studentId && `MSSV: ${student.studentId}`].filter(Boolean).join(' · ')
+          : 'Mã voucher chung của quán',
+        studentAvatar: student?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+        venue: found.venueName || 'Cửa hàng đối tác',
         expiry: found.validUntil ? new Date(found.validUntil).toLocaleDateString('vi-VN') : 'Còn hạn sử dụng',
       });
     } catch (err) {
-      setScanning(false);
       setScanError(err.message || 'Lỗi kiểm tra voucher từ hệ thống');
+    } finally {
+      setScanning(false);
     }
   };
 
   const handleConfirmRedeem = async () => {
-    if (!scanResult) return;
+    if (!scanResult || redeeming) return;
     setRedeeming(true);
     try {
-      await voucherApi.redeemVoucher({ code: scanResult.code });
+      await voucherApi.redeemVoucher(scanResult.payload);
       setConfirmed(true);
-      const newEntry = {
-        id: `ck_${Date.now()}`,
-        code: scanResult.code,
-        student: scanResult.studentName,
-        discount: scanResult.title || 'Voucher áp dụng',
-        time: 'Vừa xong',
-        cashier: 'Quầy thu ngân',
-      };
-      const updatedHistory = [newEntry, ...history];
-      setHistory(updatedHistory);
-      localStorage.setItem('unimate_partner_checkins', JSON.stringify(updatedHistory));
+      loadHistory();
     } catch (err) {
-      alert('Không thể áp dụng voucher: ' + (err.response?.data?.message || err.message));
+      alert('Không thể áp dụng voucher: ' + err.message);
     } finally {
       setRedeeming(false);
     }
@@ -174,9 +175,10 @@ export default function QRScanner() {
             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
               <input
                 type="text"
-                placeholder="VD: VCH-2024-X9F2"
+                placeholder="VD: UVM-1A2B3C4D5E6F7A8B hoặc mã voucher"
                 value={inputCode}
                 onChange={(e) => setInputCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
                 style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '13px', textTransform: 'uppercase' }}
               />
               <button
@@ -189,31 +191,10 @@ export default function QRScanner() {
               </button>
             </div>
 
-            {/* Quick Demo buttons */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setInputCode('VCH-2024-X9F2');
-                  handleVerifyCode('VCH-2024-X9F2');
-                }}
-                className="btn btn-secondary"
-                style={{ padding: '4px 10px', fontSize: '11px', flex: 1 }}
-              >
-                ⚡ Quét mẫu: VCH-2024-X9F2
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setInputCode('FREEDRINK-991');
-                  handleVerifyCode('FREEDRINK-991');
-                }}
-                className="btn btn-secondary"
-                style={{ padding: '4px 10px', fontSize: '11px', flex: 1 }}
-              >
-                ⚡ Quét mẫu: FREEDRINK
-              </button>
-            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '16px' }}>
+              Nhập mã <strong>UVM-...</strong> hiển thị dưới QR trong ví sinh viên để trừ đúng voucher của bạn ấy,
+              hoặc nhập mã voucher chung của quán.
+            </p>
           </div>
         </div>
 
@@ -324,11 +305,12 @@ export default function QRScanner() {
           {scanResult && !confirmed && (
             <button
               onClick={handleConfirmRedeem}
+              disabled={redeeming}
               className="btn btn-primary"
-              style={{ width: '100%', padding: '14px', fontSize: '15px', marginTop: '20px' }}
+              style={{ width: '100%', padding: '14px', fontSize: '15px', marginTop: '20px', opacity: redeeming ? 0.7 : 1 }}
             >
               <CheckCircle2 size={18} />
-              <span>Xác nhận áp dụng voucher & Trừ tiền hóa đơn</span>
+              <span>{redeeming ? 'Đang áp dụng...' : 'Xác nhận áp dụng voucher & Trừ tiền hóa đơn'}</span>
             </button>
           )}
         </div>
@@ -337,7 +319,7 @@ export default function QRScanner() {
       {/* Check-in History Table */}
       <div className="portal-card">
         <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '14px' }}>
-          Lịch sử check-in hôm nay
+          Lịch sử check-in gần đây
         </h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -347,19 +329,37 @@ export default function QRScanner() {
                 <th style={{ padding: '10px 14px' }}>SINH VIÊN</th>
                 <th style={{ padding: '10px 14px' }}>ƯU ĐÃI</th>
                 <th style={{ padding: '10px 14px' }}>THỜI GIAN</th>
-                <th style={{ padding: '10px 14px' }}>THU NGÂN</th>
+                <th style={{ padding: '10px 14px' }}>NGƯỜI XÁC NHẬN</th>
               </tr>
             </thead>
             <tbody>
               {history.map((h) => (
-                <tr key={h.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '12px 14px', fontWeight: '800', color: 'var(--primary)' }}>{h.code}</td>
-                  <td style={{ padding: '12px 14px', fontWeight: '700', color: 'var(--text-primary)' }}>{h.student}</td>
-                  <td style={{ padding: '12px 14px', color: '#059669', fontWeight: '700' }}>{h.discount}</td>
-                  <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>{h.time}</td>
-                  <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>{h.cashier}</td>
+                <tr key={h._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                  <td style={{ padding: '12px 14px', fontWeight: '800', color: 'var(--primary)' }}>{h.voucherId?.code || '—'}</td>
+                  <td style={{ padding: '12px 14px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    {h.userId?.fullName || 'Khách dùng mã chung'}
+                  </td>
+                  <td style={{ padding: '12px 14px', color: '#059669', fontWeight: '700' }}>{h.voucherId?.title || 'Voucher'}</td>
+                  <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>
+                    {new Date(h.createdAt).toLocaleString('vi-VN')}
+                  </td>
+                  <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>{h.redeemedBy?.fullName || 'Quầy thu ngân'}</td>
                 </tr>
               ))}
+              {!historyLoading && history.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    Chưa có lượt check-in nào
+                  </td>
+                </tr>
+              )}
+              {historyLoading && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    Đang tải lịch sử...
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

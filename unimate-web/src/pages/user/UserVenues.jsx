@@ -26,13 +26,33 @@ export default function UserVenues() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('Tất cả');
   const [claimedCodes, setClaimedCodes] = useState({});
+  const [claimingVenueId, setClaimingVenueId] = useState(null);
   const [selectedVenueModal, setSelectedVenueModal] = useState(null);
 
   const fetchVenues = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await venueApi.getPublicVenues();
-      const realData = res.data || [];
+      const [venuesRes, vouchersRes, walletRes] = await Promise.allSettled([
+        venueApi.getPublicVenues(),
+        voucherApi.getPublicVouchers(),
+        voucherApi.getMyWallet(),
+      ]);
+      if (venuesRes.status === 'rejected') throw venuesRes.reason;
+      const realData = venuesRes.value?.data || [];
+
+      // Voucher đang chạy của từng quán (lấy voucher mới nhất)
+      const voucherByVenue = {};
+      (vouchersRes.status === 'fulfilled' ? vouchersRes.value?.data || [] : []).forEach((vch) => {
+        const vId = vch.venueId?._id || vch.venueId;
+        if (vId && !voucherByVenue[vId]) voucherByVenue[vId] = vch;
+      });
+
+      // Những voucher sinh viên đã lưu vào ví
+      const walletVoucherIds = new Set(
+        (walletRes.status === 'fulfilled' ? walletRes.value?.data || [] : []).map(
+          (uv) => uv.voucherId?._id || uv.voucherId
+        )
+      );
 
       if (realData.length > 0) {
         const formatted = realData.map((v, idx) => {
@@ -74,11 +94,18 @@ export default function UserVenues() {
                 : ['Wifi tốc độ cao', 'Ổ cắm điện', 'Máy lạnh 24/7'],
             tags: v.tags?.length > 0 ? v.tags : ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
             hours: v.openingHours || v.openHours || '07:00 - 23:00',
-            voucher: 'Ưu đãi dành riêng cho sinh viên UNI-MATE',
-            voucherCode: `UNI-${v.name.slice(0, 3).toUpperCase()}-20`,
+            voucher: voucherByVenue[v._id]?.title || null,
+            voucherId: voucherByVenue[v._id]?._id || null,
+            voucherCode: voucherByVenue[v._id]?.code || null,
           };
         });
         setVenues(formatted);
+        setClaimedCodes(
+          formatted.reduce((acc, venue) => {
+            if (venue.voucherId && walletVoucherIds.has(venue.voucherId)) acc[venue.id] = true;
+            return acc;
+          }, {})
+        );
       } else {
         setVenues([]);
       }
@@ -94,9 +121,18 @@ export default function UserVenues() {
     fetchVenues();
   }, [fetchVenues]);
 
-  const handleClaimVoucher = (venueId, code) => {
-    setClaimedCodes((prev) => ({ ...prev, [venueId]: true }));
-    alert(`🎉 Đã lưu voucher [${code}] vào ví voucher của bạn! Bạn có thể xem mã QR ở mục "Ví Voucher của tôi".`);
+  const handleClaimVoucher = async (venue) => {
+    if (!venue?.voucherId || claimedCodes[venue.id] || claimingVenueId) return;
+    setClaimingVenueId(venue.id);
+    try {
+      await voucherApi.claimVoucher(venue.voucherId);
+      setClaimedCodes((prev) => ({ ...prev, [venue.id]: true }));
+      alert(`🎉 Đã lưu voucher [${venue.voucherCode}] vào ví voucher của bạn! Bạn có thể xem mã QR ở mục "Ví Voucher của tôi".`);
+    } catch (err) {
+      alert('Không thể nhận voucher: ' + err.message);
+    } finally {
+      setClaimingVenueId(null);
+    }
   };
 
   const filteredVenues = venues.filter((venue) => {
@@ -409,8 +445,8 @@ export default function UserVenues() {
                     </div>
 
                     <button
-                      onClick={() => handleClaimVoucher(venue.id, venue.voucherCode)}
-                      disabled={claimedCodes[venue.id]}
+                      onClick={() => handleClaimVoucher(venue)}
+                      disabled={claimedCodes[venue.id] || claimingVenueId === venue.id}
                       style={{
                         padding: '6px 12px',
                         borderRadius: '8px',
@@ -423,7 +459,7 @@ export default function UserVenues() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {claimedCodes[venue.id] ? 'Đã lưu ví ✓' : 'Nhận mã'}
+                      {claimedCodes[venue.id] ? 'Đã lưu ví ✓' : claimingVenueId === venue.id ? 'Đang lưu...' : 'Nhận mã'}
                     </button>
                   </div>
                 )}
@@ -541,14 +577,21 @@ export default function UserVenues() {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '16px' }}>
-                <button
-                  onClick={() => handleClaimVoucher(selectedVenueModal.id, selectedVenueModal.voucherCode)}
-                  className="btn btn-primary"
-                  style={{ flex: 1, padding: '12px' }}
-                >
-                  <Ticket size={16} />
-                  <span>{claimedCodes[selectedVenueModal.id] ? 'Đã lưu voucher vào ví' : 'Lấy mã ưu đãi ngay'}</span>
-                </button>
+                {selectedVenueModal.voucherId ? (
+                  <button
+                    onClick={() => handleClaimVoucher(selectedVenueModal)}
+                    disabled={claimedCodes[selectedVenueModal.id] || claimingVenueId === selectedVenueModal.id}
+                    className="btn btn-primary"
+                    style={{ flex: 1, padding: '12px' }}
+                  >
+                    <Ticket size={16} />
+                    <span>{claimedCodes[selectedVenueModal.id] ? 'Đã lưu voucher vào ví' : 'Lấy mã ưu đãi ngay'}</span>
+                  </button>
+                ) : (
+                  <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-muted)' }}>
+                    Quán chưa có voucher đang chạy
+                  </span>
+                )}
                 <button
                   onClick={() => setSelectedVenueModal(null)}
                   className="btn btn-secondary"

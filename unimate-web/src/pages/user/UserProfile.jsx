@@ -17,6 +17,7 @@ import {
   Award,
   Camera,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
 
@@ -29,6 +30,7 @@ export default function UserProfile() {
   const [year, setYear] = useState(user?.year || '');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarNotice, setAvatarNotice] = useState(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const handleAvatarSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -47,15 +49,13 @@ export default function UserProfile() {
     setIsUploadingAvatar(true);
     setAvatarNotice(null);
 
-    // Tạo preview ngay lập tức
-    const previewUrl = URL.createObjectURL(file);
-
     try {
       const formData = new FormData();
       formData.append('avatar', file);
 
       const res = await userApi.updateAvatar(formData);
-      const newAvatar = res?.data?.avatar || previewUrl;
+      const newAvatar = res?.data?.avatar;
+      if (!newAvatar) throw new Error('Máy chủ không trả về ảnh đại diện mới');
 
       const updated = { ...user, avatar: newAvatar };
       if (updateUser) {
@@ -68,43 +68,37 @@ export default function UserProfile() {
       setAvatarNotice({ type: 'success', text: 'Cập nhật ảnh đại diện thành công!' });
       setTimeout(() => setAvatarNotice(null), 4000);
     } catch (err) {
-      console.warn('Lỗi upload avatar lên server:', err.message);
-      // Fallback base64 / local preview khi offline để trải nghiệm không bị gián đoạn
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64Data = reader.result;
-        const fallbackUser = { ...user, avatar: base64Data };
-        if (updateUser) {
-          updateUser({ avatar: base64Data });
-        } else {
-          setUser(fallbackUser);
-          localStorage.setItem('unimate_portal_user', JSON.stringify(fallbackUser));
-        }
-      };
-      reader.readAsDataURL(file);
-
-      setAvatarNotice({
-        type: 'success',
-        text: 'Đã cập nhật ảnh đại diện vào hồ sơ tài khoản!',
-      });
-      setTimeout(() => setAvatarNotice(null), 4000);
+      // Không giả lập thành công bằng ảnh base64 local — ảnh chưa được lưu vào DB
+      setAvatarNotice({ type: 'error', text: 'Tải ảnh đại diện thất bại: ' + err.message });
+      setTimeout(() => setAvatarNotice(null), 6000);
     } finally {
       setIsUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    const updated = { ...user, bio, major, year };
-    if (updateUser) {
-      updateUser(updated);
-    } else {
-      setUser(updated);
-      localStorage.setItem('unimate_portal_user', JSON.stringify(updated));
+    if (isSavingProfile) return;
+
+    setIsSavingProfile(true);
+    try {
+      const res = await userApi.updateMe({ bio, major, year });
+      const saved = res?.data?.user || { bio, major, year };
+      const updated = { ...user, bio: saved.bio, major: saved.major, year: saved.year };
+      if (updateUser) {
+        updateUser(updated);
+      } else {
+        setUser(updated);
+        localStorage.setItem('unimate_portal_user', JSON.stringify(updated));
+      }
+      setIsEditing(false);
+      alert('Đã cập nhật hồ sơ sinh viên thành công!');
+    } catch (err) {
+      alert('Lưu hồ sơ thất bại: ' + err.message);
+    } finally {
+      setIsSavingProfile(false);
     }
-    setIsEditing(false);
-    alert('Đã cập nhật hồ sơ sinh viên thành công!');
   };
 
   return (
@@ -295,9 +289,9 @@ export default function UserProfile() {
                   marginBottom: '16px',
                   padding: '8px 14px',
                   borderRadius: '10px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.25)',
-                  border: '1px solid rgba(16, 185, 129, 0.5)',
-                  color: '#A7F3D0',
+                  backgroundColor: avatarNotice.type === 'error' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)',
+                  border: avatarNotice.type === 'error' ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(16, 185, 129, 0.5)',
+                  color: avatarNotice.type === 'error' ? '#FECACA' : '#A7F3D0',
                   fontSize: '12px',
                   fontWeight: '600',
                   display: 'flex',
@@ -305,7 +299,7 @@ export default function UserProfile() {
                   gap: '6px',
                 }}
               >
-                <CheckCircle2 size={14} />
+                {avatarNotice.type === 'error' ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
                 <span>{avatarNotice.text}</span>
               </div>
             )}
@@ -476,6 +470,7 @@ export default function UserProfile() {
 
                 <button
                   type="submit"
+                  disabled={isSavingProfile}
                   style={{
                     padding: '12px',
                     borderRadius: '12px',
@@ -483,11 +478,12 @@ export default function UserProfile() {
                     color: '#FFFFFF',
                     fontWeight: '700',
                     fontSize: '14px',
-                    cursor: 'pointer',
+                    cursor: isSavingProfile ? 'default' : 'pointer',
+                    opacity: isSavingProfile ? 0.7 : 1,
                     boxShadow: '0 4px 10px rgba(255, 87, 34, 0.3)',
                   }}
                 >
-                  Lưu thay đổi
+                  {isSavingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </form>
             ) : (

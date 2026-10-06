@@ -74,23 +74,32 @@ export default function UserVouchers() {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  // Normalize voucher fields from backend response
-  const normalizeVoucher = (v) => ({
-    id: v._id || v.id,
-    code: v.code || v.voucherCode || '',
-    title: v.title || v.name || 'Voucher',
-    brand: v.brand || v.venueName || v.venue?.name || '—',
-    logo: v.logo || '🎟️',
-    expiry: v.expiryDate
-      ? new Date(v.expiryDate).toLocaleDateString('vi-VN')
-      : v.expiry || '—',
-    discount: v.discountValue
-      ? `${v.discountValue}${v.discountType === 'percent' ? '%' : 'đ'}`
-      : v.discount || '—',
-    minOrder: v.minOrderAmount ? `Từ ${v.minOrderAmount.toLocaleString()}đ` : v.minOrder || 'Không giới hạn',
-    description: v.description || '',
-    status: v.status || 'available',
-  });
+  // Chuẩn hoá voucher từ backend. Nhận cả 2 dạng:
+  // - Voucher công khai: { _id, code, title, venueId: {name}, ... }
+  // - Item trong ví (UserVoucher): { _id, status, qrPayload, voucherId: { code, title, venueId: {name}, ... } }
+  const normalizeVoucher = (raw) => {
+    const isWalletItem = raw.voucherId && typeof raw.voucherId === 'object';
+    const v = isWalletItem ? raw.voucherId : raw;
+    const venue = v.venueId && typeof v.venueId === 'object' ? v.venueId : null;
+    return {
+      id: raw._id || raw.id,
+      voucherId: v._id,
+      code: v.code || '',
+      qrPayload: isWalletItem ? raw.qrPayload : null,
+      title: v.title || 'Voucher',
+      brand: venue?.name || '—',
+      logo: '🎟️',
+      expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : '—',
+      discount: v.discountPercent
+        ? `-${v.discountPercent}%`
+        : v.discountAmount
+        ? `-${v.discountAmount.toLocaleString('vi-VN')}đ`
+        : '—',
+      minOrder: v.minBill ? `Từ ${v.minBill.toLocaleString('vi-VN')}đ` : 'Không giới hạn',
+      description: v.description || (v.terms || []).join(' · '),
+      status: isWalletItem ? raw.status : 'available',
+    };
+  };
 
   return (
     <div>
@@ -287,25 +296,40 @@ export default function UserVouchers() {
                     Điều kiện: <strong>{vch.minOrder}</strong>
                   </div>
 
-                  <button
-                    onClick={() => handleOpenQR(vch)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 14px',
-                      borderRadius: '10px',
-                      backgroundColor: '#FF5722',
-                      color: '#FFFFFF',
-                      fontSize: '12.5px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(255, 87, 34, 0.3)',
-                    }}
-                  >
-                    <QrCode size={16} />
-                    <span>Dùng ngay</span>
-                  </button>
+                  {vch.status === 'saved' ? (
+                    <button
+                      onClick={() => handleOpenQR(vch)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '10px',
+                        backgroundColor: '#FF5722',
+                        color: '#FFFFFF',
+                        fontSize: '12.5px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(255, 87, 34, 0.3)',
+                      }}
+                    >
+                      <QrCode size={16} />
+                      <span>Dùng ngay</span>
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '10px',
+                        backgroundColor: '#E2E8F0',
+                        color: 'var(--text-muted)',
+                        fontSize: '12.5px',
+                        fontWeight: '800',
+                      }}
+                    >
+                      {vch.status === 'used' ? 'Đã sử dụng' : 'Hết hạn'}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -327,7 +351,7 @@ export default function UserVouchers() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
             {publicVouchers.map((raw) => {
               const vch = normalizeVoucher(raw);
-              const alreadyClaimed = myVouchers.some(mv => (mv._id || mv.id) === (raw._id || raw.id));
+              const alreadyClaimed = myVouchers.some((mv) => (mv.voucherId?._id || mv.voucherId) === raw._id);
               return (
                 <div key={vch.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', padding: '22px', border: '1.5px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
@@ -412,7 +436,7 @@ export default function UserVouchers() {
               }}
             >
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(selectedVoucher.code + '|' + user?.studentId)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(selectedVoucher.qrPayload || selectedVoucher.code)}`}
                 alt="QR Voucher"
                 style={{ width: '100%', height: '100%' }}
               />
@@ -432,10 +456,10 @@ export default function UserVouchers() {
               }}
             >
               <span style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '1px', color: 'var(--text-primary)' }}>
-                {selectedVoucher.code}
+                {selectedVoucher.qrPayload || selectedVoucher.code}
               </span>
               <button
-                onClick={() => handleCopyCode(selectedVoucher.code)}
+                onClick={() => handleCopyCode(selectedVoucher.qrPayload || selectedVoucher.code)}
                 style={{ color: '#FF5722', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 title="Sao chép mã"
               >

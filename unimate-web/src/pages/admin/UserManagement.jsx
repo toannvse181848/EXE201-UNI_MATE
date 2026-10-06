@@ -53,8 +53,8 @@ export default function UserManagement() {
   }, [fetchUsers]);
 
   const handleToggleStatus = async (user) => {
-    const newStatus = user.status === 'active' ? 'banned' : 'active';
-    const confirmMsg = newStatus === 'banned'
+    const newStatus = user.status === 'active' ? 'suspended' : 'active';
+    const confirmMsg = newStatus === 'suspended'
       ? `Bạn có chắc chắn muốn KHOÁ tài khoản "${user.fullName}" (${user.email})?`
       : `Mở khoá tài khoản "${user.fullName}" (${user.email})?`;
 
@@ -65,7 +65,7 @@ export default function UserManagement() {
       await userApi.updateUserStatus(user._id, newStatus);
       setToast({
         type: 'success',
-        text: `Đã ${newStatus === 'banned' ? 'khoá' : 'kích hoạt'} tài khoản thành công!`,
+        text: `Đã ${newStatus === 'suspended' ? 'khoá' : 'kích hoạt'} tài khoản thành công!`,
       });
       fetchUsers();
     } catch (err) {
@@ -224,7 +224,7 @@ export default function UserManagement() {
         >
           <option value="">Tất cả trạng thái</option>
           <option value="active">🟢 Đang hoạt động (Active)</option>
-          <option value="banned">🔴 Bị khoá (Banned)</option>
+          <option value="suspended">🔴 Bị khoá (Banned)</option>
         </select>
       </div>
 
@@ -261,7 +261,7 @@ export default function UserManagement() {
                 users.map((u) => {
                   const isStudent = u.role === 'student' || u.role === 'user';
                   const isPartner = u.role === 'partner';
-                  const isBanned = u.status === 'banned';
+                  const isBanned = u.status === 'suspended';
 
                   return (
                     <tr
