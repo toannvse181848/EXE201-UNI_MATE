@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import cover from '../assets/cover.png';
 import { useAuth } from '../context/AuthContext';
-import { GraduationCap, Coffee, ShieldCheck, ArrowRight, ArrowLeft, Lock, Mail, UserPlus } from 'lucide-react';
+import { GraduationCap, Coffee, ShieldCheck, ArrowRight, ArrowLeft, Lock, Mail, UserPlus, X, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { authApi } from '../services/api';
+
 
 export default function Login() {
   const navigate = useNavigate();
@@ -11,6 +13,14 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // === Forgot Password Modal State ===
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotStatus, setForgotStatus] = useState(null); // null | 'success' | 'error'
+  const [forgotMessage, setForgotMessage] = useState('');
+
 
   const roleConfigs = {
     user: {
@@ -72,9 +82,39 @@ export default function Login() {
     }
   };
 
+  const handleOpenForgotModal = () => {
+    setForgotEmail('');
+    setForgotStatus(null);
+    setForgotMessage('');
+    setShowForgotModal(true);
+  };
+
+  const handleCloseForgotModal = () => {
+    setShowForgotModal(false);
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotLoading(true);
+    setForgotStatus(null);
+    try {
+      const res = await authApi.forgotPassword(forgotEmail);
+      setForgotStatus('success');
+      setForgotMessage(res.message || 'Nếu email tồn tại, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu.');
+    } catch (err) {
+      setForgotStatus('error');
+      setForgotMessage(err.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+
 
 
   return (
+    <>
     <div
       style={{
         minHeight: '100vh',
@@ -348,7 +388,11 @@ export default function Login() {
               <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>
                 Mật khẩu
               </label>
-              <span style={{ fontSize: '12px', color: currentConfig.color, fontWeight: '600', cursor: 'pointer' }}>
+              <span
+                id="forgot-password-btn"
+                onClick={handleOpenForgotModal}
+                style={{ fontSize: '12px', color: currentConfig.color, fontWeight: '600', cursor: 'pointer' }}
+              >
                 Quên mật khẩu?
               </span>
             </div>
@@ -424,5 +468,176 @@ export default function Login() {
 
       </div>
     </div>
+
+      {/* ===== FORGOT PASSWORD MODAL ===== */}
+      {showForgotModal && (
+        <div
+          onClick={handleCloseForgotModal}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '440px',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '24px',
+              padding: '36px',
+              boxShadow: '0 24px 48px -12px rgba(0,0,0,0.18)',
+              animation: 'slideUp 0.25s ease',
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div>
+                <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#0F172A', margin: 0 }}>🔐 Quên mật khẩu?</h2>
+                <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0' }}>Nhập email để nhận link đặt lại mật khẩu</p>
+              </div>
+              <button
+                onClick={handleCloseForgotModal}
+                style={{
+                  width: '36px', height: '36px', borderRadius: '10px',
+                  backgroundColor: '#F1F5F9', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#64748B', flexShrink: 0,
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Success State */}
+            {forgotStatus === 'success' ? (
+              <div style={{
+                textAlign: 'center', padding: '24px 0',
+              }}>
+                <div style={{
+                  width: '64px', height: '64px', borderRadius: '50%',
+                  backgroundColor: '#D1FAE5', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', margin: '0 auto 16px',
+                }}>
+                  <CheckCircle size={32} color="#10B981" />
+                </div>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', margin: '0 0 8px' }}>Email đã được gửi!</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', lineHeight: '1.6', margin: '0 0 24px' }}>
+                  {forgotMessage}
+                </p>
+                <p style={{ fontSize: '12px', color: '#94A3B8', margin: '0 0 20px' }}>⏱ Link có hiệu lực trong 15 phút. Kiểm tra cả hòm thư spam nhé!</p>
+                <button
+                  onClick={handleCloseForgotModal}
+                  style={{
+                    width: '100%', padding: '12px', borderRadius: '12px',
+                    backgroundColor: '#10B981', color: '#fff', border: 'none',
+                    fontSize: '14px', fontWeight: '700', cursor: 'pointer',
+                  }}
+                >
+                  Đóng
+                </button>
+              </div>
+            ) : (
+              /* Form State */
+              <form onSubmit={handleForgotPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Error Banner */}
+                {forgotStatus === 'error' && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '12px 14px', borderRadius: '12px',
+                    backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5',
+                  }}>
+                    <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0 }} />
+                    <p style={{ fontSize: '13px', color: '#B91C1C', margin: 0 }}>{forgotMessage}</p>
+                  </div>
+                )}
+
+                {/* Email Input */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#0F172A', marginBottom: '8px' }}>
+                    Email tài khoản
+                  </label>
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    border: '1.5px solid #E2E8F0', borderRadius: '12px',
+                    padding: '11px 14px', backgroundColor: '#FFFFFF',
+                  }}>
+                    <Mail size={18} color="#94A3B8" style={{ marginRight: '10px', flexShrink: 0 }} />
+                    <input
+                      id="forgot-email-input"
+                      type="email"
+                      required
+                      autoFocus
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="Nhập email tài khoản của bạn"
+                      style={{
+                        border: 'none', outline: 'none', width: '100%',
+                        fontSize: '14px', color: '#0F172A',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  id="forgot-password-submit-btn"
+                  type="submit"
+                  disabled={forgotLoading}
+                  style={{
+                    width: '100%', padding: '13px', borderRadius: '12px',
+                    background: forgotLoading
+                      ? '#CBD5E1'
+                      : 'linear-gradient(135deg, #FF5722, #FF8A50)',
+                    color: '#fff', border: 'none',
+                    fontSize: '14px', fontWeight: '700', cursor: forgotLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    boxShadow: forgotLoading ? 'none' : '0 6px 16px rgba(255,87,34,0.3)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {forgotLoading ? (
+                    <>
+                      <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Đang gửi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={18} />
+                      <span>Gửi link đặt lại mật khẩu</span>
+                    </>
+                  )}
+                </button>
+
+                <p style={{ fontSize: '12px', color: '#94A3B8', textAlign: 'center', margin: 0 }}>
+                  Nhớ mật khẩu rồi?{' '}
+                  <span
+                    onClick={handleCloseForgotModal}
+                    style={{ color: '#FF5722', fontWeight: '700', cursor: 'pointer' }}
+                  >
+                    Quay lại đăng nhập
+                  </span>
+                </p>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Keyframes for animations */}
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </>
   );
 }

@@ -11,4 +11,8 @@ router.post('/login', authController.login);
 router.get('/me', protect, authController.getMe);
 router.post('/change-password', protect, authController.changePassword);
 
-module.exports = router;
+// Quên mật khẩu
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
+
+module.exports = router;

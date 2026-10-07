@@ -2,6 +2,9 @@ const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const crypto = require('crypto');
+const { sendPasswordResetEmail } = require('../utils/email');
+
 
 // POST /api/auth/register/student
 exports.registerStudent = catchAsync(async (req, res) => {
@@ -152,3 +155,71 @@ exports.changePassword = catchAsync(async (req, res) => {
 
   res.status(200).json({ success: true, message: 'Đổi mật khẩu thành công' });
 });
+
+// POST /api/auth/forgot-password
+exports.forgotPassword = catchAsync(async (req, res) => {
+  const { email } = req.body;
+  if (!email) throw new ApiError(400, 'Vui lòng nhập email');
+
+  const user = await User.findOne({ email });
+  // Luôn trả 200 để tránh lộ thông tin email tồn tại hay không
+  if (!user) {
+    return res.status(200).json({
+      success: true,
+      message: 'Nếu email tồn tại, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu.',
+    });
+  }
+
+  // Sinh token ngẫu nhiên 32 bytes
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 phút
+  await user.save({ validateBeforeSave: false });
+
+  // Build reset URL (frontend route)
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+  try {
+    await sendPasswordResetEmail(email, resetUrl);
+  } catch (err) {
+    // Rollback nếu gửi email thất bại
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save({ validateBeforeSave: false });
+    throw new ApiError(500, 'Gửi email thất bại. Vui lòng thử lại sau.');
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Nếu email tồn tại, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu.',
+  });
+});
+
+// POST /api/auth/reset-password
+exports.resetPassword = catchAsync(async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    throw new ApiError(400, 'Token và mật khẩu mới là bắt buộc');
+  }
+  if (newPassword.length < 6) {
+    throw new ApiError(400, 'Mật khẩu phải từ 6 ký tự trở lên');
+  }
+
+  const user = await User.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new ApiError(400, 'Token không hợp lệ hoặc đã hết hạn');
+  }
+
+  user.password = newPassword;
+  user.resetPasswordToken = null;
+  user.resetPasswordExpires = null;
+  await user.save();
+
+  res.status(200).json({ success: true, message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.' });
+});

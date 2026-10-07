@@ -13,6 +13,8 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
+import ResetPassword from './pages/ResetPassword';
+
 
 
 // User / Student Pages
@@ -60,6 +62,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+
 
 
           {/* 🎓 User / Student Portal Routes */}

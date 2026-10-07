@@ -47,7 +47,16 @@ export const authApi = {
     const res = await client.get('/api/auth/me');
     return res.data;
   },
+  forgotPassword: async (email) => {
+    const res = await client.post('/api/auth/forgot-password', { email });
+    return res.data;
+  },
+  resetPassword: async (token, newPassword) => {
+    const res = await client.post('/api/auth/reset-password', { token, newPassword });
+    return res.data;
+  },
 };
+
 
 // === VENUE API ===
 export const venueApi = {
