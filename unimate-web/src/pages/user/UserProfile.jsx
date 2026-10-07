@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { userApi } from '../../services/api';
+import { userApi, authApi } from '../../services/api';
 import {
   GraduationCap,
   ShieldCheck,
@@ -18,7 +18,13 @@ import {
   Camera,
   Loader2,
   AlertCircle,
+  Lock,
+  Eye,
+  EyeOff,
+  KeyRound,
+  CheckCircle,
 } from 'lucide-react';
+
 import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
 
 export default function UserProfile() {
@@ -31,6 +37,18 @@ export default function UserProfile() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarNotice, setAvatarNotice] = useState(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // === Change Password State ===
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdNotice, setPwdNotice] = useState(null); // { type: 'success'|'error', text }
+
 
   const handleAvatarSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -100,6 +118,33 @@ export default function UserProfile() {
       setIsSavingProfile(false);
     }
   };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setPwdNotice({ type: 'error', text: 'Mật khẩu xác nhận không khớp.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPwdNotice({ type: 'error', text: 'Mật khẩu mới phải có ít nhất 6 ký tự.' });
+      return;
+    }
+    setPwdLoading(true);
+    setPwdNotice(null);
+    try {
+      await authApi.changePassword(currentPassword, newPassword);
+      setPwdNotice({ type: 'success', text: 'Đổi mật khẩu thành công! 🎉' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => { setPwdNotice(null); setShowChangePassword(false); }, 3000);
+    } catch (err) {
+      setPwdNotice({ type: 'error', text: err.message || 'Đổi mật khẩu thất bại. Vui lòng thử lại.' });
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
 
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto' }}>
@@ -532,7 +577,171 @@ export default function UserProfile() {
           </div>
         </div>
       </div>
+
+      {/* ===== CHANGE PASSWORD SECTION ===== */}
+      <div
+        style={{
+          marginTop: '24px',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '20px',
+          border: '1px solid var(--border-color)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Section Header */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '20px 28px',
+            cursor: 'pointer',
+            borderBottom: showChangePassword ? '1px solid var(--border-color)' : 'none',
+            transition: 'background 0.15s',
+          }}
+          onClick={() => { setShowChangePassword(!showChangePassword); setPwdNotice(null); }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FFF8F5')}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '12px',
+              background: 'linear-gradient(135deg, #FF5722, #FF8A50)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 10px rgba(255,87,34,0.25)',
+            }}>
+              <KeyRound size={20} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>Đổi mật khẩu</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Cập nhật mật khẩu bảo mật tài khoản</div>
+            </div>
+          </div>
+          <div style={{
+            fontSize: '12px', fontWeight: '700', color: '#FF5722',
+            display: 'flex', alignItems: 'center', gap: '4px',
+          }}>
+            {showChangePassword ? '▲ Thu gọn' : '▼ Mở rộng'}
+          </div>
+        </div>
+
+        {/* Form */}
+        {showChangePassword && (
+          <div style={{ padding: '24px 28px' }}>
+            {/* Notice */}
+            {pwdNotice && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '12px 14px', borderRadius: '12px', marginBottom: '20px',
+                backgroundColor: pwdNotice.type === 'error' ? '#FEF2F2' : '#F0FDF4',
+                border: `1px solid ${pwdNotice.type === 'error' ? '#FCA5A5' : '#86EFAC'}`,
+              }}>
+                {pwdNotice.type === 'error'
+                  ? <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0 }} />
+                  : <CheckCircle size={18} color="#22C55E" style={{ flexShrink: 0 }} />}
+                <span style={{ fontSize: '13px', fontWeight: '600', color: pwdNotice.type === 'error' ? '#B91C1C' : '#15803D' }}>
+                  {pwdNotice.text}
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
+              {/* Current Password */}
+              {[{
+                id: 'current-password-input',
+                label: 'Mật khẩu hiện tại',
+                value: currentPassword,
+                setter: setCurrentPassword,
+                show: showCurrentPwd,
+                toggle: () => setShowCurrentPwd(!showCurrentPwd),
+              }, {
+                id: 'new-password-input',
+                label: 'Mật khẩu mới',
+                value: newPassword,
+                setter: setNewPassword,
+                show: showNewPwd,
+                toggle: () => setShowNewPwd(!showNewPwd),
+              }, {
+                id: 'confirm-new-password-input',
+                label: 'Xác nhận mật khẩu mới',
+                value: confirmPassword,
+                setter: setConfirmPassword,
+                show: showConfirmPwd,
+                toggle: () => setShowConfirmPwd(!showConfirmPwd),
+                isError: confirmPassword && confirmPassword !== newPassword,
+              }].map((field) => (
+                <div key={field.id}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                    {field.label}
+                  </label>
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    border: `1.5px solid ${field.isError ? '#FCA5A5' : 'var(--border-color)'}`,
+                    borderRadius: '12px', padding: '10px 14px',
+                    transition: 'border-color 0.2s',
+                  }}>
+                    <Lock size={17} color="#94A3B8" style={{ marginRight: '10px', flexShrink: 0 }} />
+                    <input
+                      id={field.id}
+                      type={field.show ? 'text' : 'password'}
+                      required
+                      value={field.value}
+                      onChange={(e) => field.setter(e.target.value)}
+                      placeholder={field.label}
+                      style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', color: 'var(--text-primary)' }}
+                    />
+                    <button type="button" onClick={field.toggle}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', flexShrink: 0, padding: 0 }}>
+                      {field.show ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                  {field.isError && (
+                    <p style={{ fontSize: '12px', color: '#EF4444', margin: '5px 0 0' }}>Mật khẩu không khớp</p>
+                  )}
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                <button
+                  id="change-password-submit-btn"
+                  type="submit"
+                  disabled={pwdLoading}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: '12px',
+                    background: pwdLoading ? '#CBD5E1' : 'linear-gradient(135deg, #FF5722, #FF8A50)',
+                    color: '#fff', border: 'none',
+                    fontSize: '14px', fontWeight: '700',
+                    cursor: pwdLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    boxShadow: pwdLoading ? 'none' : '0 4px 12px rgba(255,87,34,0.3)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {pwdLoading
+                    ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Đang lưu...</>
+                    : <><KeyRound size={17} /> Đổi mật khẩu</>
+                  }
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowChangePassword(false); setPwdNotice(null); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+                  style={{
+                    padding: '12px 18px', borderRadius: '12px',
+                    backgroundColor: '#F1F5F9', border: '1.5px solid #E2E8F0',
+                    fontSize: '14px', fontWeight: '700', color: '#475569',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
-

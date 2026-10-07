@@ -55,7 +55,12 @@ export const authApi = {
     const res = await client.post('/api/auth/reset-password', { token, newPassword });
     return res.data;
   },
+  changePassword: async (currentPassword, newPassword) => {
+    const res = await client.post('/api/auth/change-password', { currentPassword, newPassword });
+    return res.data;
+  },
 };
+
 
 
 // === VENUE API ===
