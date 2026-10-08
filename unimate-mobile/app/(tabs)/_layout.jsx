@@ -6,10 +6,10 @@ import { COLORS } from '../../src/constants/colors';
 
 function TabIcon({ name, focused }) {
   return (
-    <View style={focused ? styles.activeTab : null}>
+    <View style={[styles.tabIconWrapper, focused && styles.activeTab]}>
       <Ionicons
         name={focused ? name.replace('-outline', '') : name}
-        size={22}
+        size={20}
         color={focused ? COLORS.primary : COLORS.textMuted}
       />
     </View>
@@ -19,12 +19,11 @@ function TabIcon({ name, focused }) {
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
-  // Đối với Android có phím điều hướng hệ thống 3 nút (Back, Home, Recents) hoặc cử chỉ vuốt,
-  // insets.bottom sẽ phản ánh chính xác chiều cao của thanh điều hướng (thường là 48dp).
-  // Đảm bảo padding dưới luôn đẩy icon và label lên trên thanh điều hướng, không bị cấn phím.
+  // Đối với Android có phím điều hướng hệ thống 3 nút hoặc cử chỉ vuốt,
+  // insets.bottom phản ánh chính xác chiều cao của thanh điều hướng (thường là 48dp).
   const bottomInset = insets.bottom;
-  const bottomPadding = bottomInset > 0 ? bottomInset + 4 : (Platform.OS === 'ios' ? 24 : 10);
-  const tabHeight = 60 + (bottomInset > 0 ? bottomInset : (Platform.OS === 'ios' ? 24 : 10));
+  const bottomPadding = bottomInset > 0 ? bottomInset + 2 : (Platform.OS === 'ios' ? 22 : 10);
+  const tabHeight = 62 + bottomPadding;
 
   return (
     <Tabs
@@ -95,7 +94,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderTopColor: COLORS.border,
     borderTopWidth: 1,
-    paddingTop: 8,
+    paddingTop: 6,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
@@ -103,15 +102,18 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   label: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '600',
-    marginTop: -2,
+    marginTop: 1,
+  },
+  tabIconWrapper: {
+    width: 42,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   activeTab: {
-    backgroundColor: COLORS.primary + '15',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginBottom: 2,
+    backgroundColor: COLORS.primary + '18',
   },
 });

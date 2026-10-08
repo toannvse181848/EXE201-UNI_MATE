@@ -8,6 +8,8 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,6 +50,7 @@ export default function ProfileScreen() {
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
+  const [pwErrors, setPwErrors] = useState({});
   const [avatarLoading, setAvatarLoading] = useState(false);
 
   const handleAvatarPress = () => {
@@ -141,27 +144,29 @@ export default function ProfileScreen() {
   };
 
   const handleChangePassword = async () => {
-    if (!currentPw || !newPw || !confirmPw) {
-      return Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin');
-    }
-    if (newPw !== confirmPw) {
-      return Alert.alert('Lỗi', 'Mật khẩu mới không khớp');
-    }
-    if (newPw.length < 6) {
-      return Alert.alert('Lỗi', 'Mật khẩu mới phải từ 6 ký tự');
-    }
+    const errs = {};
+    if (!currentPw) errs.current = 'Vui lòng nhập mật khẩu hiện tại';
+    if (!newPw) errs.new = 'Vui lòng nhập mật khẩu mới';
+    else if (newPw.length < 6) errs.new = 'Mật khẩu mới phải từ 6 ký tự trở lên';
+    if (!confirmPw) errs.confirm = 'Vui lòng xác nhận mật khẩu mới';
+    else if (newPw !== confirmPw) errs.confirm = 'Mật khẩu xác nhận không khớp';
+
+    setPwErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
     setPwLoading(true);
     try {
       if (changePassword) {
         await changePassword(currentPw, newPw);
       }
-      Alert.alert('Thành công', 'Đổi mật khẩu thành công!');
+      Alert.alert('Thành công! 🎉', 'Mật khẩu của bạn đã được cập nhật thành công.');
       setPwModal(false);
       setCurrentPw('');
       setNewPw('');
       setConfirmPw('');
+      setPwErrors({});
     } catch (err) {
-      Alert.alert('Thất bại', err.message || 'Có lỗi xảy ra');
+      Alert.alert('Đổi mật khẩu thất bại', err.message || 'Mật khẩu hiện tại không đúng');
     } finally {
       setPwLoading(false);
     }
@@ -339,34 +344,82 @@ export default function ProfileScreen() {
 
       {/* Password Change Modal */}
       <Modal visible={pwModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconBox}>
+                <Ionicons name="key-outline" size={22} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
+                <Text style={styles.modalSubtitle}>
+                  Cập nhật mật khẩu mới để bảo vệ tài khoản UNI-MATE của bạn.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setPwModal(false);
+                  setPwErrors({});
+                  setCurrentPw('');
+                  setNewPw('');
+                  setConfirmPw('');
+                }}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={20} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
             <Input
               label="Mật khẩu hiện tại"
               placeholder="Nhập mật khẩu cũ"
               value={currentPw}
-              onChangeText={setCurrentPw}
+              onChangeText={(t) => {
+                setCurrentPw(t);
+                if (pwErrors.current) setPwErrors((e) => ({ ...e, current: null }));
+              }}
               secureTextEntry
+              icon="lock-closed-outline"
+              error={pwErrors.current}
             />
             <Input
               label="Mật khẩu mới"
               placeholder="Từ 6 ký tự trở lên"
               value={newPw}
-              onChangeText={setNewPw}
+              onChangeText={(t) => {
+                setNewPw(t);
+                if (pwErrors.new) setPwErrors((e) => ({ ...e, new: null }));
+              }}
               secureTextEntry
+              icon="lock-closed-outline"
+              error={pwErrors.new}
             />
             <Input
               label="Xác nhận mật khẩu mới"
               placeholder="Nhập lại mật khẩu mới"
               value={confirmPw}
-              onChangeText={setConfirmPw}
+              onChangeText={(t) => {
+                setConfirmPw(t);
+                if (pwErrors.confirm) setPwErrors((e) => ({ ...e, confirm: null }));
+              }}
               secureTextEntry
+              icon="lock-closed-outline"
+              error={pwErrors.confirm}
             />
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.cancelBtn}
-                onPress={() => setPwModal(false)}
+                onPress={() => {
+                  setPwModal(false);
+                  setPwErrors({});
+                  setCurrentPw('');
+                  setNewPw('');
+                  setConfirmPw('');
+                }}
               >
                 <Text style={styles.cancelBtnText}>Hủy</Text>
               </TouchableOpacity>
@@ -379,7 +432,7 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -637,8 +690,29 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: COLORS.text,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginBottom: 16,
-    textAlign: 'center',
+  },
+  modalIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary + '18',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseBtn: {
+    padding: 4,
+    marginLeft: 6,
   },
   modalActions: {
     flexDirection: 'row',

@@ -8,6 +8,9 @@ import {
   ScrollView,
   Alert,
   Image,
+  TouchableOpacity,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -20,11 +23,20 @@ import { useAuth } from '../../src/context/AuthContext';
 
 export default function Login() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, forgotPassword, resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // State cho luồng Quên mật khẩu
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState('request'); // 'request' | 'reset'
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const validate = () => {
     const e = {};
@@ -40,11 +52,92 @@ export default function Login() {
     setLoading(true);
     try {
       const user = await login(email.trim(), password);
-      router.replace('/(tabs)/home');
+      if (user?.role === 'partner') {
+        router.replace('/(partner)/dashboard');
+      } else {
+        router.replace('/(tabs)/home');
+      }
     } catch (err) {
       Alert.alert('Đăng nhập thất bại', err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Gửi email yêu cầu đặt lại mật khẩu
+  const handleSendForgotEmail = async () => {
+    if (!forgotEmail.trim()) {
+      return Alert.alert('Lỗi', 'Vui lòng nhập địa chỉ email');
+    }
+    if (!/\S+@\S+\.\S+/.test(forgotEmail.trim())) {
+      return Alert.alert('Lỗi', 'Email không đúng định dạng');
+    }
+
+    setForgotLoading(true);
+    try {
+      await forgotPassword(forgotEmail.trim());
+      Alert.alert(
+        'Đã gửi email! 📬',
+        'Nếu email tồn tại trong hệ thống, chúng tôi đã gửi liên kết kèm mã xác thực đặt lại mật khẩu. Vui lòng kiểm tra hộp thư của bạn (cả mục Spam/Rác).',
+        [
+          {
+            text: 'Nhập mã đổi mật khẩu ngay',
+            onPress: () => setForgotStep('reset'),
+          },
+          {
+            text: 'Đóng',
+            onPress: () => {
+              setShowForgotModal(false);
+              setForgotStep('request');
+            },
+            style: 'cancel',
+          },
+        ]
+      );
+    } catch (err) {
+      Alert.alert('Gửi thất bại', err.message || 'Không thể gửi email lúc này');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // Xác nhận đặt lại mật khẩu mới bằng token
+  const handleResetPassword = async () => {
+    if (!resetToken.trim()) {
+      return Alert.alert('Lỗi', 'Vui lòng nhập mã token từ email');
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return Alert.alert('Lỗi', 'Mật khẩu mới phải từ 6 ký tự trở lên');
+    }
+    if (newPassword !== confirmPassword) {
+      return Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp');
+    }
+
+    setForgotLoading(true);
+    try {
+      await resetPassword(resetToken.trim(), newPassword);
+      Alert.alert(
+        'Thành công! 🎉',
+        'Mật khẩu của bạn đã được đặt lại thành công. Vui lòng đăng nhập lại.',
+        [
+          {
+            text: 'Đăng nhập ngay',
+            onPress: () => {
+              if (forgotEmail) setEmail(forgotEmail);
+              setPassword('');
+              setShowForgotModal(false);
+              setForgotStep('request');
+              setResetToken('');
+              setNewPassword('');
+              setConfirmPassword('');
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      Alert.alert('Đặt lại mật khẩu thất bại', err.message || 'Mã xác thực không hợp lệ hoặc đã hết hạn');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -103,6 +196,20 @@ export default function Login() {
                 error={errors.password}
               />
 
+              {/* Forgot password link */}
+              <View style={styles.forgotRow}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setForgotEmail(email);
+                    setForgotStep('request');
+                    setShowForgotModal(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.forgotText}>Quên mật khẩu?</Text>
+                </TouchableOpacity>
+              </View>
+
               <Button
                 title="Đăng nhập"
                 onPress={handleLogin}
@@ -112,18 +219,128 @@ export default function Login() {
             </View>
 
             {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Chưa có tài khoản? </Text>
-              <Button
-                title="Đăng ký ngay"
-                onPress={() => router.push('/(auth)/register')}
-                variant="ghost"
-                textStyle={{ color: COLORS.primary, fontWeight: '700' }}
-              />
-            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/(auth)/register')}
+              style={styles.footer}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.footerText}>
+                Chưa có tài khoản?{' '}
+                <Text style={styles.registerLinkText}>Đăng ký ngay</Text>
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Modal Quên & Đặt lại mật khẩu */}
+      <Modal visible={showForgotModal} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconBox}>
+                <Ionicons
+                  name={forgotStep === 'request' ? 'key-outline' : 'shield-checkmark-outline'}
+                  size={24}
+                  color={COLORS.primary}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.modalTitle}>
+                  {forgotStep === 'request' ? 'Quên mật khẩu' : 'Đặt lại mật khẩu'}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  {forgotStep === 'request'
+                    ? 'Nhập email để nhận link & mã đặt lại mật khẩu qua thư điện tử.'
+                    : 'Nhập mã token từ email và thiết lập mật khẩu mới.'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowForgotModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={20} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {forgotStep === 'request' ? (
+              <View style={{ marginTop: 12 }}>
+                <Input
+                  label="Email đã đăng ký"
+                  value={forgotEmail}
+                  onChangeText={setForgotEmail}
+                  placeholder="name@university.edu.vn"
+                  keyboardType="email-address"
+                  icon="mail-outline"
+                />
+
+                <Button
+                  title="Gửi mã đặt lại mật khẩu"
+                  onPress={handleSendForgotEmail}
+                  loading={forgotLoading}
+                  style={{ marginTop: 8 }}
+                />
+
+                <TouchableOpacity
+                  onPress={() => setForgotStep('reset')}
+                  style={styles.switchStepBtn}
+                >
+                  <Text style={styles.switchStepText}>
+                    Đã nhận được mã token? Đặt lại mật khẩu ngay →
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ marginTop: 12 }}>
+                <Input
+                  label="Mã token xác thực (từ email)"
+                  value={resetToken}
+                  onChangeText={setResetToken}
+                  placeholder="Dán mã token 64 ký tự từ email"
+                  icon="key-outline"
+                />
+
+                <Input
+                  label="Mật khẩu mới"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Tối thiểu 6 ký tự"
+                  secureTextEntry
+                  icon="lock-closed-outline"
+                />
+
+                <Input
+                  label="Xác nhận mật khẩu mới"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Nhập lại mật khẩu mới"
+                  secureTextEntry
+                  icon="lock-closed-outline"
+                />
+
+                <Button
+                  title="Xác nhận đổi mật khẩu"
+                  onPress={handleResetPassword}
+                  loading={forgotLoading}
+                  style={{ marginTop: 8 }}
+                />
+
+                <TouchableOpacity
+                  onPress={() => setForgotStep('request')}
+                  style={styles.switchStepBtn}
+                >
+                  <Text style={styles.switchStepText}>
+                    ← Quay lại gửi lại mã xác thực
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -184,10 +401,84 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   footer: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 28,
+    marginTop: 24,
+    paddingVertical: 8,
   },
-  footerText: { color: COLORS.textSecondary, fontSize: 14 },
+  footerText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  registerLinkText: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  forgotRow: {
+    alignItems: 'flex-end',
+    marginBottom: 16,
+    marginTop: -4,
+  },
+  forgotText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  modalIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary + '18',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 3,
+    lineHeight: 17,
+  },
+  modalCloseBtn: {
+    padding: 4,
+    marginLeft: 6,
+  },
+  switchStepBtn: {
+    marginTop: 14,
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  switchStepText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });

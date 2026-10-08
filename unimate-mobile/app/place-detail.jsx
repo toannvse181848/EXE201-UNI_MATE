@@ -29,6 +29,7 @@ export default function PlaceDetailScreen() {
   const [venue, setVenue] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [claiming, setClaiming] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const venueId = params.id;
   const partnerName = params.partnerName;
@@ -129,12 +130,57 @@ export default function PlaceDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Cover Image */}
+        {/* Hero Cover Image Carousel */}
         <View style={styles.imageBox}>
-          <Image source={{ uri: venue.image }} style={styles.coverImage} />
+          {venue.images && venue.images.length > 1 ? (
+            <>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) => {
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+                  setActiveImageIndex(idx);
+                }}
+                style={{ width, height: 280 }}
+              >
+                {venue.images.map((imgUri, idx) => (
+                  <Image
+                    key={idx}
+                    source={{ uri: imgUri }}
+                    style={{ width, height: 280 }}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
+
+              {/* Dots indicator */}
+              <View style={styles.dotsContainer}>
+                {venue.images.map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.dot,
+                      activeImageIndex === idx && styles.activeDot,
+                    ]}
+                  />
+                ))}
+              </View>
+
+              {/* Counter badge */}
+              <View style={styles.imageBadge}>
+                <Ionicons name="images-outline" size={12} color="#fff" style={{ marginRight: 4 }} />
+                <Text style={styles.imageBadgeText}>
+                  {activeImageIndex + 1}/{venue.images.length}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <Image source={{ uri: venue.image }} style={styles.coverImage} />
+          )}
 
           {/* Top floating actions */}
-          <SafeAreaView style={styles.topFloatBar}>
+          <SafeAreaView style={styles.topFloatBar} pointerEvents="box-none">
             <TouchableOpacity onPress={() => router.back()} style={styles.roundBtn}>
               <Ionicons name="arrow-back" size={20} color={COLORS.text} />
             </TouchableOpacity>
@@ -303,6 +349,42 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  dotsContainer: {
+    position: 'absolute',
+    bottom: 34,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  activeDot: {
+    width: 18,
+    backgroundColor: COLORS.primary,
+  },
+  imageBadge: {
+    position: 'absolute',
+    bottom: 32,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  imageBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   rightFloatBtns: {
     flexDirection: 'row',

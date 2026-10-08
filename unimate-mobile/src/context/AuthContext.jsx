@@ -65,6 +65,16 @@ export const AuthProvider = ({ children }) => {
     await authApi.changePassword({ currentPassword, newPassword });
   };
 
+  const forgotPassword = async (email) => {
+    const res = await authApi.forgotPassword(email);
+    return res.data;
+  };
+
+  const resetPassword = async (token, newPassword) => {
+    const res = await authApi.resetPassword(token, newPassword);
+    return res.data;
+  };
+
   const updateUser = (updatedUser) => {
     setUser((prev) => ({ ...prev, ...updatedUser }));
   };
@@ -80,6 +90,8 @@ export const AuthProvider = ({ children }) => {
         registerPartner,
         logout,
         changePassword,
+        forgotPassword,
+        resetPassword,
         updateUser,
       }}
     >

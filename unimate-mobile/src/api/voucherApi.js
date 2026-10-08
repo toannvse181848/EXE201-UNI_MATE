@@ -10,6 +10,18 @@ export const voucherApi = {
   /** Xem ví voucher */
   getMyWallet: () => client.get('/api/vouchers/my-wallet'),
 
-  /** Đối soát voucher (Partner) */
+  /** Danh sách voucher của đối tác */
+  getMyPartnerVouchers: () => client.get('/api/vouchers/partner/my-vouchers'),
+
+  /** Lịch sử đối soát / check-in của đối tác */
+  getPartnerRedemptions: (limit = 30) => client.get(`/api/vouchers/partner/redemptions?limit=${limit}`),
+
+  /** Kiểm tra tính hợp lệ của mã voucher / QR trước khi áp dụng */
+  verifyVoucher: (payload) => client.post('/api/vouchers/verify', payload),
+
+  /** Đối soát & trừ lượt sử dụng voucher (Partner) */
   redeemVoucher: (payload) => client.post('/api/vouchers/redeem', payload),
+
+  /** Bật/tắt trạng thái voucher */
+  toggleVoucherStatus: (id) => client.patch(`/api/vouchers/${id}/toggle`),
 };

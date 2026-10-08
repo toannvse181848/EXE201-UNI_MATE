@@ -11,7 +11,11 @@ export default function Index() {
   useEffect(() => {
     if (loading) return;
     if (user) {
-      router.replace('/(tabs)/home');
+      if (user.role === 'partner') {
+        router.replace('/(partner)/dashboard');
+      } else {
+        router.replace('/(tabs)/home');
+      }
     } else {
       router.replace('/(auth)/onboarding');
     }
