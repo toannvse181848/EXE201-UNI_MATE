@@ -14,17 +14,21 @@ const getConversations = catchAsync(async (req, res) => {
     $or: [{ user1: currentUserId }, { user2: currentUserId }],
     status: 'matched',
   })
-    .populate('user1', 'fullName avatar studentProfile')
-    .populate('user2', 'fullName avatar studentProfile')
+    .populate('user1', 'fullName avatar studentProfile lastActiveAt')
+    .populate('user2', 'fullName avatar studentProfile lastActiveAt')
     .sort({ matchedAt: -1 });
 
-  // Với mỗi match, lấy tin nhắn cuối + số chưa đọc
+  // Với mỗi match, lấy tin nhắn cuối + số chưa đọc + trạng thái trực tuyến
   const conversations = await Promise.all(
     matches.map(async (match) => {
       const buddy =
         match.user1._id.toString() === currentUserId.toString()
           ? match.user2
           : match.user1;
+
+      const isOnline = buddy?.lastActiveAt
+        ? Date.now() - new Date(buddy.lastActiveAt).getTime() < 3 * 60 * 1000
+        : false;
 
       const lastMessage = await Message.findOne({ matchId: match._id })
         .sort({ createdAt: -1 })
@@ -40,11 +44,13 @@ const getConversations = catchAsync(async (req, res) => {
         matchId: match._id,
         matchedAt: match.matchedAt,
         buddy: {
-          id: buddy._id,
-          fullName: buddy.fullName,
-          avatar: buddy.avatar,
-          university: buddy.studentProfile?.university,
-          major: buddy.studentProfile?.major,
+          id: buddy?._id,
+          fullName: buddy?.fullName,
+          avatar: buddy?.avatar,
+          university: buddy?.studentProfile?.university,
+          major: buddy?.studentProfile?.major,
+          lastActiveAt: buddy?.lastActiveAt || null,
+          isOnline,
         },
         lastMessage: lastMessage
           ? {
@@ -74,20 +80,32 @@ const getConversations = catchAsync(async (req, res) => {
 });
 
 /**
- * Lấy lịch sử tin nhắn của một match (có phân trang)
+ * Lấy lịch sử tin nhắn của một match (có phân trang) kèm trạng thái trực tuyến của buddy
  */
 const getMessages = catchAsync(async (req, res) => {
   const { matchId } = req.params;
   const { page = 1, limit = 50 } = req.query;
   const currentUserId = req.user._id;
 
-  // Kiểm tra user thuộc match này không
-  const match = await Match.findById(matchId);
+  // Kiểm tra user thuộc match này không và lấy thông tin buddy
+  const match = await Match.findById(matchId)
+    .populate('user1', 'fullName avatar studentProfile lastActiveAt')
+    .populate('user2', 'fullName avatar studentProfile lastActiveAt');
+
   if (!match) throw new ApiError(404, 'Không tìm thấy hội thoại');
   const isParticipant =
-    match.user1.toString() === currentUserId.toString() ||
-    match.user2.toString() === currentUserId.toString();
+    match.user1._id.toString() === currentUserId.toString() ||
+    match.user2._id.toString() === currentUserId.toString();
   if (!isParticipant) throw new ApiError(403, 'Bạn không thuộc hội thoại này');
+
+  const buddy =
+    match.user1._id.toString() === currentUserId.toString()
+      ? match.user2
+      : match.user1;
+
+  const isOnline = buddy?.lastActiveAt
+    ? Date.now() - new Date(buddy.lastActiveAt).getTime() < 3 * 60 * 1000
+    : false;
 
   const skip = (Number(page) - 1) * Number(limit);
 
@@ -116,6 +134,15 @@ const getMessages = catchAsync(async (req, res) => {
     success: true,
     count: messages.length,
     data: messages.reverse(), // trả về từ cũ → mới
+    buddy: {
+      id: buddy?._id,
+      fullName: buddy?.fullName,
+      avatar: buddy?.avatar,
+      university: buddy?.studentProfile?.university,
+      major: buddy?.studentProfile?.major,
+      lastActiveAt: buddy?.lastActiveAt || null,
+      isOnline,
+    },
   });
 });
 

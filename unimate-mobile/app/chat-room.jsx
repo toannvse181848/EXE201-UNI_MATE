@@ -32,7 +32,26 @@ export default function ChatRoomScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [buddyPresence, setBuddyPresence] = useState({ isOnline: false, lastActiveAt: null });
   const flatListRef = useRef(null);
+
+  // Helper tính trạng thái trực tuyến
+  const getPresenceText = () => {
+    if (buddyPresence.isOnline) return 'Đang trực tuyến';
+    if (!buddyPresence.lastActiveAt) return 'Không trực tuyến';
+    const diffMs = Math.max(0, Date.now() - new Date(buddyPresence.lastActiveAt).getTime());
+    const diffMins = Math.floor(diffMs / (60 * 1000));
+    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+    if (diffMins < 3) return 'Đang trực tuyến';
+    if (diffMins < 60) return `Hoạt động ${diffMins} phút trước`;
+    if (diffHours < 24) return `Hoạt động ${diffHours} giờ trước`;
+    return 'Không trực tuyến';
+  };
+
+  const isBuddyOnline = buddyPresence.isOnline || (
+    buddyPresence.lastActiveAt &&
+    Date.now() - new Date(buddyPresence.lastActiveAt).getTime() < 3 * 60 * 1000
+  );
 
   // Tải lịch sử tin nhắn
   const fetchMessages = useCallback(async (isInitial = false) => {
@@ -42,6 +61,13 @@ export default function ChatRoomScreen() {
       const res = await chatApi.getMessages(matchId);
       const data = res.data?.data || [];
       setMessages(data);
+      // Cập nhật trạng thái trực tuyến buddy từ API response
+      if (res.data?.buddy) {
+        setBuddyPresence({
+          isOnline: res.data.buddy.isOnline || false,
+          lastActiveAt: res.data.buddy.lastActiveAt || null,
+        });
+      }
     } catch (err) {
       console.log('Lỗi tải tin nhắn:', err.message);
     } finally {
@@ -158,7 +184,7 @@ export default function ChatRoomScreen() {
         >
           <View style={styles.headerAvatarWrap}>
             <Avatar name={buddyName} uri={buddyAvatar} size={40} />
-            <View style={styles.onlineDot} />
+            <View style={[styles.onlineDot, !isBuddyOnline && { backgroundColor: '#94A3B8' }]} />
           </View>
           <View style={styles.buddyTextWrap}>
             <View style={styles.nameRow}>
@@ -167,7 +193,7 @@ export default function ChatRoomScreen() {
               </Text>
               <Ionicons name="checkmark-circle" size={14} color="#0284C7" />
             </View>
-            <Text style={styles.headerStatus}>Đang trực tuyến</Text>
+            <Text style={[styles.headerStatus, !isBuddyOnline && { color: '#94A3B8' }]}>{getPresenceText()}</Text>
           </View>
         </TouchableOpacity>
 

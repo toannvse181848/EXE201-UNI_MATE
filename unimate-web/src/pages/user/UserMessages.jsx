@@ -38,6 +38,76 @@ const formatTime = (dateStr) => {
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 };
 
+// Helper định dạng trạng thái trực tuyến / ngoại tuyến theo thời gian thực
+const getPresenceInfo = (buddy) => {
+  if (!buddy) {
+    return {
+      isOnline: false,
+      statusText: 'Không trực tuyến',
+      dotColor: '#94A3B8',
+      textColor: '#94A3B8',
+    };
+  }
+
+  let isOnline = Boolean(buddy.isOnline);
+  const lastActiveAt = buddy.lastActiveAt;
+
+  if (lastActiveAt) {
+    const diffMs = Date.now() - new Date(lastActiveAt).getTime();
+    // Coi là trực tuyến nếu hoạt động trong vòng 3 phút
+    if (diffMs < 3 * 60 * 1000) {
+      isOnline = true;
+    }
+  }
+
+  if (isOnline) {
+    return {
+      isOnline: true,
+      statusText: 'Đang trực tuyến 🟢',
+      dotColor: '#22C55E',
+      textColor: '#16A34A',
+    };
+  }
+
+  if (!lastActiveAt) {
+    return {
+      isOnline: false,
+      statusText: 'Không trực tuyến',
+      dotColor: '#94A3B8',
+      textColor: '#94A3B8',
+    };
+  }
+
+  const diffMs = Math.max(0, Date.now() - new Date(lastActiveAt).getTime());
+  const diffMins = Math.floor(diffMs / (60 * 1000));
+  const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+  let timeText = '';
+  if (diffMins < 60) {
+    timeText = diffMins <= 0 ? 'Vừa xong' : `${diffMins} phút trước`;
+  } else if (diffHours < 24) {
+    timeText = `${diffHours} giờ trước`;
+  } else if (diffDays === 1) {
+    timeText = 'Hôm qua';
+  } else if (diffDays < 7) {
+    timeText = `${diffDays} ngày trước`;
+  } else {
+    timeText = new Date(lastActiveAt).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+    });
+  }
+
+  return {
+    isOnline: false,
+    statusText: `Không trực tuyến (${timeText})`,
+    shortStatus: `Hoạt động ${timeText}`,
+    dotColor: '#94A3B8',
+    textColor: '#94A3B8',
+  };
+};
+
 
 export default function UserMessages() {
   const { user } = useAuth();
@@ -118,6 +188,23 @@ export default function UserMessages() {
         const res = await chatApi.getMessages(matchId);
         const list = res.data || [];
         setMessages(list);
+
+        // Cập nhật lại trạng thái buddy (lastActiveAt, isOnline) nếu backend trả về
+        if (res.buddy) {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.matchId === matchId
+                ? {
+                    ...c,
+                    buddy: {
+                      ...c.buddy,
+                      ...res.buddy,
+                    },
+                  }
+                : c
+            )
+          );
+        }
       } catch (err) {
         console.log('Lỗi tải tin nhắn matchId:', matchId, err.message);
       } finally {
@@ -632,7 +719,7 @@ export default function UserMessages() {
                             width: '12px',
                             height: '12px',
                             borderRadius: '50%',
-                            backgroundColor: '#22C55E',
+                            backgroundColor: getPresenceInfo(chat.buddy).dotColor,
                             border: '2px solid #FFFFFF',
                           }}
                         />
@@ -1053,7 +1140,7 @@ export default function UserMessages() {
                     width: '11px',
                     height: '11px',
                     borderRadius: '50%',
-                    backgroundColor: '#22C55E',
+                    backgroundColor: getPresenceInfo(activeConversation.buddy).dotColor,
                     border: '2px solid #FFFFFF',
                   }}
                 />
@@ -1089,7 +1176,17 @@ export default function UserMessages() {
                   {activeConversation.buddy?.major
                     ? `• ${activeConversation.buddy.major}`
                     : ''}{' '}
-                  • <span style={{ color: '#16A34A' }}>Đang trực tuyến 🟢</span>
+                  •{' '}
+                  <span
+                    style={{
+                      color: getPresenceInfo(activeConversation.buddy).textColor,
+                      fontWeight: getPresenceInfo(activeConversation.buddy).isOnline
+                        ? '700'
+                        : '600',
+                    }}
+                  >
+                    {getPresenceInfo(activeConversation.buddy).statusText}
+                  </span>
                 </div>
               </div>
             </div>

@@ -145,8 +145,8 @@ const getMyMatches = catchAsync(async (req, res) => {
     $or: [{ user1: currentUserId }, { user2: currentUserId }],
     status: 'matched',
   })
-    .populate('user1', 'fullName avatar studentProfile')
-    .populate('user2', 'fullName avatar studentProfile')
+    .populate('user1', 'fullName avatar studentProfile lastActiveAt')
+    .populate('user2', 'fullName avatar studentProfile lastActiveAt')
     .populate('proposedVenue', 'name address image')
     .sort({ matchedAt: -1 });
 
@@ -154,11 +154,21 @@ const getMyMatches = catchAsync(async (req, res) => {
   const formatted = matches.map((m) => {
     const partner =
       m.user1._id.toString() === currentUserId.toString() ? m.user2 : m.user1;
+    const isOnline = partner?.lastActiveAt
+      ? Date.now() - new Date(partner.lastActiveAt).getTime() < 3 * 60 * 1000
+      : false;
     return {
       matchId: m._id,
       matchedAt: m.matchedAt,
       proposedVenue: m.proposedVenue,
-      buddy: partner,
+      buddy: {
+        id: partner?._id,
+        fullName: partner?.fullName,
+        avatar: partner?.avatar,
+        studentProfile: partner?.studentProfile,
+        lastActiveAt: partner?.lastActiveAt || null,
+        isOnline,
+      },
     };
   });
 
@@ -207,24 +217,31 @@ const getSentLikes = catchAsync(async (req, res) => {
     user1Action: 'like',
     status: 'pending',
   })
-    .populate('user2', 'fullName avatar studentProfile')
+    .populate('user2', 'fullName avatar studentProfile lastActiveAt')
     .sort({ createdAt: -1 });
 
   const data = pending
     .filter((m) => m.user2)
-    .map((m) => ({
-      matchId: m._id,
-      createdAt: m.createdAt,
-      status: 'pending',
-      buddy: {
-        id: m.user2._id,
-        fullName: m.user2.fullName,
-        avatar: m.user2.avatar,
-        university: m.user2.studentProfile?.university,
-        major: m.user2.studentProfile?.major,
-        trustScore: m.user2.studentProfile?.trustScore || 95,
-      },
-    }));
+    .map((m) => {
+      const isOnline = m.user2?.lastActiveAt
+        ? Date.now() - new Date(m.user2.lastActiveAt).getTime() < 3 * 60 * 1000
+        : false;
+      return {
+        matchId: m._id,
+        createdAt: m.createdAt,
+        status: 'pending',
+        buddy: {
+          id: m.user2._id,
+          fullName: m.user2.fullName,
+          avatar: m.user2.avatar,
+          university: m.user2.studentProfile?.university,
+          major: m.user2.studentProfile?.major,
+          trustScore: m.user2.studentProfile?.trustScore || 95,
+          lastActiveAt: m.user2.lastActiveAt || null,
+          isOnline,
+        },
+      };
+    });
 
   res.status(200).json({
     success: true,
@@ -243,24 +260,31 @@ const getReceivedLikes = catchAsync(async (req, res) => {
     user2Action: 'pending',
     status: 'pending',
   })
-    .populate('user1', 'fullName avatar studentProfile')
+    .populate('user1', 'fullName avatar studentProfile lastActiveAt')
     .sort({ createdAt: -1 });
 
   const data = received
     .filter((m) => m.user1)
-    .map((m) => ({
-      matchId: m._id,
-      createdAt: m.createdAt,
-      status: 'pending',
-      buddy: {
-        id: m.user1._id,
-        fullName: m.user1.fullName,
-        avatar: m.user1.avatar,
-        university: m.user1.studentProfile?.university,
-        major: m.user1.studentProfile?.major,
-        trustScore: m.user1.studentProfile?.trustScore || 95,
-      },
-    }));
+    .map((m) => {
+      const isOnline = m.user1?.lastActiveAt
+        ? Date.now() - new Date(m.user1.lastActiveAt).getTime() < 3 * 60 * 1000
+        : false;
+      return {
+        matchId: m._id,
+        createdAt: m.createdAt,
+        status: 'pending',
+        buddy: {
+          id: m.user1._id,
+          fullName: m.user1.fullName,
+          avatar: m.user1.avatar,
+          university: m.user1.studentProfile?.university,
+          major: m.user1.studentProfile?.major,
+          trustScore: m.user1.studentProfile?.trustScore || 95,
+          lastActiveAt: m.user1.lastActiveAt || null,
+          isOnline,
+        },
+      };
+    });
 
   res.status(200).json({
     success: true,

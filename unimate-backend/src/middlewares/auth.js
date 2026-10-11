@@ -16,6 +16,13 @@ const protect = catchAsync(async (req, res, next) => {
   if (!user) throw new ApiError(401, 'Vui lòng đăng nhập');
   if (user.status === 'suspended') throw new ApiError(403, 'Tài khoản đã bị khoá');
 
+  // Cập nhật lastActiveAt (throttle 30 giây để tối ưu hiệu năng DB)
+  const now = Date.now();
+  if (!user.lastActiveAt || now - new Date(user.lastActiveAt).getTime() > 30000) {
+    user.lastActiveAt = new Date(now);
+    User.findByIdAndUpdate(user._id, { lastActiveAt: new Date(now) }).exec().catch(() => {});
+  }
+
   req.user = user;
   next();
 });
