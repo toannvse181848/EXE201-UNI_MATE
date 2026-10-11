@@ -114,11 +114,12 @@ export default function VenueModeration() {
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '8px' }}>
             {[
-              { id: 'all', label: 'Tất cả (187)' },
-              { id: 'pending', label: 'Chờ duyệt (12)', alert: true },
-              { id: 'active', label: 'Đang hoạt động (152)' },
-              { id: 'suspended', label: 'Bị tạm khóa (6)' },
+              { id: 'all', label: `Tất cả (${venues.length})` },
+              { id: 'pending', label: `Chờ duyệt (${venues.filter((v) => v.status === 'pending').length})`, alert: venues.filter((v) => v.status === 'pending').length > 0 },
+              { id: 'active', label: `Đang hoạt động (${venues.filter((v) => v.status === 'active').length})` },
+              { id: 'suspended', label: `Bị tạm khóa (${venues.filter((v) => v.status === 'suspended' || v.status === 'rejected').length})` },
             ].map((tab) => (
+
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}

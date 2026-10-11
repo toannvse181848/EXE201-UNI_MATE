@@ -26,9 +26,9 @@ export default function AdminLayout() {
   const navItems = [
     { to: '/admin/dashboard', label: 'Tổng quan Admin', icon: LayoutDashboard },
     { to: '/admin/users', label: 'Quản trị Người dùng', icon: Users },
-    { to: '/admin/venues', label: 'Quản lý Địa điểm', icon: Store, count: 187 },
-    { to: '/admin/vouchers', label: 'Quản lý Voucher', icon: Ticket, count: 45 },
-    { to: '/admin/reports', label: 'Hàng đợi Report', icon: AlertTriangle, count: 3, alert: true },
+    { to: '/admin/venues', label: 'Quản lý Địa điểm', icon: Store },
+    { to: '/admin/vouchers', label: 'Quản lý Voucher', icon: Ticket },
+    { to: '/admin/reports', label: 'Hàng đợi Report', icon: AlertTriangle },
   ];
 
   return (
@@ -177,22 +177,14 @@ export default function AdminLayout() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                position: 'relative',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
               }}
+              title="Thông báo hệ thống"
             >
               <Bell size={18} color="var(--text-secondary)" />
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '8px',
-                  right: '8px',
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: '#EF4444',
-                }}
-              />
             </button>
+
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '16px', borderLeft: '1px solid var(--border-color)' }}>
               <img
