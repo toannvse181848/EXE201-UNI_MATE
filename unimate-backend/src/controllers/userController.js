@@ -2,6 +2,8 @@ const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { cloudinary, getUploadedFileUrl } = require('../config/cloudinary');
+const { escapeRegex } = require('../middlewares/security');
+
 
 // Sinh viên: Lấy danh sách bạn học gợi ý (loại trừ chính mình)
 const getSuggestedStudents = catchAsync(async (req, res) => {
@@ -37,14 +39,16 @@ const getAllUsers = catchAsync(async (req, res) => {
   if (role) filter.role = role;
   if (status) filter.status = status;
   if (search) {
+    const escaped = escapeRegex(search);
     filter.$or = [
-      { fullName: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
-      { phone: { $regex: search, $options: 'i' } },
-      { 'studentProfile.studentId': { $regex: search, $options: 'i' } },
-      { 'studentProfile.university': { $regex: search, $options: 'i' } },
+      { fullName: { $regex: escaped, $options: 'i' } },
+      { email: { $regex: escaped, $options: 'i' } },
+      { phone: { $regex: escaped, $options: 'i' } },
+      { 'studentProfile.studentId': { $regex: escaped, $options: 'i' } },
+      { 'studentProfile.university': { $regex: escaped, $options: 'i' } },
     ];
   }
+
 
   const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
   const total = await User.countDocuments(filter);

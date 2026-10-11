@@ -235,19 +235,36 @@ const fetchGoogleSheetData = async (sheetUrl) => {
     throw new Error('Vui lòng cung cấp đường link Google Sheet');
   }
 
-  // Trích xuất Sheet ID
-  const match = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  // 1. Kiểm tra an toàn URL chống tấn công SSRF (Server-Side Request Forgery)
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(sheetUrl.trim());
+  } catch {
+    throw new Error('Đường link không đúng định dạng URL hợp lệ');
+  }
+
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error('Chỉ chấp nhận đường dẫn bảo mật HTTPS');
+  }
+
+  if (!['docs.google.com', 'drive.google.com'].includes(parsedUrl.hostname.toLowerCase())) {
+    throw new Error('Chỉ chấp nhận liên kết bảng tính từ tên miền chính thức docs.google.com');
+  }
+
+  // Trích xuất Sheet ID an toàn
+  const match = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]{15,100})/);
   if (!match || !match[1]) {
     throw new Error('Đường link Google Sheet không hợp lệ. Vui lòng kiểm tra lại định dạng link.');
   }
 
   const sheetId = match[1];
 
-  // Trích xuất gid nếu có (chỉ định sheet con cụ thể)
+  // Trích xuất gid nếu có (chỉ nhận số)
   const gidMatch = sheetUrl.match(/[?&#]gid=([0-9]+)/);
   const gid = gidMatch ? gidMatch[1] : '0';
 
   const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+
 
   try {
     const res = await fetch(exportUrl, {

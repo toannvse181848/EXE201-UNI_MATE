@@ -11,17 +11,67 @@ const onboardingRoutes = require('./routes/onboardingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 
+const helmet = require('helmet');
+const ApiError = require('./utils/ApiError');
+const { noSqlSanitizer, apiLimiter } = require('./middlewares/security');
+
 const path = require('path');
 
 const app = express();
 
-// Render chạy sau proxy HTTPS — cần để req.protocol trả về https cho link ảnh local
+// 1. Tắt header lộ thông tin Express (Information Disclosure)
+app.disable('x-powered-by');
+
+// 2. Render chạy sau proxy HTTPS
 app.set('trust proxy', 1);
 
-app.use(cors());
+// 3. Security Headers chuẩn OWASP bằng Helmet
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false,
+  })
+);
+
+// 4. Kiểm soát CORS chặt chẽ (chống CORS misconfiguration)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:8081',
+  'http://127.0.0.1:5173',
+  'https://uni-mate-web-beta.vercel.app',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app')
+      ) {
+        return callback(null, true);
+      }
+      return callback(new ApiError(403, 'CORS: Nguồn truy cập không được phép'), false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  })
+);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 5. Chống tấn công NoSQL Injection
+app.use(noSqlSanitizer);
+
+// 6. Rate Limiter bảo vệ toàn bộ API
+app.use('/api', apiLimiter);
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 
 app.get('/', (req, res) => {
   res.json({

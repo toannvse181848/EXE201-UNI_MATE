@@ -3,6 +3,8 @@ const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
 const { extractDistrict } = require('../utils/addressUtils');
+const { escapeRegex } = require('../middlewares/security');
+
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
 const sanitizeVenueDistricts = (venues) => {
@@ -35,15 +37,17 @@ const getVenues = catchAsync(async (req, res) => {
     filter.category = category;
   }
   if (district) {
-    filter.district = new RegExp(district, 'i');
+    filter.district = new RegExp(escapeRegex(district), 'i');
   }
   if (search) {
+    const escaped = escapeRegex(search);
     filter.$or = [
-      { name: new RegExp(search, 'i') },
-      { address: new RegExp(search, 'i') },
-      { tags: new RegExp(search, 'i') },
+      { name: new RegExp(escaped, 'i') },
+      { address: new RegExp(escaped, 'i') },
+      { tags: new RegExp(escaped, 'i') },
     ];
   }
+
 
   const venues = await Venue.find(filter)
     .populate('partnerId', 'fullName email phone')

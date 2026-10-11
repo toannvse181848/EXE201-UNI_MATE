@@ -2,17 +2,23 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
+const {
+  authLimiter,
+  registerLimiter,
+  forgotPasswordLimiter,
+} = require('../middlewares/security');
 
-router.post('/register', authController.register);
-router.post('/register/student', authController.registerStudent);
-router.post('/register/partner', authController.registerPartner);
+router.post('/register', registerLimiter, authController.register);
+router.post('/register/student', registerLimiter, authController.registerStudent);
+router.post('/register/partner', registerLimiter, authController.registerPartner);
 
-router.post('/login', authController.login);
+router.post('/login', authLimiter, authController.login);
 router.get('/me', protect, authController.getMe);
 router.post('/change-password', protect, authController.changePassword);
 
-// Quên mật khẩu
-router.post('/forgot-password', authController.forgotPassword);
-router.post('/reset-password', authController.resetPassword);
+// Quên mật khẩu & Reset mật khẩu
+router.post('/forgot-password', forgotPasswordLimiter, authController.forgotPassword);
+router.post('/reset-password', authLimiter, authController.resetPassword);
 
-module.exports = router;
+module.exports = router;
+
