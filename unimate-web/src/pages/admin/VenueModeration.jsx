@@ -13,6 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { venueApi } from '../../services/api';
+import { extractDistrict } from '../../utils/addressUtils';
 
 export default function VenueModeration() {
   const [venues, setVenues] = useState([]);
@@ -31,12 +32,14 @@ export default function VenueModeration() {
         name: v.name,
         owner: v.partnerId?.fullName || v.partnerId?.name || 'Đối tác',
         phone: v.partnerId?.phone || 'Chưa cập nhật',
-        district: v.district || v.address || 'TP.HCM',
+        address: v.address || 'Chưa cập nhật địa chỉ',
+        district: extractDistrict(v.address, v.district),
         registeredAt: v.createdAt ? new Date(v.createdAt).toLocaleDateString('vi-VN') : 'Mới',
         status: v.status === 'approved' ? 'active' : v.status,
         image: v.image || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200',
         vouchersCount: v.vouchersCount || 0,
       }));
+
       setVenues(mapped);
     } catch (err) {
       console.log('Backend venues note:', err.message);
@@ -232,9 +235,28 @@ export default function VenueModeration() {
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{v.phone}</div>
                   </td>
 
-                  <td style={{ padding: '14px 16px', color: 'var(--text-secondary)' }}>
-                    {v.district}
+                  <td style={{ padding: '14px 16px' }}>
+                    <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
+                      {v.district}
+                    </div>
+                    {v.address && (
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          marginTop: '2px',
+                          maxWidth: '220px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={v.address}
+                      >
+                        {v.address}
+                      </div>
+                    )}
                   </td>
+
 
                   <td style={{ padding: '14px 16px', color: 'var(--text-secondary)', fontSize: '12px' }}>
                     {v.registeredAt}

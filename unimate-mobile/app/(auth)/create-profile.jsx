@@ -37,8 +37,9 @@ export default function CreateProfileScreen() {
   const [university, setUniversity] = useState(user?.university || UNIVERSITIES[0]);
   const [major, setMajor] = useState(user?.major || MAJORS[0]);
   const [showMajorPicker, setShowMajorPicker] = useState(false);
-  const [district, setDistrict] = useState('Quận 10, TP.HCM');
+  const [district, setDistrict] = useState(user?.studentProfile?.district || '');
   const [bio, setBio] = useState(user?.bio || '');
+
   const [selectedPurposes, setSelectedPurposes] = useState(['study', 'cafe']);
   const [avatarUri, setAvatarUri] = useState(user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500');
 

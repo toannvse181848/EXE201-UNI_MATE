@@ -11,6 +11,8 @@ const {
   generateVoucherTemplate,
   parseDateValue,
 } = require('../utils/voucherSpreadsheetParser');
+const { extractDistrict } = require('../utils/addressUtils');
+
 
 // ─── PUBLIC / STUDENT ────────────────────────────────────────────────────────
 
@@ -309,15 +311,18 @@ const createVoucher = catchAsync(async (req, res) => {
 
   // Nếu partner vẫn chưa tạo venue nào, khởi tạo nhanh 1 cơ sở mặc định để có thể phát hành voucher ngay
   if (!venue) {
+    const defaultAddr = req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương';
     venue = await Venue.create({
       name: req.user.partnerProfile?.businessName || req.user.fullName || 'Địa điểm đối tác UNI-MATE',
       partnerId: req.user._id,
-      address: req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương',
+      address: defaultAddr,
+      district: extractDistrict(defaultAddr),
       description: 'Quán đối tác liên kết của UNI-MATE dành cho sinh viên.',
       phone: req.user.phone || '0901234567',
       status: 'approved',
     });
   }
+
 
   if (
     venue.partnerId.toString() !== req.user._id.toString() &&
@@ -508,15 +513,18 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
     venue = await Venue.findOne({ partnerId: req.user._id });
   }
   if (!venue) {
+    const defaultAddr = req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương';
     venue = await Venue.create({
       name: req.user.partnerProfile?.businessName || req.user.fullName || 'Địa điểm đối tác UNI-MATE',
       partnerId: req.user._id,
-      address: req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương',
+      address: defaultAddr,
+      district: extractDistrict(defaultAddr),
       description: 'Quán đối tác liên kết của UNI-MATE dành cho sinh viên.',
       phone: req.user.phone || '0901234567',
       status: 'approved',
     });
   }
+
 
   if (venue.partnerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
     throw new ApiError(403, 'Bạn không sở hữu cơ sở / địa điểm này');

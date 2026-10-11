@@ -2,6 +2,29 @@ const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
+const { extractDistrict } = require('../utils/addressUtils');
+
+// Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
+const sanitizeVenueDistricts = (venues) => {
+  return venues.map((v) => {
+    const obj = v.toObject ? v.toObject() : v;
+    const isFakeQ10 =
+      obj.district === 'Quận 10' &&
+      obj.address &&
+      !obj.address.toLowerCase().includes('quận 10') &&
+      !obj.address.toLowerCase().includes('q.10') &&
+      !obj.address.toLowerCase().includes('q10');
+
+    if (!obj.district || isFakeQ10) {
+      obj.district = extractDistrict(obj.address, obj.district);
+      if (v._id) {
+        Venue.updateOne({ _id: v._id }, { district: obj.district }).catch(() => {});
+      }
+    }
+    return obj;
+  });
+};
+
 
 // Lấy danh sách địa điểm đã duyệt (Dành cho Sinh viên / Public)
 const getVenues = catchAsync(async (req, res) => {
@@ -29,7 +52,7 @@ const getVenues = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: venues.length,
-    data: venues,
+    data: sanitizeVenueDistricts(venues),
   });
 });
 
@@ -43,9 +66,12 @@ const getVenueById = catchAsync(async (req, res) => {
     throw new ApiError(404, 'Không tìm thấy địa điểm');
   }
 
+  const obj = venue.toObject();
+  obj.district = extractDistrict(obj.address, obj.district);
+
   res.status(200).json({
     success: true,
-    data: venue,
+    data: obj,
   });
 });
 
@@ -57,9 +83,10 @@ const getMyVenues = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: venues.length,
-    data: venues,
+    data: sanitizeVenueDistricts(venues),
   });
 });
+
 
 // Các trường partner được phép tự sửa. status / rejectionReason / rating chỉ admin đổi qua API riêng.
 const EDITABLE_FIELDS = [
@@ -102,8 +129,13 @@ const uploadVenueImages = catchAsync(async (req, res) => {
 
 // Dành cho Partner: Đăng ký quán cafe mới (Mặc định status: pending chờ duyệt)
 const createVenue = catchAsync(async (req, res) => {
+  const payload = pickEditableFields(req.body);
+  if (payload.address && (!payload.district || payload.district === 'Quận 10')) {
+    payload.district = extractDistrict(payload.address, payload.district);
+  }
+
   const venueData = {
-    ...pickEditableFields(req.body),
+    ...payload,
     partnerId: req.user._id,
     status: 'pending', // Phải qua admin duyệt
   };
@@ -132,8 +164,13 @@ const updateVenue = catchAsync(async (req, res) => {
     throw new ApiError(403, 'Bạn không có quyền sửa địa điểm này');
   }
 
+  const payload = pickEditableFields(req.body);
+  if (payload.address && (!payload.district || payload.district === 'Quận 10')) {
+    payload.district = extractDistrict(payload.address, payload.district);
+  }
+
   // Cập nhật
-  const updated = await Venue.findByIdAndUpdate(req.params.id, pickEditableFields(req.body), {
+  const updated = await Venue.findByIdAndUpdate(req.params.id, payload, {
     new: true,
     runValidators: true,
   });
@@ -160,9 +197,10 @@ const getAllVenuesAdmin = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: venues.length,
-    data: venues,
+    data: sanitizeVenueDistricts(venues),
   });
 });
+
 
 // Dành cho Admin: Phê duyệt hoặc từ chối quán
 const updateVenueStatus = catchAsync(async (req, res) => {

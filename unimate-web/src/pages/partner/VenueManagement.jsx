@@ -21,27 +21,24 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import { venueApi } from '../../services/api';
+import { extractDistrict } from '../../utils/addressUtils';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
 
 export default function VenueManagement() {
   const [venueId, setVenueId] = useState(null);
   const [formData, setFormData] = useState({
-    name: 'The Coffee House - Sư Vạn Hạnh',
-    description: 'Quán có không gian mở 3 tầng, thích hợp cho sinh viên học tập và làm việc nhóm. Wifi tốc độ cao, mỗi bàn đều có ổ cắm riêng biệt.',
-    phone: '1800 6936',
-    priceMin: '35.000',
-    priceMax: '75.000',
-    address: '798 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM',
+    name: '',
+    description: '',
+    phone: '',
+    priceMin: '30.000',
+    priceMax: '65.000',
+    address: '',
+    district: '',
     openTime: '07:00',
     closeTime: '22:30',
     tags: ['Cafe', 'Học tập', 'Wifi mạnh', 'Yên tĩnh'],
     voucherTitle: 'Giảm 20% tổng hoá đơn',
-    images: [
-      'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800',
-      'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
-      'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=800',
-      'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800',
-    ],
+    images: [],
   });
 
   const [newTag, setNewTag] = useState('');
@@ -64,6 +61,7 @@ export default function VenueManagement() {
             description: v.description || prev.description,
             phone: v.phone || prev.phone,
             address: v.address || prev.address,
+            district: v.district || extractDistrict(v.address) || prev.district,
             tags: v.tags?.length ? v.tags : prev.tags,
             images: v.images?.length
               ? v.images
@@ -78,6 +76,7 @@ export default function VenueManagement() {
     };
     loadMyVenue();
   }, []);
+
 
   // Xử lý upload nhiều ảnh từ máy tính: đẩy lên server (Cloudinary) rồi lưu URL trả về
   const handleFileUpload = async (e) => {
@@ -162,15 +161,18 @@ export default function VenueManagement() {
     e.preventDefault();
     if (isSaving || isUploading) return;
 
+    const districtVal = formData.district?.trim() || extractDistrict(formData.address);
     const payload = {
       name: formData.name,
       description: formData.description,
       phone: formData.phone,
       address: formData.address,
+      district: districtVal,
       tags: formData.tags,
       images: formData.images,
       image: formData.images[0] || '',
     };
+
 
     setIsSaving(true);
     try {
@@ -675,23 +677,53 @@ export default function VenueManagement() {
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
-                  Địa chỉ cụ thể
-                </label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    border: '1.5px solid var(--border-color)',
-                    fontSize: '14px',
-                  }}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Địa chỉ cụ thể
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: Nhà văn hóa sinh viên ĐHQG, Lưu Hữu Phước..."
+                    value={formData.address}
+                    onChange={(e) => {
+                      const newAddr = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        address: newAddr,
+                        district: prev.district ? prev.district : extractDistrict(newAddr),
+                      }));
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1.5px solid var(--border-color)',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Khu vực / Quận Huyện
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: Dĩ An, Bình Dương / Thủ Đức..."
+                    value={formData.district}
+                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1.5px solid var(--border-color)',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
               </div>
+
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div>

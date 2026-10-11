@@ -24,7 +24,7 @@ const venueSchema = new mongoose.Schema(
     district: {
       type: String,
       trim: true,
-      default: 'Quận 10',
+      default: '',
     },
     city: {
       type: String,
@@ -95,4 +95,20 @@ const venueSchema = new mongoose.Schema(
 
 venueSchema.index({ location: '2dsphere' }, { sparse: true });
 
+venueSchema.pre('validate', function () {
+  const { extractDistrict } = require('../utils/addressUtils');
+  if (this.address) {
+    const isFakeQ10 =
+      this.district === 'Quận 10' &&
+      !this.address.toLowerCase().includes('quận 10') &&
+      !this.address.toLowerCase().includes('q.10') &&
+      !this.address.toLowerCase().includes('q10');
+
+    if (!this.district || isFakeQ10) {
+      this.district = extractDistrict(this.address, this.district);
+    }
+  }
+});
+
 module.exports = mongoose.model('Venue', venueSchema);
+
