@@ -151,6 +151,33 @@ export const voucherApi = {
     const res = await client.get('/api/vouchers/admin/all');
     return res.data;
   },
+  // Nhập liệu từ Excel / Google Sheet
+  downloadTemplate: async () => {
+    const res = await client.get('/api/vouchers/partner/template', {
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+  previewImport: async (payload) => {
+    if (payload instanceof FormData) {
+      const res = await client.post('/api/vouchers/partner/preview', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
+    const res = await client.post('/api/vouchers/partner/preview', payload);
+    return res.data;
+  },
+  importSpreadsheet: async (payload) => {
+    if (payload instanceof FormData) {
+      const res = await client.post('/api/vouchers/partner/import', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
+    const res = await client.post('/api/vouchers/partner/import', payload);
+    return res.data;
+  },
 };
 
 // === MATCH / DISCOVER API ===

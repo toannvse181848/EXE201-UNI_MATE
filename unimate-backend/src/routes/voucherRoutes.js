@@ -11,8 +11,12 @@ const {
   createVoucher,
   toggleVoucherStatus,
   getAllVouchersAdmin,
+  downloadVoucherTemplate,
+  previewImportVouchers,
+  importVouchersSpreadsheet,
 } = require('../controllers/voucherController');
 const { protect, authorize } = require('../middlewares/auth');
+const uploadSpreadsheet = require('../middlewares/uploadSpreadsheet');
 
 // ─── PUBLIC ─────────────────────────────────────────────────────────────────
 router.get('/', getPublicVouchers);
@@ -25,8 +29,22 @@ router.get('/my-wallet', authorize('student'), getMyWallet);
 // ─── PARTNER ─────────────────────────────────────────────────────────────────
 router.get('/partner/my-vouchers', authorize('partner'), getMyPartnerVouchers);
 router.get('/partner/redemptions', authorize('partner'), getPartnerRedemptions);
+router.get('/partner/template', authorize('partner', 'admin'), downloadVoucherTemplate);
+router.post(
+  '/partner/preview',
+  authorize('partner', 'admin'),
+  uploadSpreadsheet.single('file'),
+  previewImportVouchers
+);
+router.post(
+  '/partner/import',
+  authorize('partner', 'admin'),
+  uploadSpreadsheet.single('file'),
+  importVouchersSpreadsheet
+);
 router.post('/', authorize('partner'), createVoucher);
 router.patch('/:id/toggle', authorize('partner', 'admin'), toggleVoucherStatus);
+
 
 // ─── ĐỐI SOÁT TẠI QUÁN (thu ngân quét QR / nhập mã) ──────────────────────────
 router.post('/verify', authorize('partner', 'admin'), verifyVoucher);

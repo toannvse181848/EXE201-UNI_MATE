@@ -15,8 +15,10 @@ import {
   Layers,
   Loader2,
   RefreshCw,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { voucherApi, venueApi } from '../../services/api';
+import ImportVoucherModal from '../../components/partner/ImportVoucherModal';
 
 export default function VoucherManagement() {
   const [vouchers, setVouchers] = useState([]);
@@ -26,7 +28,9 @@ export default function VoucherManagement() {
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
 
   // New Voucher Form State
   const [newVoucher, setNewVoucher] = useState({
@@ -184,10 +188,27 @@ export default function VoucherManagement() {
           </p>
         </div>
 
-        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
-          <Plus size={16} />
-          <span>Tạo voucher mới</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="btn btn-secondary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: '700',
+              backgroundColor: '#FFFFFF',
+              borderColor: 'var(--border-color)',
+            }}
+          >
+            <FileSpreadsheet size={16} color="#10B981" />
+            <span>Nhập Excel / Sheet</span>
+          </button>
+          <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+            <Plus size={16} />
+            <span>Tạo voucher mới</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs & Search Bar */}
@@ -553,6 +574,17 @@ export default function VoucherManagement() {
           </div>
         </div>
       )}
+
+      {/* Import Voucher Modal từ Excel / Sheet */}
+      <ImportVoucherModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        venues={venues}
+        onSuccess={() => {
+          fetchVouchers();
+        }}
+      />
     </div>
   );
 }
+

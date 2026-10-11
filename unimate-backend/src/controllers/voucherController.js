@@ -5,6 +5,12 @@ const Redemption = require('../models/Redemption');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const crypto = require('crypto');
+const {
+  parseSpreadsheetBuffer,
+  fetchGoogleSheetData,
+  generateVoucherTemplate,
+  parseDateValue,
+} = require('../utils/voucherSpreadsheetParser');
 
 // ─── PUBLIC / STUDENT ────────────────────────────────────────────────────────
 
@@ -395,6 +401,198 @@ const getAllVouchersAdmin = catchAsync(async (req, res) => {
   });
 });
 
+// ─── NHẬP LIỆU TỪ EXCEL / GOOGLE SHEET ─────────────────────────────────────────
+
+/** Tải file Excel mẫu (.xlsx) chuẩn */
+const downloadVoucherTemplate = catchAsync(async (req, res) => {
+  const buffer = generateVoucherTemplate();
+  res.setHeader(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  res.setHeader(
+    'Content-Disposition',
+    'attachment; filename="mau_nhap_voucher_unimate.xlsx"'
+  );
+  res.send(buffer);
+});
+
+/** Xem trước (Preview) dữ liệu từ file Excel hoặc link Google Sheet trước khi lưu */
+const previewImportVouchers = catchAsync(async (req, res) => {
+  let buffer = null;
+
+  if (req.file && req.file.buffer) {
+    buffer = req.file.buffer;
+  } else if (req.body.sheetUrl) {
+    buffer = await fetchGoogleSheetData(req.body.sheetUrl);
+  } else {
+    throw new ApiError(400, 'Vui lòng tải lên file Excel (.xlsx) hoặc cung cấp link Google Sheet');
+  }
+
+  const parsed = parseSpreadsheetBuffer(buffer);
+
+  // Lấy các mã để kiểm tra xem đã tồn tại trong DB chưa
+  const codes = parsed.items.filter((i) => i.code).map((i) => i.code);
+  const existingVouchers = await Voucher.find({ code: { $in: codes } }).select('code title partnerId');
+  const existingMap = new Map(existingVouchers.map((v) => [v.code, v]));
+
+  // Đếm tần suất xuất hiện trong file
+  const codeFrequency = {};
+  parsed.items.forEach((item) => {
+    if (item.code) {
+      codeFrequency[item.code] = (codeFrequency[item.code] || 0) + 1;
+    }
+  });
+
+  const enrichedItems = parsed.items.map((item) => {
+    const isDuplicateInFile = item.code && codeFrequency[item.code] > 1;
+    const existing = item.code ? existingMap.get(item.code) : null;
+    const isExistingInDb = Boolean(existing);
+    const isMine = existing && existing.partnerId.toString() === req.user._id.toString();
+
+    return {
+      ...item,
+      isDuplicateInFile,
+      isExistingInDb,
+      isMine,
+      existingTitle: existing?.title || null,
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      totalRows: parsed.totalRows,
+      validRows: parsed.validRows,
+      invalidRows: parsed.invalidRows,
+      items: enrichedItems,
+      errors: parsed.errors,
+    },
+  });
+});
+
+/** Nhập dữ liệu voucher từ Excel hoặc Google Sheet vào database */
+const importVouchersSpreadsheet = catchAsync(async (req, res) => {
+  let { venueId, duplicateMode = 'skip', sheetUrl, items } = req.body;
+  // duplicateMode: 'skip' | 'update'
+
+  let rawItems = [];
+
+  if (Array.isArray(items) && items.length > 0) {
+    // Dữ liệu đã preview xong từ client
+    rawItems = items;
+  } else {
+    let buffer = null;
+    if (req.file && req.file.buffer) {
+      buffer = req.file.buffer;
+    } else if (sheetUrl) {
+      buffer = await fetchGoogleSheetData(sheetUrl);
+    } else {
+      throw new ApiError(400, 'Vui lòng cung cấp file Excel hoặc đường link Google Sheet');
+    }
+    const parsed = parseSpreadsheetBuffer(buffer);
+    rawItems = parsed.items;
+  }
+
+  const validItems = rawItems.filter((item) => item.code && item.title);
+  if (validItems.length === 0) {
+    throw new ApiError(400, 'Không tìm thấy dòng voucher hợp lệ nào để nhập');
+  }
+
+  // Xác định cơ sở của quán
+  let venue = null;
+  if (venueId) {
+    venue = await Venue.findById(venueId);
+  }
+  if (!venue) {
+    venue = await Venue.findOne({ partnerId: req.user._id });
+  }
+  if (!venue) {
+    venue = await Venue.create({
+      name: req.user.partnerProfile?.businessName || req.user.fullName || 'Địa điểm đối tác UNI-MATE',
+      partnerId: req.user._id,
+      address: req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương',
+      description: 'Quán đối tác liên kết của UNI-MATE dành cho sinh viên.',
+      phone: req.user.phone || '0901234567',
+      status: 'approved',
+    });
+  }
+
+  if (venue.partnerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    throw new ApiError(403, 'Bạn không sở hữu cơ sở / địa điểm này');
+  }
+
+  const codes = validItems.map((i) => i.code.toUpperCase().trim());
+  const existingVouchers = await Voucher.find({ code: { $in: codes } });
+  const existingMap = new Map(existingVouchers.map((v) => [v.code, v]));
+
+  const importedList = [];
+  const updatedList = [];
+  const skippedList = [];
+  const processedCodes = new Set();
+
+  for (const item of validItems) {
+    const code = item.code.toUpperCase().trim();
+    if (processedCodes.has(code)) {
+      skippedList.push({ code, reason: 'Mã voucher trùng lặp trong file' });
+      continue;
+    }
+    processedCodes.add(code);
+
+    const existing = existingMap.get(code);
+
+    let parsedDate = parseDateValue(item.validUntil);
+    if (!parsedDate || isNaN(parsedDate.getTime())) {
+      parsedDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+    }
+
+    const voucherData = {
+      code,
+      title: item.title,
+      description: item.description || '',
+      discountPercent: Number(item.discountPercent) || 0,
+      discountAmount: Number(item.discountAmount) || 0,
+      minBill: Number(item.minBill) || 0,
+      quantity: Number(item.quantity) || 100,
+      validUntil: parsedDate,
+      terms: Array.isArray(item.terms) ? item.terms : [],
+      venueId: venue._id,
+      partnerId: req.user._id,
+      isActive: item.isActive !== false,
+    };
+
+    if (existing) {
+      if (duplicateMode === 'skip') {
+        skippedList.push({ code, reason: 'Mã voucher đã tồn tại trong hệ thống' });
+      } else if (duplicateMode === 'update') {
+        if (existing.partnerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+          skippedList.push({ code, reason: 'Mã voucher thuộc về đối tác khác' });
+          continue;
+        }
+        Object.assign(existing, voucherData);
+        await existing.save();
+        updatedList.push(existing);
+      }
+    } else {
+      const created = await Voucher.create(voucherData);
+      importedList.push(created);
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Đã nhập xong: thêm mới ${importedList.length} voucher, cập nhật ${updatedList.length} voucher, bỏ qua ${skippedList.length} voucher.`,
+    data: {
+      total: validItems.length,
+      importedCount: importedList.length,
+      updatedCount: updatedList.length,
+      skippedCount: skippedList.length,
+      skipped: skippedList,
+      imported: importedList,
+    },
+  });
+});
+
 module.exports = {
   getPublicVouchers,
   claimVoucher,
@@ -406,4 +604,8 @@ module.exports = {
   createVoucher,
   toggleVoucherStatus,
   getAllVouchersAdmin,
+  downloadVoucherTemplate,
+  previewImportVouchers,
+  importVouchersSpreadsheet,
 };
+
