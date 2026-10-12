@@ -282,7 +282,7 @@ export default function Register() {
             /* === STUDENT REGISTRATION FIELDS (Chuẩn hóa so với Thẻ Uni-Card Profile) === */
             <>
               {/* Họ tên & MSSV */}
-              <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '10px' }}>
+              <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
                     Họ và tên sinh viên *
@@ -321,7 +321,7 @@ export default function Register() {
               </div>
 
               {/* Email & Số điện thoại */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
                     Email trường / cá nhân *
@@ -360,7 +360,7 @@ export default function Register() {
               </div>
 
               {/* Trường Đại học & Chuyên ngành */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
                     Trường Đại học *
@@ -403,7 +403,7 @@ export default function Register() {
               </div>
 
               {/* Năm học & Giới tính */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
                     Năm học
@@ -494,7 +494,7 @@ export default function Register() {
                 {errors.businessName && <span style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.businessName}</span>}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
                     Email liên hệ *
@@ -551,7 +551,7 @@ export default function Register() {
           )}
 
           {/* Password fields */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
                 Mật khẩu *

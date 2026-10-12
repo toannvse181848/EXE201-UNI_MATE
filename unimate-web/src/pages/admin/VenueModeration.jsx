@@ -115,7 +115,7 @@ export default function VenueModeration() {
       <div className="portal-card" style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {[
               { id: 'all', label: `Tất cả (${venues.length})` },
               { id: 'pending', label: `Chờ duyệt (${venues.filter((v) => v.status === 'pending').length})`, alert: venues.filter((v) => v.status === 'pending').length > 0 },
@@ -157,7 +157,8 @@ export default function VenueModeration() {
               border: '1px solid var(--border-color)',
               borderRadius: '10px',
               padding: '6px 12px',
-              width: '280px',
+              width: '100%',
+              maxWidth: '280px',
             }}
           >
             <Search size={16} color="var(--text-muted)" style={{ marginRight: '8px' }} />

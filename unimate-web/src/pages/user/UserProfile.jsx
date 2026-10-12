@@ -158,7 +158,7 @@ export default function UserProfile() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px' }}>
         {/* Left Column: Electronic Student Card (Uni-Card) */}
         <div>
           <div

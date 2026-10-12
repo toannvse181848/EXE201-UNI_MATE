@@ -20,6 +20,7 @@ import {
   ChevronRight,
   MapPin,
   Award,
+  ArrowLeft,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { chatApi, matchApi } from '../../services/api';
@@ -358,6 +359,7 @@ export default function UserMessages() {
 
   return (
     <div
+      className="messages-container"
       style={{
         display: 'flex',
         height: 'calc(100vh - 120px)',
@@ -370,6 +372,7 @@ export default function UserMessages() {
     >
       {/* ================= SIDEBAR TRÁI ================= */}
       <div
+        className={`messages-sidebar${activeConversation ? ' hide-mobile' : ''}`}
         style={{
           width: '360px',
           borderRight: '1px solid var(--border-color)',
@@ -1098,6 +1101,7 @@ export default function UserMessages() {
       {/* ================= KHUNG CHAT CHÍNH (BÊN PHẢI) ================= */}
       {activeConversation ? (
         <div
+          className="messages-chat-area"
           style={{
             flex: 1,
             display: 'flex',
@@ -1108,7 +1112,7 @@ export default function UserMessages() {
           {/* Chat Header */}
           <div
             style={{
-              padding: '14px 24px',
+              padding: '14px 20px',
               borderBottom: '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
@@ -1116,7 +1120,25 @@ export default function UserMessages() {
               backgroundColor: '#FFFFFF',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* Nút quay lại trên mobile */}
+              <button
+                className="messages-back-btn"
+                onClick={() => setSelectedMatchId(null)}
+                style={{
+                  display: 'none',
+                  background: 'none',
+                  border: 'none',
+                  padding: '6px',
+                  cursor: 'pointer',
+                  color: 'var(--text-primary)',
+                  borderRadius: '8px',
+                }}
+                aria-label="Quay lại danh sách tin nhắn"
+              >
+                <ArrowLeft size={20} />
+              </button>
+
               <div style={{ position: 'relative' }}>
                 <img
                   src={
@@ -1457,6 +1479,7 @@ export default function UserMessages() {
       ) : (
         /* Empty placeholder khi không có chat nào */
         <div
+          className="messages-empty-state"
           style={{
             flex: 1,
             display: 'flex',

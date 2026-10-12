@@ -228,7 +228,7 @@ export default function UserVouchers() {
             <button onClick={() => setActiveTab('rewards')} style={{ marginTop: '16px', padding: '10px 20px', borderRadius: '10px', backgroundColor: '#FF5722', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>Xem uu dai</button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {myVouchers.map((raw) => {
               const vch = normalizeVoucher(raw);
               return (
@@ -348,7 +348,7 @@ export default function UserVouchers() {
             <p style={{ fontSize: '13px', marginTop: '6px' }}>Quay lại sau nhé, đối tác đang cập nhật thêm ưu đãi!</p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {publicVouchers.map((raw) => {
               const vch = normalizeVoucher(raw);
               const alreadyClaimed = myVouchers.some((mv) => (mv.voucherId?._id || mv.voucherId) === raw._id);

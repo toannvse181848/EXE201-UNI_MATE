@@ -97,7 +97,7 @@ export default function ReportQueue() {
 
       {/* Filter Tabs */}
       <div className="portal-card" style={{ padding: '14px 20px' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[
             { id: 'all', label: 'Tất cả' },
             { id: 'high', label: '🔴 Khẩn cấp (High)', count: reports.filter((r) => r.priority === 'high' && r.status === 'pending').length },
@@ -172,7 +172,7 @@ export default function ReportQueue() {
             </div>
 
             {/* In-depth details */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: 'var(--bg-page)', padding: '14px', borderRadius: '12px', marginBottom: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px', backgroundColor: 'var(--bg-page)', padding: '14px', borderRadius: '12px', marginBottom: '14px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)' }}>NGƯỜI KHIẾU NẠI</span>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginTop: '2px' }}>

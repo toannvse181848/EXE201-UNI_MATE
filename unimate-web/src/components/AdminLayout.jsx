@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import logoIcon from '../assets/logo-icon.png';
 import { useAuth } from '../context/AuthContext';
@@ -11,17 +11,22 @@ import {
   Search,
   Bell,
   LogOut,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  const closeSidebar = () => setSidebarOpen(false);
 
   const navItems = [
     { to: '/admin/dashboard', label: 'Tổng quan Admin', icon: LayoutDashboard },
@@ -33,10 +38,16 @@ export default function AdminLayout() {
 
   return (
     <div className="portal-layout">
+      {/* Mobile Overlay */}
+      <div
+        className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`}
+        onClick={closeSidebar}
+      />
+
       {/* Sidebar */}
-      <aside className="portal-sidebar" style={{ backgroundColor: '#1E1B4B' }}>
+      <aside className={`portal-sidebar${sidebarOpen ? ' open' : ''}`} style={{ backgroundColor: '#1E1B4B' }}>
         {/* Brand */}
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid #312E81' }}>
+        <div style={{ padding: '24px 20px', borderBottom: '1px solid #312E81', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
@@ -65,6 +76,15 @@ export default function AdminLayout() {
               </span>
             </div>
           </div>
+          {/* Close button on mobile */}
+          <button
+            onClick={closeSidebar}
+            className="btn-mobile-menu"
+            style={{ color: '#A5B4FC' }}
+            aria-label="Đóng menu"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Nav Links */}
@@ -76,6 +96,7 @@ export default function AdminLayout() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onClick={closeSidebar}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -112,7 +133,6 @@ export default function AdminLayout() {
           })}
         </nav>
 
-
         {/* Logout */}
         <div style={{ padding: '16px', borderTop: '1px solid #312E81' }}>
           <button
@@ -125,6 +145,10 @@ export default function AdminLayout() {
               color: '#F87171',
               fontSize: '13px',
               fontWeight: '600',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              width: '100%',
             }}
           >
             <LogOut size={16} />
@@ -137,8 +161,18 @@ export default function AdminLayout() {
       <div className="portal-main">
         {/* Header */}
         <header className="portal-header">
+          {/* Hamburger button for mobile */}
+          <button
+            className="btn-mobile-menu"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Mở menu"
+            style={{ marginRight: '8px' }}
+          >
+            <Menu size={22} />
+          </button>
+
           {/* Global Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '380px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '380px' }}>
             <div
               style={{
                 display: 'flex',
@@ -150,10 +184,10 @@ export default function AdminLayout() {
                 width: '100%',
               }}
             >
-              <Search size={16} color="var(--text-muted)" style={{ marginRight: '8px' }} />
+              <Search size={16} color="var(--text-muted)" style={{ marginRight: '8px', flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Search across portal (quán, voucher, report)..."
+                placeholder="Search across portal..."
                 style={{
                   border: 'none',
                   background: 'transparent',
@@ -167,7 +201,7 @@ export default function AdminLayout() {
           </div>
 
           {/* Right Header Items */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
             <button
               style={{
                 width: '38px',
@@ -179,20 +213,20 @@ export default function AdminLayout() {
                 justifyContent: 'center',
                 backgroundColor: 'transparent',
                 cursor: 'pointer',
+                flexShrink: 0,
               }}
               title="Thông báo hệ thống"
             >
               <Bell size={18} color="var(--text-secondary)" />
             </button>
 
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '16px', borderLeft: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '12px', borderLeft: '1px solid var(--border-color)' }}>
               <img
                 src={user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100'}
                 alt="Admin"
-                style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
+                style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
               />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }} className="hide-on-mobile">
                 <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
                   Super Admin
                 </span>

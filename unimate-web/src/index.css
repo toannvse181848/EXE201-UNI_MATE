@@ -608,3 +608,43 @@ input, select, textarea {
     padding: 40px 12px !important;
   }
 }
+
+/* =============================================
+   MESSAGES & GENERAL MOBILE RESPONSIVE
+   ============================================= */
+@media (max-width: 768px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .messages-container {
+    height: calc(100vh - 100px) !important;
+    border-radius: 14px !important;
+  }
+
+  .messages-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+  }
+
+  .messages-sidebar.hide-mobile {
+    display: none !important;
+  }
+
+  .messages-chat-area {
+    width: 100% !important;
+  }
+
+  .messages-chat-area.hide-mobile {
+    display: none !important;
+  }
+
+  .messages-empty-state {
+    display: none !important;
+  }
+
+  .messages-back-btn {
+    display: flex !important;
+  }
+}
+

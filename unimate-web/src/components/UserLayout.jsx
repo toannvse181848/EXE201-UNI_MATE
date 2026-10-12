@@ -11,18 +11,17 @@ import {
   User,
   LogOut,
   Coins,
-  ShieldCheck,
   CheckCircle2,
-  ChevronDown,
   Sparkles,
-  ExternalLink,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export default function UserLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [voucherNotificationCount, setVoucherNotificationCount] = useState(0);
 
@@ -31,16 +30,13 @@ export default function UserLayout() {
     navigate('/login');
   };
 
-  // Tải số lượng thông báo thực tế (tin nhắn chưa đọc và voucher mới/sắp hết hạn)
+  const closeSidebar = () => setSidebarOpen(false);
+
   const fetchNotificationCounts = useCallback(async () => {
-    // 1. Kiểm tra tin nhắn chưa đọc từ Backend
     try {
       const convRes = await chatApi.getConversations();
       if (convRes?.data && Array.isArray(convRes.data)) {
-        const totalUnread = convRes.data.reduce(
-          (sum, c) => sum + (c.unreadCount || 0),
-          0
-        );
+        const totalUnread = convRes.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
         setUnreadMessagesCount(totalUnread);
       } else {
         setUnreadMessagesCount(0);
@@ -49,12 +45,8 @@ export default function UserLayout() {
       setUnreadMessagesCount(0);
     }
 
-    // 2. Kiểm tra thông báo ví voucher (chỉ hiện khi có voucher mới lưu chưa xem hoặc sắp hết hạn trong 48h)
     try {
-      const lastViewed = parseInt(
-        localStorage.getItem('unimate_vouchers_last_viewed') || '0',
-        10
-      );
+      const lastViewed = parseInt(localStorage.getItem('unimate_vouchers_last_viewed') || '0', 10);
       const walletRes = await voucherApi.getMyWallet();
       if (walletRes?.data && Array.isArray(walletRes.data)) {
         const now = Date.now();
@@ -62,13 +54,8 @@ export default function UserLayout() {
           if (uv.status !== 'saved') return false;
           const claimedTime = new Date(uv.claimedAt || uv.createdAt || 0).getTime();
           const isNewlyClaimed = claimedTime > lastViewed;
-          const expireTime = uv.voucherId?.validUntil
-            ? new Date(uv.voucherId.validUntil).getTime()
-            : null;
-          const isExpiringSoon =
-            expireTime &&
-            expireTime - now > 0 &&
-            expireTime - now < 48 * 3600 * 1000;
+          const expireTime = uv.voucherId?.validUntil ? new Date(uv.voucherId.validUntil).getTime() : null;
+          const isExpiringSoon = expireTime && expireTime - now > 0 && expireTime - now < 48 * 3600 * 1000;
           return isNewlyClaimed || isExpiringSoon;
         });
         setVoucherNotificationCount(activeAlerts.length);
@@ -80,7 +67,6 @@ export default function UserLayout() {
     }
   }, []);
 
-  // Lắng nghe thay đổi route để reset / cập nhật thông báo
   useEffect(() => {
     if (location.pathname === '/user/vouchers') {
       localStorage.setItem('unimate_vouchers_last_viewed', Date.now().toString());
@@ -89,7 +75,6 @@ export default function UserLayout() {
     fetchNotificationCounts();
   }, [location.pathname, fetchNotificationCounts]);
 
-  // Polling định kỳ mỗi 25s để cập nhật real-time
   useEffect(() => {
     const timer = setInterval(fetchNotificationCounts, 25000);
     return () => clearInterval(timer);
@@ -116,12 +101,19 @@ export default function UserLayout() {
   ];
 
   return (
-    <div className="portal-layout" style={{ minHeight: '100vh', display: 'flex', backgroundColor: '#F8FAFC' }}>
+    <div className="portal-layout" style={{ minHeight: '100vh', backgroundColor: '#F8FAFC' }}>
+      {/* Mobile Overlay */}
+      <div
+        className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`}
+        onClick={closeSidebar}
+      />
+
       {/* Sidebar */}
       <aside
+        className={`user-sidebar${sidebarOpen ? ' open' : ''}`}
         style={{
           width: '270px',
-          backgroundColor: '#1A0E00', // Deep orange-black matching mobile dark bg
+          backgroundColor: '#1A0E00',
           color: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
@@ -130,7 +122,7 @@ export default function UserLayout() {
         }}
       >
         {/* Brand Header */}
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid #115E59' }}>
+        <div style={{ padding: '24px 20px', borderBottom: '1px solid #115E59', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
@@ -141,9 +133,6 @@ export default function UserLayout() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#FFFFFF',
-                fontWeight: '900',
-                fontSize: '20px',
                 boxShadow: '0 4px 12px rgba(255, 87, 34, 0.45)',
               }}
             >
@@ -154,16 +143,7 @@ export default function UserLayout() {
                 <span style={{ fontSize: '18px', fontWeight: '900', color: '#FFFFFF', letterSpacing: '0.5px' }}>
                   UNI-MATE
                 </span>
-                <span
-                  style={{
-                    fontSize: '9px',
-                    fontWeight: '800',
-                    backgroundColor: '#14B8A6',
-                    color: '#042F2E',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                  }}
-                >
+                <span style={{ fontSize: '9px', fontWeight: '800', backgroundColor: '#14B8A6', color: '#042F2E', padding: '2px 6px', borderRadius: '4px' }}>
                   STUDENT
                 </span>
               </div>
@@ -172,40 +152,22 @@ export default function UserLayout() {
               </span>
             </div>
           </div>
+          {/* Close button on mobile */}
+          <button onClick={closeSidebar} className="btn-mobile-menu" style={{ color: '#FFB74D' }} aria-label="Đóng menu">
+            <X size={20} />
+          </button>
         </div>
 
         {/* Student Mini ID Card */}
         <div style={{ padding: '16px 14px' }}>
-          <div
-            style={{
-              padding: '12px 14px',
-              backgroundColor: 'rgba(20, 184, 166, 0.12)',
-              borderRadius: '12px',
-              border: '1px solid rgba(45, 212, 191, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}
-          >
+          <div style={{ padding: '12px 14px', backgroundColor: 'rgba(20, 184, 166, 0.12)', borderRadius: '12px', border: '1px solid rgba(45, 212, 191, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
               <img
                 src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
                 alt="Avatar"
                 style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF8A50' }}
               />
-              <span
-                title="Đã xác thực thẻ SV"
-                style={{
-                  position: 'absolute',
-                  bottom: '-2px',
-                  right: '-2px',
-                  backgroundColor: '#10B981',
-                  color: '#fff',
-                  borderRadius: '50%',
-                  padding: '2px',
-                  display: 'flex',
-                }}
-              >
+              <span style={{ position: 'absolute', bottom: '-2px', right: '-2px', backgroundColor: '#10B981', color: '#fff', borderRadius: '50%', padding: '2px', display: 'flex' }}>
                 <CheckCircle2 size={12} />
               </span>
             </div>
@@ -229,6 +191,7 @@ export default function UserLayout() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onClick={closeSidebar}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -247,16 +210,7 @@ export default function UserLayout() {
                   <span>{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      padding: '2px 7px',
-                      borderRadius: '10px',
-                      backgroundColor: isActive ? '#BF360C' : (item.alert ? '#EF4444' : '#3D1A00'),
-                      color: '#FFFFFF',
-                    }}
-                  >
+                  <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 7px', borderRadius: '10px', backgroundColor: isActive ? '#BF360C' : (item.alert ? '#EF4444' : '#3D1A00'), color: '#FFFFFF' }}>
                     {item.badge}
                   </span>
                 )}
@@ -264,7 +218,6 @@ export default function UserLayout() {
             );
           })}
         </nav>
-
 
         {/* User Footer / Logout */}
         <div style={{ padding: '14px 16px', borderTop: '1px solid #3D1A00', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -275,18 +228,7 @@ export default function UserLayout() {
           <button
             onClick={handleLogout}
             title="Đăng xuất"
-            style={{
-              color: '#FFB74D',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '12px',
-              fontWeight: '600',
-              padding: '6px 10px',
-              borderRadius: '6px',
-              backgroundColor: '#3D1A00',
-              cursor: 'pointer',
-            }}
+            style={{ color: '#FFB74D', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', padding: '6px 10px', borderRadius: '6px', backgroundColor: '#3D1A00', cursor: 'pointer' }}
           >
             <LogOut size={14} />
             <span>Thoát</span>
@@ -295,7 +237,7 @@ export default function UserLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div className="portal-main">
         {/* Topbar */}
         <header
           style={{
@@ -305,88 +247,60 @@ export default function UserLayout() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0 28px',
+            padding: '0 20px',
             position: 'sticky',
             top: 0,
             zIndex: 30,
+            gap: '12px',
           }}
         >
-          {/* Left: University selector & verification */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {/* Hamburger (mobile only) */}
+          <button className="btn-mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Mở menu">
+            <Menu size={22} />
+          </button>
+
+          {/* Left: University & verification badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, overflow: 'hidden' }}>
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 14px',
-                backgroundColor: '#F0FDFA',
-                borderRadius: '20px',
-                border: '1px solid #99F6E4',
-                color: '#0F766E',
-                fontSize: '13px',
-                fontWeight: '700',
-              }}
+              className="header-btn-hide-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px', backgroundColor: '#F0FDFA', borderRadius: '20px', border: '1px solid #99F6E4', color: '#0F766E', fontSize: '13px', fontWeight: '700', whiteSpace: 'nowrap' }}
             >
               <Sparkles size={14} color="#FF5722" />
               <span>{user?.university || 'Đại học FPT TP.HCM'}</span>
             </div>
-
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#E64A19',
-                backgroundColor: '#ECFDF5',
-                padding: '5px 12px',
-                borderRadius: '16px',
-              }}
+              className="header-btn-hide-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: '#E64A19', backgroundColor: '#ECFDF5', padding: '5px 12px', borderRadius: '16px', whiteSpace: 'nowrap' }}
             >
               <CheckCircle2 size={13} color="#FF5722" />
-              <span>Sinh viên đã xác minh</span>
+              <span>Đã xác minh</span>
             </div>
           </div>
 
-          {/* Right: UniCoin, Role Switch Dropdown, Avatar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            {/* UniCoin Wallet Badge */}
+          {/* Right: UniCoin + Avatar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             <div
               onClick={() => navigate('/user/vouchers')}
               title="Nhấn để đổi quà với UniCoin"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '7px 14px',
-                borderRadius: '20px',
-                backgroundColor: '#FFFBEB',
-                border: '1.5px solid #FDE68A',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '20px', backgroundColor: '#FFFBEB', border: '1.5px solid #FDE68A', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
             >
               <Coins size={16} color="#D97706" />
               <span style={{ fontSize: '13px', fontWeight: '800', color: '#B45309' }}>
                 {user?.uniCoin || 450} UniCoin
               </span>
             </div>
-
-
-            {/* Profile Avatar */}
-            <NavLink to="/user/profile" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <NavLink to="/user/profile">
               <img
                 src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
                 alt="Avatar"
-                style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF5722' }}
+                style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF5722', display: 'block' }}
               />
             </NavLink>
           </div>
         </header>
 
         {/* Page Content Outlet */}
-        <main style={{ flex: 1, padding: '28px', overflowY: 'auto' }}>
+        <main style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
           <Outlet />
         </main>
       </div>
