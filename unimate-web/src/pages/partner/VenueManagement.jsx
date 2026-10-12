@@ -194,7 +194,7 @@ export default function VenueManagement() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Page Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="page-header-row">
         <div>
           <h1 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.5px' }}>
             Quản lý địa điểm
@@ -204,7 +204,7 @@ export default function VenueManagement() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className="venue-header-actions">
           <button
             type="button"
             onClick={() => setIsBoosted(!isBoosted)}
@@ -253,7 +253,7 @@ export default function VenueManagement() {
       )}
 
       {/* Main Split: Form on Left, Live Mobile Preview on Right */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '28px' }}>
+      <div className="grid-venue-main">
         {/* Form Section */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Photos Upload Card */}
@@ -274,14 +274,7 @@ export default function VenueManagement() {
             </p>
 
             {/* Upload Buttons Box */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1.2fr 1fr',
-                gap: '12px',
-                marginBottom: '16px',
-              }}
-            >
+            <div className="grid-upload-btns" style={{ marginBottom: '16px' }}>
               {/* File Input Trigger */}
               <label
                 style={{
@@ -560,7 +553,7 @@ export default function VenueManagement() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="grid-2col">
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
                     Số điện thoại
@@ -677,7 +670,7 @@ export default function VenueManagement() {
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
+              <div className="grid-addr-district">
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
                     Địa chỉ cụ thể
@@ -725,7 +718,7 @@ export default function VenueManagement() {
               </div>
 
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="grid-2col">
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
                     Giờ mở cửa
@@ -767,7 +760,7 @@ export default function VenueManagement() {
 
         {/* Right Side: LIVE MOBILE APP PREVIEW WITH SWIPEABLE CAROUSEL */}
         <div>
-          <div style={{ position: 'sticky', top: '90px' }}>
+          <div className="venue-preview-sticky">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-primary)' }}>

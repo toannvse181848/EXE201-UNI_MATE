@@ -261,3 +261,189 @@ input, select, textarea {
   background-color: var(--bg-page);
   color: var(--text-primary);
 }
+
+/* =============================================
+   RESPONSIVE LAYOUT UTILITIES
+   ============================================= */
+
+/* Sidebar toggle for mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 45;
+}
+
+/* Mobile hamburger button */
+.btn-mobile-menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+.btn-mobile-menu:hover {
+  background: var(--bg-page);
+}
+
+/* Responsive grid helpers */
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.grid-venue-main {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 28px;
+}
+
+.grid-upload-btns {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+}
+
+.grid-addr-district {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 14px;
+}
+
+/* Page header action buttons */
+.venue-header-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Mobile preview section */
+.venue-preview-sticky {
+  position: sticky;
+  top: 90px;
+}
+
+/* Responsive page header */
+.page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* =============================================
+   BREAKPOINT: Tablet (≤ 1024px)
+   - Preview panel goes below the form
+   ============================================= */
+@media (max-width: 1024px) {
+  .portal-content {
+    padding: 24px;
+  }
+
+  .grid-venue-main {
+    grid-template-columns: 1fr;
+  }
+
+  .venue-preview-sticky {
+    position: static;
+  }
+}
+
+/* =============================================
+   BREAKPOINT: Mobile (≤ 768px)
+   - Sidebar collapses, all grids go single col
+   ============================================= */
+@media (max-width: 768px) {
+  /* Sidebar hidden off-screen */
+  .portal-sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    height: 100vh;
+    z-index: 50;
+    transition: left 0.25s ease;
+  }
+  .portal-sidebar.open {
+    left: 0;
+  }
+  .sidebar-overlay.open {
+    display: block;
+  }
+
+  /* Show hamburger */
+  .btn-mobile-menu {
+    display: flex;
+  }
+
+  /* Header spacing */
+  .portal-header {
+    padding: 0 16px;
+    justify-content: space-between;
+  }
+
+  /* Content padding */
+  .portal-content {
+    padding: 16px;
+  }
+
+  /* Single column grids */
+  .grid-2col,
+  .grid-upload-btns,
+  .grid-addr-district,
+  .grid-venue-main {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stacked header buttons */
+  .venue-header-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .venue-header-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Portal card tighter padding */
+  .portal-card {
+    padding: 16px;
+  }
+
+  /* Buttons full-width on mobile */
+  .btn-mobile-full {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* =============================================
+   BREAKPOINT: Small mobile (≤ 480px)
+   ============================================= */
+@media (max-width: 480px) {
+  .portal-content {
+    padding: 12px;
+  }
+
+  .portal-card {
+    padding: 12px;
+    border-radius: var(--radius-md);
+  }
+}
+
+/* =============================================
+   BREAKPOINT: Hide header extras on small screens
+   ============================================= */
+@media (max-width: 640px) {
+  .header-btn-hide-sm {
+    display: none !important;
+  }
+  .header-user-hide-sm {
+    display: none;
+  }
+}

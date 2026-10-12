@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import logoIcon from '../assets/logo-icon.png';
 import { useAuth } from '../context/AuthContext';
@@ -11,17 +11,22 @@ import {
   Headphones,
   LogOut,
   Plus,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export default function PartnerLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  const closeSidebar = () => setSidebarOpen(false);
 
   const navItems = [
     { to: '/partner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -33,10 +38,16 @@ export default function PartnerLayout() {
 
   return (
     <div className="portal-layout">
+      {/* Mobile Overlay */}
+      <div
+        className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`}
+        onClick={closeSidebar}
+      />
+
       {/* Sidebar */}
-      <aside className="portal-sidebar">
-        {/* Brand */}
-        <div style={{ padding: '24px 20px', borderBottom: '1px solid #1E293B' }}>
+      <aside className={`portal-sidebar${sidebarOpen ? ' open' : ''}`}>
+        {/* Brand + Close button on mobile */}
+        <div style={{ padding: '24px 20px', borderBottom: '1px solid #1E293B', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
@@ -65,6 +76,15 @@ export default function PartnerLayout() {
               </span>
             </div>
           </div>
+          {/* Close button – only visible on mobile via CSS */}
+          <button
+            onClick={closeSidebar}
+            className="btn-mobile-menu"
+            style={{ color: '#94A3B8' }}
+            aria-label="Đóng menu"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Nav Links */}
@@ -76,6 +96,7 @@ export default function PartnerLayout() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onClick={closeSidebar}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -137,8 +158,17 @@ export default function PartnerLayout() {
       <div className="portal-main">
         {/* Header */}
         <header className="portal-header">
+          {/* Hamburger (shown only on mobile via CSS) */}
+          <button
+            className="btn-mobile-menu"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Mở menu"
+          >
+            <Menu size={22} />
+          </button>
+
           {/* Breadcrumb */}
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', flex: 1, paddingLeft: '8px' }}>
             <span style={{ color: 'var(--text-muted)' }}>Home</span> &gt;{' '}
             <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>
               {location.pathname.split('/')[2]?.replace('-', ' ').toUpperCase() || 'DASHBOARD'}
@@ -146,10 +176,11 @@ export default function PartnerLayout() {
           </div>
 
           {/* Quick Header CTAs */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Hide these on very small screens */}
             <button
               onClick={() => navigate('/partner/qr-scanner')}
-              className="btn btn-secondary"
+              className="btn btn-secondary header-btn-hide-sm"
               style={{ padding: '8px 16px', fontSize: '13px' }}
             >
               <QrCode size={16} color="var(--primary)" />
@@ -157,7 +188,7 @@ export default function PartnerLayout() {
             </button>
             <button
               onClick={() => navigate('/partner/vouchers')}
-              className="btn btn-primary"
+              className="btn btn-primary header-btn-hide-sm"
               style={{ padding: '8px 16px', fontSize: '13px' }}
             >
               <Plus size={16} />
@@ -165,13 +196,13 @@ export default function PartnerLayout() {
             </button>
 
             {/* Profile Avatar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '10px', paddingLeft: '16px', borderLeft: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '12px', borderLeft: '1px solid var(--border-color)' }}>
               <img
                 src={user?.avatar || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=100'}
                 alt={user?.name}
-                style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
+                style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }}
               />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }} className="header-user-hide-sm">
                 <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
                   {user?.name || 'The Coffee House'}
                 </span>
