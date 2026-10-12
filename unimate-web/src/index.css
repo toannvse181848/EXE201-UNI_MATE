@@ -127,6 +127,26 @@ input, select, textarea {
   border-right: 1px solid #1E293B;
 }
 
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 998;
+}
+
+.btn-mobile-menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
 .portal-main {
   flex: 1;
   display: flex;
@@ -361,35 +381,40 @@ input, select, textarea {
    ============================================= */
 @media (max-width: 768px) {
   /* Sidebar hidden off-screen */
-  .portal-sidebar {
-    position: fixed;
-    left: -260px;
-    top: 0;
-    height: 100vh;
-    z-index: 50;
-    transition: left 0.25s ease;
+  .portal-sidebar,
+  .user-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 100vh !important;
+    z-index: 1000 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
   }
-  .portal-sidebar.open {
-    left: 0;
+  .portal-sidebar.open,
+  .user-sidebar.open {
+    transform: translateX(0) !important;
   }
   .sidebar-overlay.open {
-    display: block;
+    display: block !important;
   }
 
   /* Show hamburger */
   .btn-mobile-menu {
-    display: flex;
+    display: flex !important;
   }
 
   /* Header spacing */
   .portal-header {
-    padding: 0 16px;
-    justify-content: space-between;
+    padding: 0 12px !important;
+    justify-content: space-between !important;
   }
 
   /* Content padding */
   .portal-content {
-    padding: 16px;
+    padding: 14px 12px !important;
   }
 
   /* Single column grids */

@@ -110,7 +110,7 @@ export default function UserLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`user-sidebar${sidebarOpen ? ' open' : ''}`}
+        className={`portal-sidebar user-sidebar${sidebarOpen ? ' open' : ''}`}
         style={{
           width: '270px',
           backgroundColor: '#1A0E00',
@@ -240,6 +240,7 @@ export default function UserLayout() {
       <div className="portal-main">
         {/* Topbar */}
         <header
+          className="portal-header"
           style={{
             height: '68px',
             backgroundColor: '#FFFFFF',
@@ -300,7 +301,7 @@ export default function UserLayout() {
         </header>
 
         {/* Page Content Outlet */}
-        <main style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+        <main className="portal-content" style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
           <Outlet />
         </main>
       </div>
