@@ -94,6 +94,7 @@ export default function Home() {
                   UNI<span style={{ color: '#FF5722' }}>-MATE</span>
                 </span>
                 <span
+                  className="home-nav-badge"
                   style={{
                     fontSize: '10px',
                     fontWeight: '800',
@@ -107,7 +108,7 @@ export default function Home() {
                   SINH VIÊN & CAFE
                 </span>
               </div>
-              <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+              <span className="home-nav-tagline" style={{ fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
                 Học hết mình — Chơi hết phố
               </span>
             </div>
@@ -224,6 +225,7 @@ export default function Home() {
               <>
                 <Link
                   to="/login"
+                  className="home-nav-login"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -289,6 +291,7 @@ export default function Home() {
 
       {/* 🚀 HERO SECTION */}
       <section
+        className="home-section"
         style={{
           position: 'relative',
           overflow: 'hidden',
@@ -323,14 +326,6 @@ export default function Home() {
         />
 
         <div
-          style={{
-            maxWidth: '1280px',
-            margin: '0 auto',
-            display: 'grid',
-            gridTemplateColumns: '1.1fr 0.9fr',
-            gap: '60px',
-            alignItems: 'center',
-          }}
           className="hero-grid"
         >
           {/* Left Column: Headlines & CTAs */}
@@ -357,6 +352,7 @@ export default function Home() {
 
             {/* Main Title */}
             <h1
+              className="hero-title"
               style={{
                 fontSize: '52px',
                 fontWeight: '900',
@@ -380,6 +376,7 @@ export default function Home() {
 
             {/* Subtitle */}
             <p
+              className="hero-subtitle"
               style={{
                 fontSize: '18px',
                 color: '#475569',
@@ -827,15 +824,12 @@ export default function Home() {
       {/* 📊 KEY STATS SECTION */}
       <section style={{ backgroundColor: '#FFFFFF', borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9', padding: '40px 24px' }}>
         <div
+          className="stats-grid"
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '24px',
             textAlign: 'center',
           }}
-          className="stats-grid"
         >
           <div>
             <div style={{ fontSize: '38px', fontWeight: '900', color: '#FF5722', letterSpacing: '-1px' }}>15,000+</div>
@@ -878,11 +872,6 @@ export default function Home() {
         </div>
 
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '30px',
-          }}
           className="features-grid"
         >
           {/* Feature 1 */}
@@ -1089,11 +1078,6 @@ export default function Home() {
           </div>
 
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '30px',
-            }}
             className="steps-grid"
           >
             {[
@@ -1174,18 +1158,16 @@ export default function Home() {
       {/* ☕ DÀNH CHO ĐỐI TÁC QUÁN CAFE (PARTNER SECTION) */}
       <section id="partner-section" style={{ padding: '90px 24px', maxWidth: '1280px', margin: '0 auto' }}>
         <div
+          className="partner-grid"
           style={{
             background: 'linear-gradient(135deg, #1A0E00 0%, #2E1500 100%)',
             borderRadius: '32px',
             padding: '60px',
             color: '#FFFFFF',
-            display: 'grid',
-            gridTemplateColumns: '1.2fr 0.8fr',
             gap: '50px',
             alignItems: 'center',
             boxShadow: '0 25px 50px -12px rgba(255, 87, 34, 0.25)',
           }}
-          className="partner-grid"
         >
           <div>
             <div
