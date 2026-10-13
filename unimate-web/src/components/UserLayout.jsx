@@ -16,6 +16,7 @@ import {
   Sparkles,
   Menu,
   X,
+  Star,
 } from 'lucide-react';
 
 export default function UserLayout() {
@@ -98,6 +99,7 @@ export default function UserLayout() {
       badge: unreadMessagesCount > 0 ? String(unreadMessagesCount) : null,
       alert: unreadMessagesCount > 0,
     },
+    { to: '/user/unicoin', label: 'Điểm UniCoin của bạn', icon: Star },
     { to: '/user/profile', label: 'Hồ sơ Sinh viên (Uni-Card)', icon: User },
   ];
 
@@ -323,13 +325,13 @@ export default function UserLayout() {
           {/* Right: UniCoin + Avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             <div
-              onClick={() => navigate('/user/vouchers')}
-              title="Nhấn để đổi quà với UniCoin"
+              onClick={() => navigate('/user/unicoin')}
+              title="Xem và quản lý điểm UniCoin"
               style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '20px', backgroundColor: '#FFFBEB', border: '1.5px solid #FDE68A', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
             >
               <Coins size={16} color="#D97706" />
               <span style={{ fontSize: '13px', fontWeight: '800', color: '#B45309' }}>
-                {user?.uniCoin || 450} UniCoin
+                {user?.uniCoin ?? 0} UniCoin
               </span>
             </div>
             <NavLink to="/user/profile">

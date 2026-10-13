@@ -9,6 +9,7 @@ const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const coinRoutes = require('./routes/coinRoutes');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 
 const helmet = require('helmet');
@@ -102,6 +103,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/coins', coinRoutes);
 
 // Hai dòng này phải nằm CUỐI CÙNG
 app.use(notFound);

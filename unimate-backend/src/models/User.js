@@ -66,6 +66,23 @@ const userSchema = new mongoose.Schema(
       isPremium: { type: Boolean, default: false },
       premiumPlan: { type: String, enum: ["monthly", "yearly", "lifetime", null], default: null },
       premiumExpiresAt: { type: Date, default: null },
+      // === UniCoin System ===
+      lastDailyCheckin: { type: Date, default: null },
+      checkinStreak: { type: Number, default: 0 },
+      dailyEarned: { type: Number, default: 0 },
+      lastEarnDate: { type: Date, default: null },
+      venueCheckinsToday: [{
+        venueId: { type: String },
+        venueName: { type: String },
+        date: { type: Date },
+        coinEarned: { type: Number },
+      }],
+      coinLog: [{
+        type: { type: String },
+        amount: { type: Number },
+        description: { type: String },
+        createdAt: { type: Date, default: Date.now },
+      }],
       location: {
         type: {
           type: String,

@@ -438,9 +438,13 @@ export default function UserProfile() {
               <div style={{ fontSize: '22px', fontWeight: '900', color: '#FF5722' }}>98%</div>
               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Tín nhiệm SV</div>
             </div>
-            <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#F59E0B' }}>450</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>UniCoin</div>
+            <div
+              onClick={() => navigate('/user/unicoin')}
+              style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center', cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
+              title="Nhấn để xem Điểm UniCoin & Điểm danh"
+            >
+              <div style={{ fontSize: '22px', fontWeight: '900', color: '#F59E0B' }}>{user?.uniCoin ?? 0}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>UniCoin ⭐</div>
             </div>
             <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
               <div style={{ fontSize: '22px', fontWeight: '900', color: '#6366F1' }}>12</div>

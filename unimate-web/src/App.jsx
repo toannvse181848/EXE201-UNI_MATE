@@ -23,6 +23,7 @@ import UserVenues from './pages/user/UserVenues';
 import UserVouchers from './pages/user/UserVouchers';
 import UserMessages from './pages/user/UserMessages';
 import UserProfile from './pages/user/UserProfile';
+import UserUniCoin from './pages/user/UserUniCoin';
 
 // Partner Pages
 import Dashboard from './pages/partner/Dashboard';
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="discover" element={<UserDiscover />} />
             <Route path="venues" element={<UserVenues />} />
             <Route path="vouchers" element={<UserVouchers />} />
+            <Route path="unicoin" element={<UserUniCoin />} />
             <Route path="messages" element={<UserMessages />} />
             <Route path="profile" element={<UserProfile />} />
           </Route>

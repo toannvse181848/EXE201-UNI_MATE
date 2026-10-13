@@ -133,7 +133,11 @@ export default function UserVouchers() {
             padding: '12px 20px',
             borderRadius: '16px',
             border: '1.5px solid #FDE68A',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
           }}
+          onClick={() => navigate('/user/unicoin')}
+          title="Nhấn để xem Điểm UniCoin & Điểm danh nhận thưởng"
         >
           <div
             style={{
@@ -151,10 +155,10 @@ export default function UserVouchers() {
           </div>
           <div>
             <div style={{ fontSize: '11px', color: '#B45309', fontWeight: '700', textTransform: 'uppercase' }}>
-              Số dư UniCoin của bạn
+              Số dư UniCoin của bạn (Nhấn để kiếm thêm)
             </div>
             <div style={{ fontSize: '20px', fontWeight: '900', color: '#92400E' }}>
-              {user?.uniCoin || 450} UniCoin
+              {user?.uniCoin ?? 0} UniCoin
             </div>
           </div>
         </div>

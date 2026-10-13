@@ -287,6 +287,22 @@ export const userApi = {
   },
 };
 
+// === UNICOIN API ===
+export const coinApi = {
+  getStatus: async () => {
+    const res = await client.get('/api/coins/status');
+    return res.data;
+  },
+  dailyCheckin: async () => {
+    const res = await client.post('/api/coins/daily-checkin');
+    return res.data;
+  },
+  venueCheckin: async (venueId, venueName) => {
+    const res = await client.post('/api/coins/venue-checkin', { venueId, venueName });
+    return res.data;
+  },
+};
+
 // === ADMIN API ===
 export const adminApi = {
   getStats: async () => {
