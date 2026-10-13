@@ -73,7 +73,7 @@ async function seedData() {
       status: 'active',
       isProfileCompleted: true,
       phone: '0981234567',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      avatar: 'https://res.cloudinary.com/xzjfoa0p/image/upload/v1791901630/unimate/defaults/default_avatar.png',
       studentProfile: {
         studentId: 'SE181848',
         university: 'Đại học FPT TP.HCM',
@@ -85,7 +85,8 @@ async function seedData() {
         objectives: ['study_buddy', 'project'],
         uniCoin: 450,
         trustScore: 98,
-        isVerifiedStudent: true,
+        isVerifiedStudent: false,
+        isPremium: false,
       },
     });
 
@@ -110,6 +111,8 @@ async function seedData() {
         uniCoin: 380,
         trustScore: 97,
         isVerifiedStudent: true,
+        isPremium: true,
+        premiumPlan: 'yearly',
       },
     });
 
@@ -133,7 +136,8 @@ async function seedData() {
         objectives: ['networking', 'study_buddy'],
         uniCoin: 520,
         trustScore: 94,
-        isVerifiedStudent: true,
+        isVerifiedStudent: false,
+        isPremium: false,
       },
     });
 
@@ -157,7 +161,8 @@ async function seedData() {
         objectives: ['project', 'study_buddy'],
         uniCoin: 300,
         trustScore: 96,
-        isVerifiedStudent: true,
+        isVerifiedStudent: false,
+        isPremium: false,
       },
     });
 

@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
+const DEFAULT_STUDENT_AVATAR = 'https://res.cloudinary.com/xzjfoa0p/image/upload/v1791901630/unimate/defaults/default_avatar.png';
+
 const userSchema = new mongoose.Schema(
   {
     email: {
@@ -31,7 +33,7 @@ const userSchema = new mongoose.Schema(
       default: "user",
     },
     fullName: { type: String, required: true, trim: true },
-    avatar: { type: String, default: null },
+    avatar: { type: String, default: DEFAULT_STUDENT_AVATAR },
     phone: { type: String, default: null },
 
     status: {
@@ -60,7 +62,10 @@ const userSchema = new mongoose.Schema(
       // =========================================
       uniCoin: { type: Number, default: 200 },
       trustScore: { type: Number, default: 95 },
-      isVerifiedStudent: { type: Boolean, default: true },
+      isVerifiedStudent: { type: Boolean, default: false },
+      isPremium: { type: Boolean, default: false },
+      premiumPlan: { type: String, enum: ["monthly", "yearly", "lifetime", null], default: null },
+      premiumExpiresAt: { type: Date, default: null },
       location: {
         type: {
           type: String,
@@ -111,10 +116,11 @@ userSchema.methods.toPublicJSON = function () {
     role: normalizedRole,
     originalRole: this.role,
     avatar:
-      this.avatar ||
-      (normalizedRole === 'partner'
-        ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200'
-        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'),
+      (this.avatar && !this.avatar.includes('photo-1534528741775-53994a69daeb'))
+        ? this.avatar
+        : (normalizedRole === 'partner'
+            ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=200'
+            : DEFAULT_STUDENT_AVATAR),
     phone: this.phone,
     status: this.status,
     isProfileCompleted: this.isProfileCompleted,
@@ -132,7 +138,11 @@ userSchema.methods.toPublicJSON = function () {
     onboardingCompleted: this.studentProfile?.onboardingCompleted ?? false,
     uniCoin: this.studentProfile?.uniCoin ?? 200,
     trustScore: this.studentProfile?.trustScore ?? 95,
-    isVerifiedStudent: this.studentProfile?.isVerifiedStudent ?? true,
+    isPremium: Boolean(this.studentProfile?.isPremium),
+    premiumPlan: this.studentProfile?.premiumPlan || null,
+    premiumExpiresAt: this.studentProfile?.premiumExpiresAt || null,
+    // Tài khoản được xác thực tích xanh khi và chỉ khi là Premium hoặc isVerifiedStudent là true
+    isVerifiedStudent: Boolean(this.studentProfile?.isPremium || this.studentProfile?.isVerifiedStudent),
     // Nested objects
     studentProfile: (this.role === "student" || this.role === "user") ? this.studentProfile : undefined,
     partnerProfile: this.role === "partner" ? this.partnerProfile : undefined,

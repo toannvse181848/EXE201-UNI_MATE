@@ -143,6 +143,7 @@ export default function ChatScreen() {
         buddyId: conv.buddy?.id || conv.buddy?._id,
         buddyName: conv.buddy?.fullName,
         buddyAvatar: conv.buddy?.avatar || '',
+        isVerifiedStudent: Boolean(conv.buddy?.isVerifiedStudent || conv.buddy?.isPremium),
       },
     });
   };
@@ -167,7 +168,9 @@ export default function ChatScreen() {
           <View style={styles.chatTopLine}>
             <View style={styles.nameVerifiedRow}>
               <Text style={styles.chatName}>{item.buddy?.fullName}</Text>
-              <Ionicons name="checkmark-circle" size={14} color="#0284C7" />
+              {Boolean(item.buddy?.isVerifiedStudent || item.buddy?.isPremium) && (
+                <Ionicons name="checkmark-circle" size={14} color="#0284C7" />
+              )}
             </View>
             <Text style={styles.chatTime}>
               {lastMsg ? formatTime(lastMsg.createdAt) : formatTime(item.matchedAt)}

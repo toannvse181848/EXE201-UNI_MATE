@@ -17,6 +17,7 @@ import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { MAJORS, UNIVERSITIES } from '../../src/constants/academic';
 import { useAuth } from '../../src/context/AuthContext';
+import { getAvatarUrl, DEFAULT_AVATAR } from '../../src/constants/avatar';
 
 const PURPOSES = [
   { id: 'study', label: 'Tìm bạn học bài', icon: 'book-outline', emoji: '📚' },
@@ -41,7 +42,7 @@ export default function CreateProfileScreen() {
   const [bio, setBio] = useState(user?.bio || '');
 
   const [selectedPurposes, setSelectedPurposes] = useState(['study', 'cafe']);
-  const [avatarUri, setAvatarUri] = useState(user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500');
+  const [avatarUri, setAvatarUri] = useState(getAvatarUrl(user?.avatar));
 
   const togglePurpose = (id) => {
     if (selectedPurposes.includes(id)) {

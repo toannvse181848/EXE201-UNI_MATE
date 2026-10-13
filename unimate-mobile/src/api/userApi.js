@@ -29,4 +29,8 @@ export const userApi = {
 
   // Cập nhật hồ sơ của chính mình (fullName, university, major, bio...)
   updateMe: (data) => client.put('/api/users/me', data),
+
+  // Nâng cấp gói Premium để nhận tích xanh xác thực
+  buyPremium: (data = { plan: 'monthly', paymentMethod: 'coin' }) =>
+    client.post('/api/users/premium/buy', data),
 };

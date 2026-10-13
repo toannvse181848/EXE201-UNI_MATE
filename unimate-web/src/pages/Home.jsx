@@ -32,6 +32,7 @@ import {
   KeyRound,
   X,
 } from 'lucide-react';
+import { getAvatarUrl, DEFAULT_AVATAR } from '../constants/avatar';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -160,7 +161,7 @@ export default function Home() {
                   }}
                 >
                   <img
-                    src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                    src={getAvatarUrl(user.avatar)}
                     alt={user.name}
                     style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                   />
@@ -454,7 +455,7 @@ export default function Home() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingTop: '10px' }}>
               <div style={{ display: 'flex', marginLeft: '8px' }}>
                 {[
-                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+                  DEFAULT_AVATAR,
                   'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100',
                   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
                   'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
@@ -1317,7 +1318,7 @@ export default function Home() {
               {
                 name: 'Trần Minh Thư',
                 school: 'ĐH Kinh Tế TP.HCM (UEH)',
-                avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+                avatar: DEFAULT_AVATAR,
                 review: 'Nhờ UNI-MATE mà mình đã tìm được bạn học nhóm môn Kinh tế vi mô. Ứng dụng lọc quán cafe có ổ cắm điện rất chuẩn xác, không còn sợ laptop hết pin giữa chừng!',
               },
               {

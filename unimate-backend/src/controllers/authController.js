@@ -46,7 +46,8 @@ exports.registerStudent = catchAsync(async (req, res) => {
       interests: req.body.interests || ['Kết nối bạn học', 'Cà phê học bài', 'Boardgame'],
       uniCoin: 250,
       trustScore: 95,
-      isVerifiedStudent: true,
+      isVerifiedStudent: false,
+      isPremium: false,
     },
   });
 

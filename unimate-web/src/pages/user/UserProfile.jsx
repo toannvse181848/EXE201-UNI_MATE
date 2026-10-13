@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { userApi, authApi } from '../../services/api';
+import { getAvatarUrl } from '../../constants/avatar';
 import {
   GraduationCap,
   ShieldCheck,
@@ -23,12 +24,15 @@ import {
   EyeOff,
   KeyRound,
   CheckCircle,
+  Crown,
+  X,
+  Zap,
 } from 'lucide-react';
 
 import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
 
 export default function UserProfile() {
-  const { user, setUser, updateUser } = useAuth();
+  const { user, setUser, updateUser, upgradePremium } = useAuth();
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || '');
@@ -37,6 +41,12 @@ export default function UserProfile() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarNotice, setAvatarNotice] = useState(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // === Premium Upgrade Modal State ===
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState('monthly');
+  const [upgrading, setUpgrading] = useState(false);
+  const [premiumNotice, setPremiumNotice] = useState(null);
 
   // === Change Password State ===
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -212,23 +222,50 @@ export default function UserProfile() {
                 </span>
               </div>
 
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: 'rgba(45, 212, 191, 0.2)',
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  color: '#FFB74D',
-                  border: '1px solid rgba(45, 212, 191, 0.4)',
-                }}
-              >
-                <CheckCircle2 size={12} />
-                <span>XÁC THỰC BỞI TRƯỜNG</span>
-              </div>
+              {user?.isVerifiedStudent ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#0284C7',
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    color: '#FFFFFF',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
+                  }}
+                >
+                  <CheckCircle2 size={13} color="#FFFFFF" />
+                  <span>PREMIUM • TÍCH XANH XÁC THỰC</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowPremiumModal(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#FF5722',
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 10px rgba(255, 87, 34, 0.4)',
+                    transition: 'transform 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                  <Sparkles size={13} color="#FFD54F" />
+                  <span>NÂNG CẤP PREMIUM NHẬN TÍCH XANH</span>
+                </button>
+              )}
             </div>
 
             {/* Student Info & Photo */}
@@ -236,7 +273,7 @@ export default function UserProfile() {
               {/* Avatar with Upload button badge */}
               <div style={{ position: 'relative' }}>
                 <img
-                  src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
+                  src={getAvatarUrl(user?.avatar)}
                   alt="Avatar"
                   style={{
                     width: '80px',
@@ -293,8 +330,13 @@ export default function UserProfile() {
               </div>
 
               <div>
-                <div style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '-0.3px' }}>
-                  {user?.name || user?.fullName || 'Sinh viên'}
+                <div style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '-0.3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{user?.name || user?.fullName || 'Sinh viên'}</span>
+                  {user?.isVerifiedStudent && (
+                    <span title="Tài khoản Premium (Đã xác minh tích xanh)">
+                      <CheckCircle2 size={18} color="#38BDF8" fill="#0284C7" />
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: '13px', color: '#FFCC80', marginTop: '2px' }}>
                   MSSV: <strong>{user?.studentId || '—'}</strong>
@@ -741,7 +783,381 @@ export default function UserProfile() {
         )}
       </div>
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      {/* ============================================================== */}
+      {/* MODAL NÂNG CẤP PREMIUM NHẬN TÍCH XANH                          */}
+      {/* ============================================================== */}
+      {showPremiumModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !upgrading) {
+              setShowPremiumModal(false);
+              setPremiumNotice(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '24px',
+              maxWidth: '520px',
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              position: 'relative',
+              animation: 'slideUp 0.25s ease-out',
+            }}
+          >
+            {/* Header Gradient */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #FF6F00 0%, #FF3D00 50%, #D84315 100%)',
+                padding: '28px 24px 20px',
+                color: '#FFFFFF',
+                position: 'relative',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (!upgrading) {
+                    setShowPremiumModal(false);
+                    setPremiumNotice(null);
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+              >
+                <X size={18} />
+              </button>
+
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '11px',
+                  fontWeight: '800',
+                  letterSpacing: '0.5px',
+                  marginBottom: '10px',
+                }}
+              >
+                <Crown size={13} color="#FFD54F" />
+                <span>ĐẶC QUYỀN HỘI VIÊN UNI-MATE</span>
+              </div>
+
+              <h3 style={{ fontSize: '22px', fontWeight: '900', margin: '0 0 6px', color: '#FFFFFF' }}>
+                Nâng Cấp Premium & Nhận Tích Xanh
+              </h3>
+              <p style={{ margin: 0, fontSize: '13px', color: '#FFE0B2', lineHeight: '1.4' }}>
+                Xác thực danh tính chính chủ và mở khoá trải nghiệm kết nối bạn học không giới hạn.
+              </p>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              {/* Notice */}
+              {premiumNotice && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    marginBottom: '18px',
+                    backgroundColor: premiumNotice.type === 'error' ? '#FEF2F2' : '#F0FDF4',
+                    border: `1px solid ${premiumNotice.type === 'error' ? '#FCA5A5' : '#86EFAC'}`,
+                  }}
+                >
+                  {premiumNotice.type === 'error' ? (
+                    <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0 }} />
+                  ) : (
+                    <CheckCircle size={18} color="#22C55E" style={{ flexShrink: 0 }} />
+                  )}
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: premiumNotice.type === 'error' ? '#B91C1C' : '#15803D',
+                    }}
+                  >
+                    {premiumNotice.text}
+                  </span>
+                </div>
+              )}
+
+              {/* Benefits list */}
+              <div
+                style={{
+                  backgroundColor: '#F8FAFC',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  marginBottom: '20px',
+                  border: '1px solid #E2E8F0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <CheckCircle2 size={15} color="#0284C7" />
+                  </div>
+                  <div>
+                    <strong>Tích xanh xác thực chính chủ:</strong> Tăng uy tín và 3x tỷ lệ phản hồi kết nối.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Zap size={14} color="#D97706" />
+                  </div>
+                  <div>
+                    <strong>Ưu tiên gợi ý ghép đôi:</strong> Hồ sơ xuất hiện hàng đầu trong trang Khám phá.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Coffee size={14} color="#15803D" />
+                  </div>
+                  <div>
+                    <strong>Ưu đãi Cafe đối tác:</strong> Nhận voucher giảm giá độc quyền đến 50%.
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
+                {/* Monthly */}
+                <div
+                  onClick={() => setSelectedPlan('monthly')}
+                  style={{
+                    border: `2px solid ${selectedPlan === 'monthly' ? '#FF5722' : '#E2E8F0'}`,
+                    backgroundColor: selectedPlan === 'monthly' ? '#FFF7ED' : '#FFFFFF',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'monthly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
+                    GÓI THÁNG (30 NGÀY)
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
+                    100 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                    Hoặc 49.000 VNĐ
+                  </div>
+                </div>
+
+                {/* Yearly */}
+                <div
+                  onClick={() => setSelectedPlan('yearly')}
+                  style={{
+                    border: `2px solid ${selectedPlan === 'yearly' ? '#FF5722' : '#E2E8F0'}`,
+                    backgroundColor: selectedPlan === 'yearly' ? '#FFF7ED' : '#FFFFFF',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    position: 'relative',
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '-10px',
+                      right: '10px',
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                    }}
+                  >
+                    TIẾT KIỆM 30%
+                  </span>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'yearly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
+                    GÓI NĂM (365 NGÀY)
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
+                    800 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                    Hoặc 399.000 VNĐ
+                  </div>
+                </div>
+              </div>
+
+              {/* Wallet info */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  backgroundColor: '#FFFBEB',
+                  borderRadius: '12px',
+                  marginBottom: '20px',
+                  border: '1px solid #FDE68A',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#92400E' }}>
+                  <Coins size={16} color="#D97706" />
+                  <span>Số dư UniCoin hiện có:</span>
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: '800', color: '#B45309' }}>
+                  {user?.uniCoin ?? 0} UniCoin
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button
+                  type="button"
+                  disabled={upgrading}
+                  onClick={async () => {
+                    const cost = selectedPlan === 'yearly' ? 800 : 100;
+                    if ((user?.uniCoin || 0) < cost) {
+                      setPremiumNotice({
+                        type: 'error',
+                        text: `Bạn không đủ UniCoin (cần ${cost} Coin, hiện có ${user?.uniCoin || 0} Coin). Bạn có thể đổi điểm hoặc thanh toán trực tiếp.`,
+                      });
+                      return;
+                    }
+                    try {
+                      setUpgrading(true);
+                      setPremiumNotice(null);
+                      const res = await upgradePremium(selectedPlan, 'coin');
+                      setPremiumNotice({
+                        type: 'success',
+                        text: res.message || 'Nâng cấp Premium thành công! Tài khoản đã được cấp tích xanh.',
+                      });
+                      setTimeout(() => {
+                        setShowPremiumModal(false);
+                        setPremiumNotice(null);
+                      }, 1800);
+                    } catch (err) {
+                      setPremiumNotice({ type: 'error', text: err.message || 'Có lỗi xảy ra.' });
+                    } finally {
+                      setUpgrading(false);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: '14px',
+                    border: 'none',
+                    backgroundColor: '#FF5722',
+                    color: '#FFFFFF',
+                    fontSize: '15px',
+                    fontWeight: '800',
+                    cursor: upgrading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(255, 87, 34, 0.4)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {upgrading ? (
+                    <>
+                      <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                      Đang xử lý nâng cấp...
+                    </>
+                  ) : (
+                    <>
+                      <Crown size={18} color="#FFD54F" />
+                      Kích hoạt ngay bằng {selectedPlan === 'yearly' ? '800' : '100'} UniCoin
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={upgrading}
+                  onClick={async () => {
+                    try {
+                      setUpgrading(true);
+                      setPremiumNotice(null);
+                      const res = await upgradePremium(selectedPlan, 'direct');
+                      setPremiumNotice({
+                        type: 'success',
+                        text: res.message || 'Thanh toán thành công! Tài khoản đã được cấp tích xanh.',
+                      });
+                      setTimeout(() => {
+                        setShowPremiumModal(false);
+                        setPremiumNotice(null);
+                      }, 1800);
+                    } catch (err) {
+                      setPremiumNotice({ type: 'error', text: err.message || 'Có lỗi xảy ra.' });
+                    } finally {
+                      setUpgrading(false);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '14px',
+                    border: '1.5px solid #E2E8F0',
+                    backgroundColor: '#FFFFFF',
+                    color: '#475569',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: upgrading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  Thanh toán qua Ví điện tử / Thẻ ({selectedPlan === 'yearly' ? '399.000đ' : '49.000đ'})
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import logoIcon from '../assets/logo-icon.png';
 import { useAuth } from '../context/AuthContext';
 import { chatApi, voucherApi } from '../services/api';
+import { getAvatarUrl } from '../constants/avatar';
 import {
   Compass,
   Coffee,
@@ -163,13 +164,18 @@ export default function UserLayout() {
           <div style={{ padding: '12px 14px', backgroundColor: 'rgba(20, 184, 166, 0.12)', borderRadius: '12px', border: '1px solid rgba(45, 212, 191, 0.25)', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
               <img
-                src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
+                src={getAvatarUrl(user?.avatar)}
                 alt="Avatar"
-                style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF8A50' }}
+                style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: user?.isVerifiedStudent ? '2px solid #38BDF8' : '2px solid #FF8A50' }}
               />
-              <span style={{ position: 'absolute', bottom: '-2px', right: '-2px', backgroundColor: '#10B981', color: '#fff', borderRadius: '50%', padding: '2px', display: 'flex' }}>
-                <CheckCircle2 size={12} />
-              </span>
+              {user?.isVerifiedStudent && (
+                <span
+                  title="Tài khoản Premium (Tích xanh xác thực)"
+                  style={{ position: 'absolute', bottom: '-2px', right: '-2px', backgroundColor: '#0284C7', color: '#fff', borderRadius: '50%', padding: '2px', display: 'flex', boxShadow: '0 0 6px rgba(2, 132, 199, 0.6)' }}
+                >
+                  <CheckCircle2 size={12} />
+                </span>
+              )}
             </div>
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '13px', fontWeight: '700', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -269,13 +275,49 @@ export default function UserLayout() {
               <Sparkles size={14} color="#FF5722" />
               <span>{user?.university || 'Đại học FPT TP.HCM'}</span>
             </div>
-            <div
-              className="header-btn-hide-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: '#E64A19', backgroundColor: '#ECFDF5', padding: '5px 12px', borderRadius: '16px', whiteSpace: 'nowrap' }}
-            >
-              <CheckCircle2 size={13} color="#FF5722" />
-              <span>Đã xác minh</span>
-            </div>
+            {user?.isVerifiedStudent ? (
+              <div
+                className="header-btn-hide-sm"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: '#0284C7',
+                  backgroundColor: '#E0F2FE',
+                  border: '1px solid #BAE6FD',
+                  padding: '5px 12px',
+                  borderRadius: '16px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <CheckCircle2 size={13} color="#0284C7" />
+                <span>Premium Tích Xanh</span>
+              </div>
+            ) : (
+              <div
+                className="header-btn-hide-sm"
+                onClick={() => navigate('/user/profile')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: '#64748B',
+                  backgroundColor: '#F1F5F9',
+                  border: '1px dashed #CBD5E1',
+                  padding: '5px 12px',
+                  borderRadius: '16px',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                }}
+                title="Bấm để nâng cấp Premium nhận tích xanh"
+              >
+                <span>Chưa có tích xanh • Nâng cấp</span>
+              </div>
+            )}
           </div>
 
           {/* Right: UniCoin + Avatar */}
@@ -292,7 +334,7 @@ export default function UserLayout() {
             </div>
             <NavLink to="/user/profile">
               <img
-                src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
+                src={getAvatarUrl(user?.avatar)}
                 alt="Avatar"
                 style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF5722', display: 'block' }}
               />

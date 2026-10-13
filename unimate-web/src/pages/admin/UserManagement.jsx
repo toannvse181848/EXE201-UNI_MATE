@@ -14,6 +14,7 @@ import {
   Mail,
   Phone,
   Calendar,
+  Crown,
 } from 'lucide-react';
 import { userApi } from '../../services/api';
 
@@ -72,6 +73,34 @@ export default function UserManagement() {
       setToast({
         type: 'error',
         text: err.response?.data?.message || 'Có lỗi xảy ra',
+      });
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const handleTogglePremium = async (user) => {
+    const isPrem = Boolean(user.studentProfile?.isPremium || user.studentProfile?.isVerifiedStudent);
+    const newPremium = !isPrem;
+    const confirmMsg = newPremium
+      ? `CẤP gói Premium & Tích xanh cho tài khoản "${user.fullName}"?`
+      : `THU HỒI gói Premium & Tích xanh của tài khoản "${user.fullName}"?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setActionLoading(`prem_${user._id}`);
+      await userApi.toggleUserPremium(user._id, newPremium, 'yearly');
+      setToast({
+        type: 'success',
+        text: `Đã ${newPremium ? 'cấp' : 'thu hồi'} gói Premium & Tích xanh thành công!`,
+      });
+      fetchUsers();
+    } catch (err) {
+      setToast({
+        type: 'error',
+        text: err.response?.data?.message || err.message || 'Có lỗi xảy ra',
       });
     } finally {
       setActionLoading(null);
@@ -308,8 +337,43 @@ export default function UserManagement() {
                       <td style={{ padding: '16px 20px' }}>
                         {isStudent && (
                           <div>
-                            <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                              {u.studentProfile?.university || 'Chưa cập nhật trường'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                                {u.studentProfile?.university || 'Chưa cập nhật trường'}
+                              </span>
+                              {Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    backgroundColor: '#E0F2FE',
+                                    color: '#0284C7',
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    fontSize: '11px',
+                                    fontWeight: '800',
+                                  }}
+                                  title="Tài khoản Premium (Tích xanh)"
+                                >
+                                  <CheckCircle2 size={11} color="#0284C7" /> Tích Xanh
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    backgroundColor: '#F1F5F9',
+                                    color: '#64748B',
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                  }}
+                                >
+                                  Thường
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                               {u.studentProfile?.major || 'Chưa cập nhật ngành'}
@@ -362,32 +426,63 @@ export default function UserManagement() {
 
                       {/* Actions */}
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                        {u.role !== 'admin' && (
-                          <button
-                            onClick={() => handleToggleStatus(u)}
-                            disabled={actionLoading === u._id}
-                            style={{
-                              padding: '6px 14px',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              border: 'none',
-                              backgroundColor: isBanned ? '#10B981' : '#FEE2E2',
-                              color: isBanned ? '#fff' : '#DC2626',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                            }}
-                          >
-                            {isBanned ? <ShieldCheck size={14} /> : <Ban size={14} />}
-                            {actionLoading === u._id
-                              ? 'Đang xử lý...'
-                              : isBanned
-                              ? 'Mở khoá'
-                              : 'Khoá tài khoản'}
-                          </button>
-                        )}
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                          {isStudent && (
+                            <button
+                              onClick={() => handleTogglePremium(u)}
+                              disabled={actionLoading === `prem_${u._id}`}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                border: '1px solid',
+                                borderColor: Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#BAE6FD' : '#FED7AA',
+                                backgroundColor: Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#F0F9FF' : '#FFF7ED',
+                                color: Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#0369A1' : '#C2410C',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                              }}
+                              title={Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? 'Bấm để thu hồi Premium & Tích xanh' : 'Bấm để cấp Premium & Tích xanh'}
+                            >
+                              <Crown size={13} color={Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#0284C7' : '#EA580C'} />
+                              {actionLoading === `prem_${u._id}`
+                                ? '...'
+                                : Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent)
+                                ? 'Thu hồi Tích xanh'
+                                : 'Cấp Tích xanh'}
+                            </button>
+                          )}
+
+                          {u.role !== 'admin' && (
+                            <button
+                              onClick={() => handleToggleStatus(u)}
+                              disabled={actionLoading === u._id}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                border: 'none',
+                                backgroundColor: isBanned ? '#10B981' : '#FEE2E2',
+                                color: isBanned ? '#fff' : '#DC2626',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              {isBanned ? <ShieldCheck size={14} /> : <Ban size={14} />}
+                              {actionLoading === u._id
+                                ? 'Đang xử lý...'
+                                : isBanned
+                                ? 'Mở khoá'
+                                : 'Khoá tài khoản'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

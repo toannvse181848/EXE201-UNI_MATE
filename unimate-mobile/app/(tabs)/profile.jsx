@@ -143,6 +143,43 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleUpgradePremium = () => {
+    Alert.alert(
+      'Nâng cấp Premium nhận Tích Xanh',
+      'Đặc quyền thành viên:\n✓ Tích xanh xác thực uy tín bên cạnh tên\n✓ Ưu tiên hiển thị top khi tìm bạn học\n✓ Voucher cafe đối tác độc quyền tới 50%\n\nChọn gói nâng cấp:',
+      [
+        {
+          text: 'Gói 1 Tháng (100 Coin)',
+          onPress: async () => {
+            try {
+              const res = await userApi.buyPremium({ plan: 'monthly', paymentMethod: 'coin' });
+              if (res.data?.data?.user) updateUser(res.data.data.user);
+              Alert.alert('Thành công', 'Chúc mừng bạn đã nâng cấp Premium và nhận tích xanh xác thực!');
+            } catch (err) {
+              Alert.alert('Thông báo', err.response?.data?.message || err.message || 'Không thể nâng cấp');
+            }
+          },
+        },
+        {
+          text: 'Gói 1 Năm (800 Coin)',
+          onPress: async () => {
+            try {
+              const res = await userApi.buyPremium({ plan: 'yearly', paymentMethod: 'coin' });
+              if (res.data?.data?.user) updateUser(res.data.data.user);
+              Alert.alert('Thành công', 'Chúc mừng bạn đã nâng cấp Premium 1 Năm và nhận tích xanh xác thực!');
+            } catch (err) {
+              Alert.alert('Thông báo', err.response?.data?.message || err.message || 'Không thể nâng cấp');
+            }
+          },
+        },
+        {
+          text: 'Đóng',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   const handleChangePassword = async () => {
     const errs = {};
     if (!currentPw) errs.current = 'Vui lòng nhập mật khẩu hiện tại';
@@ -307,6 +344,13 @@ export default function ProfileScreen() {
 
         {/* Menu Section */}
         <View style={styles.menuCard}>
+          <MenuItem
+            icon={user?.isVerifiedStudent ? "checkmark-circle" : "star-outline"}
+            label={user?.isVerifiedStudent ? "Hội viên Premium (Đã có tích xanh)" : "Nâng cấp Premium nhận Tích Xanh"}
+            sublabel={user?.isVerifiedStudent ? "Tài khoản của bạn đã được xác thực chính chủ" : "Nhận tích xanh uy tín & ưu tiên kết nối bạn học"}
+            onPress={handleUpgradePremium}
+          />
+          <View style={styles.menuDivider} />
           <MenuItem
             icon="ticket-outline"
             label="Voucher của tôi"

@@ -115,7 +115,7 @@ const updateAvatar = catchAsync(async (req, res) => {
   // URL dạng .../image/upload/v123/unimate/avatars/abc.jpg → public_id = unimate/avatars/abc
   const oldAvatar = req.user.avatar;
   const publicIdMatch = oldAvatar?.match(/\/upload\/(?:v\d+\/)?(unimate\/.+)\.[^./]+$/);
-  if (publicIdMatch) {
+  if (publicIdMatch && !publicIdMatch[1].startsWith('unimate/defaults/')) {
     try {
       await cloudinary.uploader.destroy(publicIdMatch[1]);
     } catch {
@@ -177,10 +177,84 @@ const updateMe = catchAsync(async (req, res) => {
   });
 });
 
+// POST /api/users/premium/buy — Mua / Nâng cấp gói Premium để nhận tích xanh xác thực
+const buyPremium = catchAsync(async (req, res) => {
+  const user = req.user;
+  const { plan = 'monthly', paymentMethod = 'coin' } = req.body;
+
+  if (!['monthly', 'yearly'].includes(plan)) {
+    throw new ApiError(400, 'Gói Premium không hợp lệ. Vui lòng chọn gói theo tháng (monthly) hoặc theo năm (yearly).');
+  }
+
+  const coinCost = plan === 'yearly' ? 800 : 100;
+  const durationDays = plan === 'yearly' ? 365 : 30;
+
+  if (paymentMethod === 'coin') {
+    const currentCoins = user.studentProfile?.uniCoin ?? 0;
+    if (currentCoins < coinCost) {
+      throw new ApiError(
+        400,
+        `Bạn không đủ UniCoin để nâng cấp gói này. Cần ${coinCost} UniCoin nhưng bạn hiện có ${currentCoins} UniCoin.`
+      );
+    }
+    user.studentProfile.uniCoin = currentCoins - coinCost;
+  }
+
+  // Cấp Premium và Tích xanh xác thực
+  if (!user.studentProfile) user.studentProfile = {};
+  user.studentProfile.isPremium = true;
+  user.studentProfile.isVerifiedStudent = true;
+  user.studentProfile.premiumPlan = plan;
+  user.studentProfile.premiumExpiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Chúc mừng bạn đã nâng cấp thành công gói Premium (${plan === 'yearly' ? '1 Năm' : '1 Tháng'})! Tài khoản đã được cấp tích xanh xác thực.`,
+    data: {
+      user: user.toPublicJSON(),
+    },
+  });
+});
+
+// PATCH /api/users/:id/premium — Admin cấp hoặc thu hồi Premium / Tích xanh
+const toggleUserPremium = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const { isPremium, plan = 'monthly' } = req.body;
+
+  const targetUser = await User.findById(id);
+  if (!targetUser) throw new ApiError(404, 'Không tìm thấy người dùng');
+
+  if (!targetUser.studentProfile) targetUser.studentProfile = {};
+
+  const grant = Boolean(isPremium);
+  targetUser.studentProfile.isPremium = grant;
+  targetUser.studentProfile.isVerifiedStudent = grant;
+  targetUser.studentProfile.premiumPlan = grant ? plan : null;
+  targetUser.studentProfile.premiumExpiresAt = grant
+    ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    : null;
+
+  await targetUser.save();
+
+  res.status(200).json({
+    success: true,
+    message: grant
+      ? 'Đã cấp gói Premium & Tích xanh cho người dùng'
+      : 'Đã huỷ gói Premium & Tích xanh của người dùng',
+    data: {
+      user: targetUser.toPublicJSON(),
+    },
+  });
+});
+
 module.exports = {
   getSuggestedStudents,
   getAllUsers,
   updateUserStatus,
   updateAvatar,
   updateMe,
+  buyPremium,
+  toggleUserPremium,
 };

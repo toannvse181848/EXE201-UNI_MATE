@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../src/constants/colors';
 import { Button } from '../src/components/Button';
 import { useAuth } from '../src/context/AuthContext';
+import { getAvatarUrl } from '../src/constants/avatar';
 
 const { width } = Dimensions.get('window');
 
@@ -23,8 +24,8 @@ export default function MatchScreen() {
   const { user } = useAuth();
 
   const matchedName = params.matchedName || 'Lê Phương Thảo';
-  const matchedPhoto = params.matchedPhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800';
-  const userPhoto = user?.avatarUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800';
+  const matchedPhoto = getAvatarUrl(params.matchedPhoto || null);
+  const userPhoto = getAvatarUrl(user?.avatar || null);
 
   const handleSelectPlace = () => {
     router.push({

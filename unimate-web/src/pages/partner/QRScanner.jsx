@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
+import { getAvatarUrl } from '../../constants/avatar';
 
 export default function QRScanner() {
   const [inputCode, setInputCode] = useState('');
@@ -71,7 +72,7 @@ export default function QRScanner() {
         studentSchool: student
           ? [student.university, student.studentId && `MSSV: ${student.studentId}`].filter(Boolean).join(' · ')
           : 'Mã voucher chung của quán',
-        studentAvatar: student?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+        studentAvatar: getAvatarUrl(student?.avatar),
         venue: found.venueName || 'Cửa hàng đối tác',
         expiry: found.validUntil ? new Date(found.validUntil).toLocaleDateString('vi-VN') : 'Còn hạn sử dụng',
       });

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
-import { authApi } from '../services/api';
+import { authApi, userApi } from '../services/api';
+import { getAvatarUrl } from '../constants/avatar';
 
 const AuthContext = createContext();
 
@@ -27,7 +28,18 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
     const saved = localStorage.getItem('unimate_portal_user');
-    return saved ? JSON.parse(saved) : null;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed) {
+          parsed.avatar = getAvatarUrl(parsed.avatar);
+          return parsed;
+        }
+      } catch {
+        return null;
+      }
+    }
+    return null;
   });
 
   const login = async (email, password, role = 'user') => {
@@ -50,7 +62,7 @@ export const AuthProvider = ({ children }) => {
       name: dbUser.fullName,
       email: dbUser.email,
       role: normalizedRole,
-      avatar: dbUser.avatar || null,
+      avatar: getAvatarUrl(dbUser.avatar),
       studentId: dbUser.studentId || dbUser.studentProfile?.studentId || '',
       university: dbUser.university || dbUser.studentProfile?.university || '',
       major: dbUser.major || dbUser.studentProfile?.major || '',
@@ -58,7 +70,15 @@ export const AuthProvider = ({ children }) => {
       businessName: dbUser.partnerProfile?.businessName || '',
       status: dbUser.status || 'active',
       uniCoin: dbUser.uniCoin || 0,
-      isVerifiedStudent: dbUser.isVerifiedStudent || false,
+      isPremium: Boolean(dbUser.isPremium || dbUser.studentProfile?.isPremium),
+      premiumPlan: dbUser.premiumPlan || dbUser.studentProfile?.premiumPlan || null,
+      premiumExpiresAt: dbUser.premiumExpiresAt || dbUser.studentProfile?.premiumExpiresAt || null,
+      isVerifiedStudent: Boolean(
+        dbUser.isPremium ||
+        dbUser.isVerifiedStudent ||
+        dbUser.studentProfile?.isPremium ||
+        dbUser.studentProfile?.isVerifiedStudent
+      ),
       trustScore: dbUser.trustScore || 0,
       interests: dbUser.studentProfile?.interests || [],
       bio: dbUser.studentProfile?.bio || '',
@@ -99,7 +119,7 @@ export const AuthProvider = ({ children }) => {
       name: dbUser.fullName,
       email: dbUser.email,
       role: normalizedRole,
-      avatar: dbUser.avatar || null,
+      avatar: getAvatarUrl(dbUser.avatar),
       studentId: userData.studentId || dbUser.studentProfile?.studentId || '',
       university: userData.university || dbUser.studentProfile?.university || '',
       major: userData.major || dbUser.studentProfile?.major || '',
@@ -124,13 +144,26 @@ export const AuthProvider = ({ children }) => {
 
   // Cập nhật thông tin user sau khi onboarding / chỉnh sửa hồ sơ
   const updateUser = (newData) => {
-    const merged = { ...user, ...newData };
+    const formattedData = { ...newData };
+    if (formattedData.avatar) {
+      formattedData.avatar = getAvatarUrl(formattedData.avatar);
+    }
+    const merged = { ...user, ...formattedData };
     setUser(merged);
     localStorage.setItem('unimate_portal_user', JSON.stringify(merged));
   };
 
+  // Nâng cấp tài khoản Premium để nhận tích xanh xác thực
+  const upgradePremium = async (plan = 'monthly', paymentMethod = 'coin') => {
+    const res = await userApi.buyPremium({ plan, paymentMethod });
+    if (res?.data?.user) {
+      updateUser(res.data.user);
+    }
+    return res;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, setUser, updateUser }}>
+    <AuthContext.Provider value={{ user, login, register, logout, setUser, updateUser, upgradePremium }}>
       {children}
     </AuthContext.Provider>
   );

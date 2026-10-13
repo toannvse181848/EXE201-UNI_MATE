@@ -14,6 +14,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
+import { getAvatarUrl } from '../constants/avatar';
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
@@ -222,7 +223,7 @@ export default function AdminLayout() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '12px', borderLeft: '1px solid var(--border-color)' }}>
               <img
-                src={user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100'}
+                src={getAvatarUrl(user?.avatar)}
                 alt="Admin"
                 style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
               />

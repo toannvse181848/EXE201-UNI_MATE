@@ -6,12 +6,17 @@ const {
   updateUserStatus,
   updateAvatar,
   updateMe,
+  buyPremium,
+  toggleUserPremium,
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middlewares/auth');
 const { uploadAvatar } = require('../config/cloudinary');
 
 // Yêu cầu đăng nhập
 router.use(protect);
+
+// Mua gói Premium (cấp tích xanh xác thực)
+router.post('/premium/buy', buyPremium);
 
 // Cập nhật hồ sơ & avatar (mọi user đã đăng nhập)
 router.put('/me', updateMe);
@@ -23,5 +28,6 @@ router.get('/students', getSuggestedStudents);
 // Admin quản trị toàn bộ danh sách người dùng
 router.get('/all', authorize('admin'), getAllUsers);
 router.patch('/:id/status', authorize('admin'), updateUserStatus);
+router.patch('/:id/premium', authorize('admin'), toggleUserPremium);
 
 module.exports = router;

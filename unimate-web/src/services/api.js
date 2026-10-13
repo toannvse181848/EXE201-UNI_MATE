@@ -275,6 +275,16 @@ export const userApi = {
     const res = await client.put('/api/users/me', data);
     return res.data;
   },
+  // Nâng cấp / Mua gói Premium để nhận tích xanh xác thực
+  buyPremium: async (data = { plan: 'monthly', paymentMethod: 'coin' }) => {
+    const res = await client.post('/api/users/premium/buy', data);
+    return res.data;
+  },
+  // Admin cấp / thu hồi Premium và Tích xanh
+  toggleUserPremium: async (userId, isPremium, plan = 'monthly') => {
+    const res = await client.patch(`/api/users/${userId}/premium`, { isPremium, plan });
+    return res.data;
+  },
 };
 
 // === ADMIN API ===

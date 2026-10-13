@@ -14,6 +14,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
+import { getAvatarUrl } from '../constants/avatar';
 
 export default function PartnerLayout() {
   const { user, logout } = useAuth();
@@ -198,7 +199,7 @@ export default function PartnerLayout() {
             {/* Profile Avatar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '12px', borderLeft: '1px solid var(--border-color)' }}>
               <img
-                src={user?.avatar || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=100'}
+                src={getAvatarUrl(user?.avatar)}
                 alt={user?.name}
                 style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }}
               />

@@ -25,6 +25,7 @@ import {
 import { Link } from 'react-router-dom';
 import { chatApi, matchApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { getAvatarUrl } from '../../constants/avatar';
 
 // Helper format thời gian tin nhắn
 const formatTime = (dateStr) => {
@@ -701,10 +702,7 @@ export default function UserMessages() {
                     >
                       <div style={{ position: 'relative' }}>
                         <img
-                          src={
-                            chat.buddy?.avatar ||
-                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
-                          }
+                          src={getAvatarUrl(chat.buddy?.avatar)}
                           alt={chat.buddy?.fullName}
                           style={{
                             width: '46px',
@@ -753,7 +751,9 @@ export default function UserMessages() {
                             >
                               {chat.buddy?.fullName}
                             </span>
-                            <CheckCircle2 size={13} color="#0284C7" />
+                            {Boolean(chat.buddy?.isVerifiedStudent || chat.buddy?.isPremium) && (
+                              <CheckCircle2 size={13} color="#0284C7" />
+                            )}
                           </div>
                           <span
                             style={{
@@ -892,10 +892,7 @@ export default function UserMessages() {
                       }}
                     >
                       <img
-                        src={
-                          item.buddy?.avatar ||
-                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
-                        }
+                        src={getAvatarUrl(item.buddy?.avatar)}
                         alt={item.buddy?.fullName}
                         style={{
                           width: '46px',
@@ -1039,10 +1036,7 @@ export default function UserMessages() {
                       }}
                     >
                       <img
-                        src={
-                          item.buddy?.avatar ||
-                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
-                        }
+                        src={getAvatarUrl(item.buddy?.avatar)}
                         alt={item.buddy?.fullName}
                         style={{
                           width: '44px',
@@ -1141,10 +1135,7 @@ export default function UserMessages() {
 
               <div style={{ position: 'relative' }}>
                 <img
-                  src={
-                    activeConversation.buddy?.avatar ||
-                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
-                  }
+                  src={getAvatarUrl(activeConversation.buddy?.avatar)}
                   alt={activeConversation.buddy?.fullName}
                   style={{
                     width: '44px',
@@ -1185,7 +1176,9 @@ export default function UserMessages() {
                   >
                     {activeConversation.buddy?.fullName}
                   </span>
-                  <CheckCircle2 size={15} color="#0284C7" />
+                  {Boolean(activeConversation.buddy?.isVerifiedStudent || activeConversation.buddy?.isPremium) && (
+                    <CheckCircle2 size={15} color="#0284C7" />
+                  )}
                 </div>
                 <div
                   style={{
@@ -1361,11 +1354,7 @@ export default function UserMessages() {
                   >
                     {!isMe && (
                       <img
-                        src={
-                          msg.sender?.avatar ||
-                          activeConversation.buddy?.avatar ||
-                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
-                        }
+                        src={getAvatarUrl(msg.sender?.avatar || activeConversation.buddy?.avatar)}
                         alt="Avatar"
                         style={{
                           width: '28px',

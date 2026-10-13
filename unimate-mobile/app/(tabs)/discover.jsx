@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../src/constants/colors';
 import { matchApi } from '../../src/api/matchApi';
 import { formatStudentYear } from '../../src/constants/academic';
+import { getAvatarUrl } from '../../src/constants/avatar';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,13 +34,15 @@ export default function DiscoverScreen() {
   const normalizeProfile = (user) => ({
     id: user._id,
     name: user.fullName,
-    photo: user.avatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800`,
+    photo: getAvatarUrl(user.avatar),
     university: user.studentProfile?.university || 'Đại học',
     major: user.studentProfile?.major || 'Sinh viên',
     year: user.studentProfile?.year,
     bio: user.studentProfile?.bio || 'Đang tìm bạn học cùng ☕',
     tags: (user.commonTags?.length > 0 ? user.commonTags : user.studentProfile?.interests || []).slice(0, 4).map((i) => `#${i}`),
     commonTags: user.commonTags || [],
+    isVerifiedStudent: Boolean(user.studentProfile?.isVerifiedStudent || user.studentProfile?.isPremium || user.isVerifiedStudent || user.isPremium),
+    isPremium: Boolean(user.studentProfile?.isPremium || user.isPremium),
     matchScore: user.matchPercentage || Math.floor(Math.random() * 15) + 82,
     distance: `${(Math.random() * 3.5 + 0.5).toFixed(1)} km`,
     purpose: user.studentProfile?.objectives?.[0] === 'study_buddy'
@@ -162,7 +165,9 @@ export default function DiscoverScreen() {
                 <Text style={styles.nameText}>
                   {currentProfile.name}, {currentProfile.age}
                 </Text>
-                <Ionicons name="checkmark-circle" size={20} color="#38BDF8" />
+                {currentProfile.isVerifiedStudent && (
+                  <Ionicons name="checkmark-circle" size={20} color="#38BDF8" />
+                )}
               </View>
 
               <Text style={styles.subInfoText}>

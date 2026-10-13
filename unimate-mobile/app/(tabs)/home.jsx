@@ -18,6 +18,7 @@ import { userApi } from '../../src/api/userApi';
 import { useVenues } from '../../src/hooks/useVenues';
 import { chatApi } from '../../src/api/chatApi';
 import { formatStudentYear } from '../../src/constants/academic';
+import { getAvatarUrl, DEFAULT_AVATAR } from '../../src/constants/avatar';
 
 const QUICK_ACTIONS = [
   {
@@ -98,9 +99,9 @@ export default function HomeScreen() {
       s.studentProfile?.year ? formatStudentYear(s.studentProfile.year) : null,
     ].filter(Boolean).join(' • ') || 'Đại học',
     major: s.studentProfile?.major || '',
-    avatar: s.avatar || (idx % 2 === 0
-      ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'
-      : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'),
+    avatar: s.avatar
+      ? getAvatarUrl(s.avatar)
+      : (idx % 2 === 0 ? DEFAULT_AVATAR : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'),
     score: `${s.studentProfile?.trustScore || 95}% Hợp`,
   }));
 

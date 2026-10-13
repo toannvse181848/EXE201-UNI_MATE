@@ -191,7 +191,9 @@ export default function ChatRoomScreen() {
               <Text style={styles.headerName} numberOfLines={1}>
                 {buddyName}
               </Text>
-              <Ionicons name="checkmark-circle" size={14} color="#0284C7" />
+              {(params.isVerifiedStudent === 'true' || params.isVerifiedStudent === true) && (
+                <Ionicons name="checkmark-circle" size={14} color="#0284C7" />
+              )}
             </View>
             <Text style={[styles.headerStatus, !isBuddyOnline && { color: '#94A3B8' }]}>{getPresenceText()}</Text>
           </View>

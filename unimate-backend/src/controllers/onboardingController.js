@@ -87,7 +87,8 @@ const getRecommendations = catchAsync(async (req, res) => {
     interests: them.studentProfile?.interests || [],
     studyHabits: them.studentProfile?.studyHabits,
     trustScore: them.studentProfile?.trustScore ?? 95,
-    isVerifiedStudent: them.studentProfile?.isVerifiedStudent ?? true,
+    isPremium: Boolean(them.studentProfile?.isPremium),
+    isVerifiedStudent: Boolean(them.studentProfile?.isPremium || them.studentProfile?.isVerifiedStudent),
     matchPercentage: computeMatchScore(me, them),
     commonTags: commonInterests(
       me.studentProfile?.interests || [],
