@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Ticket,
@@ -14,6 +15,7 @@ import {
 import { voucherApi } from '../../services/api';
 
 export default function UserVouchers() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('my_vouchers');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
@@ -213,14 +215,14 @@ export default function UserVouchers() {
       {loading && (
         <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
           <Loader2 size={36} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
-          <p>Dang tai voucher...</p>
+          <p>Đang tải voucher...</p>
         </div>
       )}
       {!loading && error && (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <AlertCircle size={36} color="#EF4444" style={{ margin: '0 auto 12px' }} />
-          <p style={{ color: '#EF4444', marginBottom: '16px' }}>Khong the tai voucher: {error}</p>
-          <button onClick={fetchData} style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#FF5722', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>Thu lai</button>
+          <p style={{ color: '#EF4444', marginBottom: '16px' }}>Không thể tải voucher: {error}</p>
+          <button onClick={fetchData} style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#FF5722', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>Thử lại</button>
         </div>
       )}
       {/* Tab 1: My Vouchers */}
@@ -228,8 +230,8 @@ export default function UserVouchers() {
         myVouchers.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
             <Ticket size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
-            <p style={{ fontSize: '16px', fontWeight: '700' }}>Ban chua co voucher nao</p>
-            <button onClick={() => setActiveTab('rewards')} style={{ marginTop: '16px', padding: '10px 20px', borderRadius: '10px', backgroundColor: '#FF5722', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>Xem uu dai</button>
+            <p style={{ fontSize: '16px', fontWeight: '700' }}>Bạn chưa có voucher nào</p>
+            <button onClick={() => setActiveTab('rewards')} style={{ marginTop: '16px', padding: '10px 20px', borderRadius: '10px', backgroundColor: '#FF5722', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>Xem ưu đãi</button>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
