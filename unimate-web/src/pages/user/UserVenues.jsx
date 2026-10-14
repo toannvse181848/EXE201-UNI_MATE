@@ -88,10 +88,6 @@ export default function UserVenues() {
             priceRange: v.priceRange
               ? `${v.priceRange.min?.toLocaleString('vi-VN')}đ - ${v.priceRange.max?.toLocaleString('vi-VN')}đ`
               : '35.000đ - 55.000đ',
-            amenities:
-              v.amenities && Array.isArray(v.amenities) && v.amenities.length > 0
-                ? v.amenities
-                : ['Wifi tốc độ cao', 'Ổ cắm điện', 'Máy lạnh 24/7'],
             tags: v.tags?.length > 0 ? v.tags : ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
             hours: v.openingHours || v.openHours || '07:00 - 23:00',
             voucher: voucherByVenue[v._id]?.title || null,
@@ -380,7 +376,7 @@ export default function UserVenues() {
                 </div>
 
                 {/* Tags */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '14px' }}>
                   {venue.tags.map((tag, i) => (
                     <span
                       key={i}
@@ -394,25 +390,6 @@ export default function UserVenues() {
                       }}
                     >
                       {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Amenities */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
-                  {venue.amenities.map((item) => (
-                    <span
-                      key={item}
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        backgroundColor: '#F1F5F9',
-                        color: '#475569',
-                      }}
-                    >
-                      {item}
                     </span>
                   ))}
                 </div>
