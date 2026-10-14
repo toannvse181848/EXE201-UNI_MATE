@@ -3,6 +3,17 @@ const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { cloudinary, getUploadedFileUrl } = require('../config/cloudinary');
 const { escapeRegex } = require('../middlewares/security');
+const { getPlan, resolvePlanId } = require('../config/plans');
+const { activatePlan, canBuyPlan } = require('../utils/subscription');
+const {
+  maskEmail,
+  maskName,
+  maskPhone,
+  formatDateTime,
+  buildWorkbook,
+  sendXlsx,
+  datedFilename,
+} = require('../utils/excelExport');
 
 
 // Sinh viên: Lấy danh sách bạn học gợi ý (loại trừ chính mình)
@@ -177,43 +188,68 @@ const updateMe = catchAsync(async (req, res) => {
   });
 });
 
-// POST /api/users/premium/buy — Mua / Nâng cấp gói Premium để nhận tích xanh xác thực
+// POST /api/users/premium/buy — Đổi UniCoin lấy gói Premium (cấp tích xanh xác thực)
+// Mua bằng tiền thật đi qua luồng đơn hàng: POST /api/orders
 const buyPremium = catchAsync(async (req, res) => {
-  const user = req.user;
   const { plan = 'monthly', paymentMethod = 'coin' } = req.body;
 
-  if (!['monthly', 'yearly'].includes(plan)) {
+  if (paymentMethod !== 'coin') {
+    throw new ApiError(
+      400,
+      'Thanh toán bằng tiền cần tạo đơn hàng và chuyển khoản qua mã QR (POST /api/orders). API này chỉ dùng để đổi UniCoin.'
+    );
+  }
+
+  const planId = resolvePlanId(plan);
+  const planInfo = getPlan(planId);
+  if (!planInfo || planInfo.role !== 'student') {
     throw new ApiError(400, 'Gói Premium không hợp lệ. Vui lòng chọn gói theo tháng (monthly) hoặc theo năm (yearly).');
   }
-
-  const coinCost = plan === 'yearly' ? 800 : 100;
-  const durationDays = plan === 'yearly' ? 365 : 30;
-
-  if (paymentMethod === 'coin') {
-    const currentCoins = user.studentProfile?.uniCoin ?? 0;
-    if (currentCoins < coinCost) {
-      throw new ApiError(
-        400,
-        `Bạn không đủ UniCoin để nâng cấp gói này. Cần ${coinCost} UniCoin nhưng bạn hiện có ${currentCoins} UniCoin.`
-      );
-    }
-    user.studentProfile.uniCoin = currentCoins - coinCost;
+  if (planInfo.coinPrice == null) {
+    throw new ApiError(400, 'Gói này không hỗ trợ đổi bằng UniCoin');
+  }
+  if (!canBuyPlan(req.user, planId)) {
+    throw new ApiError(403, 'Chỉ tài khoản sinh viên mới nâng cấp được Premium');
   }
 
-  // Cấp Premium và Tích xanh xác thực
-  if (!user.studentProfile) user.studentProfile = {};
-  user.studentProfile.isPremium = true;
-  user.studentProfile.isVerifiedStudent = true;
-  user.studentProfile.premiumPlan = plan;
-  user.studentProfile.premiumExpiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+  const coinCost = planInfo.coinPrice;
 
-  await user.save();
+  // Trừ coin có điều kiện để 2 request cùng lúc không trừ âm số dư
+  const deducted = await User.findOneAndUpdate(
+    { _id: req.user._id, 'studentProfile.uniCoin': { $gte: coinCost } },
+    {
+      $inc: { 'studentProfile.uniCoin': -coinCost },
+      $push: {
+        'studentProfile.coinLog': {
+          $each: [{
+            type: 'premium_purchase',
+            amount: -coinCost,
+            description: `Đổi ${planInfo.name}`,
+            createdAt: new Date(),
+          }],
+          $slice: -100,
+        },
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!deducted) {
+    const currentCoins = req.user.studentProfile?.uniCoin ?? 0;
+    throw new ApiError(
+      400,
+      `Bạn không đủ UniCoin để nâng cấp gói này. Cần ${coinCost} UniCoin nhưng bạn hiện có ${currentCoins} UniCoin.`
+    );
+  }
+
+  activatePlan(deducted, planId);
+  await deducted.save({ validateBeforeSave: false });
 
   res.status(200).json({
     success: true,
-    message: `Chúc mừng bạn đã nâng cấp thành công gói Premium (${plan === 'yearly' ? '1 Năm' : '1 Tháng'})! Tài khoản đã được cấp tích xanh xác thực.`,
+    message: `Chúc mừng bạn đã nâng cấp thành công gói Premium (${planId === 'premium_yearly' ? '1 Năm' : '1 Tháng'})! Tài khoản đã được cấp tích xanh xác thực.`,
     data: {
-      user: user.toPublicJSON(),
+      user: deducted.toPublicJSON(),
     },
   });
 });
@@ -229,12 +265,15 @@ const toggleUserPremium = catchAsync(async (req, res) => {
   if (!targetUser.studentProfile) targetUser.studentProfile = {};
 
   const grant = Boolean(isPremium);
-  targetUser.studentProfile.isPremium = grant;
-  targetUser.studentProfile.isVerifiedStudent = grant;
-  targetUser.studentProfile.premiumPlan = grant ? plan : null;
-  targetUser.studentProfile.premiumExpiresAt = grant
-    ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    : null;
+  if (grant) {
+    if (!getPlan(plan)) throw new ApiError(400, 'Gói Premium không hợp lệ');
+    activatePlan(targetUser, plan);
+  } else {
+    targetUser.studentProfile.isPremium = false;
+    targetUser.studentProfile.isVerifiedStudent = false;
+    targetUser.studentProfile.premiumPlan = null;
+    targetUser.studentProfile.premiumExpiresAt = null;
+  }
 
   await targetUser.save();
 
@@ -249,6 +288,48 @@ const toggleUserPremium = catchAsync(async (req, res) => {
   });
 });
 
+// GET /api/users/admin/export — Admin xuất Excel danh sách người dùng (minh chứng người dùng)
+const exportUsers = catchAsync(async (req, res) => {
+  const filter = {};
+  if (req.query.role) filter.role = req.query.role === 'student' ? { $in: ['student', 'user'] } : req.query.role;
+
+  const users = await User.find(filter).sort({ createdAt: 1 });
+
+  const ROLE_LABEL = { student: 'Sinh viên', user: 'Sinh viên', partner: 'Đối tác', admin: 'Quản trị' };
+  const STATUS_LABEL = { active: 'Hoạt động', pending: 'Chờ duyệt', suspended: 'Bị khoá' };
+
+  const rows = users.map((u, i) => {
+    const pub = u.toPublicJSON();
+    return {
+      stt: i + 1,
+      fullName: maskName(u.fullName),
+      email: maskEmail(u.email),
+      phone: maskPhone(u.phone),
+      role: ROLE_LABEL[u.role] || u.role,
+      university: u.studentProfile?.university || (u.role === 'partner' ? u.partnerProfile?.businessName || '' : ''),
+      premium: pub.isPremium ? 'Có' : '',
+      status: STATUS_LABEL[u.status] || u.status,
+      createdAt: formatDateTime(u.createdAt),
+      lastActiveAt: formatDateTime(u.lastActiveAt),
+    };
+  });
+
+  const buffer = buildWorkbook('Nguoi_dung', [
+    { header: 'STT', key: 'stt', width: 6 },
+    { header: 'Họ tên', key: 'fullName', width: 22 },
+    { header: 'Email', key: 'email', width: 28 },
+    { header: 'Số điện thoại', key: 'phone', width: 14 },
+    { header: 'Vai trò', key: 'role', width: 12 },
+    { header: 'Trường / Tên quán', key: 'university', width: 28 },
+    { header: 'Premium', key: 'premium', width: 9 },
+    { header: 'Trạng thái', key: 'status', width: 12 },
+    { header: 'Ngày đăng ký', key: 'createdAt', width: 20 },
+    { header: 'Hoạt động gần nhất', key: 'lastActiveAt', width: 20 },
+  ], rows);
+
+  sendXlsx(res, buffer, datedFilename('unimate_nguoi_dung'));
+});
+
 module.exports = {
   getSuggestedStudents,
   getAllUsers,
@@ -257,4 +338,5 @@ module.exports = {
   updateMe,
   buyPremium,
   toggleUserPremium,
+  exportUsers,
 };

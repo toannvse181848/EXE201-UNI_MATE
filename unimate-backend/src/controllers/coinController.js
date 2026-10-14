@@ -1,6 +1,20 @@
 const User = require('../models/User');
+const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const {
+  MAX_DAILY_EARN,
+  getEarnedToday: _getEarnedToday,
+  updateDailyEarned: _updateDailyEarned,
+  addCoinLog: _addCoinLog,
+} = require('../utils/coinService');
+const {
+  CHECKIN_RADIUS_METERS,
+  parseQrContent,
+  secretMatches,
+  hasRealCoordinates,
+  distanceMeters,
+} = require('../utils/venueCheckin');
 
 /**
  * Thiết kế cơ chế UniCoin — chống lạm phát, duy trì engagement:
@@ -27,7 +41,6 @@ const STREAK_BONUS_3 = 5;
 const STREAK_BONUS_7 = 15;
 const VENUE_CHECKIN_COIN = 20;
 const MAX_VENUE_CHECKINS_PER_DAY = 2;
-const MAX_DAILY_EARN = 60;
 
 // GET /api/coins/status — trạng thái coin + lịch sử check-in
 const getCoinStatus = catchAsync(async (req, res) => {
@@ -153,10 +166,37 @@ const dailyCheckin = catchAsync(async (req, res) => {
   });
 });
 
-// POST /api/coins/venue-checkin — quét QR quán cafe nhận điểm
+// POST /api/coins/venue-checkin — quét QR dán tại quán cafe nhận điểm
+// Body: { qrContent: "UNIMATE-CHECKIN:<venueId>:<secret>", lat, lng }
 const venueCheckin = catchAsync(async (req, res) => {
-  const { venueId, venueName } = req.body;
-  if (!venueId) throw new ApiError(400, 'Thiếu thông tin quán cafe (venueId)');
+  const parsedQr = parseQrContent(req.body.qrContent);
+  if (!parsedQr) {
+    throw new ApiError(400, 'Mã QR không hợp lệ. Vui lòng quét mã QR check-in dán tại quán 📷');
+  }
+
+  const venue = await Venue.findById(parsedQr.venueId).select('+checkinSecret name location status');
+  if (!venue || venue.status !== 'approved') throw new ApiError(404, 'Không tìm thấy quán cafe này');
+  if (!secretMatches(venue.checkinSecret, parsedQr.secret)) {
+    throw new ApiError(400, 'Mã QR đã hết hiệu lực. Vui lòng quét mã QR mới tại quán');
+  }
+
+  // Quán đã có toạ độ thật thì bắt buộc sinh viên phải đứng gần quán
+  let distance = null;
+  if (hasRealCoordinates(venue)) {
+    const lat = Number(req.body.lat);
+    const lng = Number(req.body.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new ApiError(400, 'Vui lòng bật định vị (GPS) để check-in tại quán 📍');
+    }
+    const [venueLng, venueLat] = venue.location.coordinates;
+    distance = Math.round(distanceMeters(lat, lng, venueLat, venueLng));
+    if (distance > CHECKIN_RADIUS_METERS) {
+      throw new ApiError(400, `Bạn đang cách quán khoảng ${distance}m. Hãy đến quán để check-in nhé ☕`);
+    }
+  }
+
+  const venueId = venue._id.toString();
+  const venueName = venue.name;
 
   const user = await User.findById(req.user._id);
   if (!user) throw new ApiError(404, 'Không tìm thấy người dùng');
@@ -222,37 +262,16 @@ const venueCheckin = catchAsync(async (req, res) => {
     data: {
       coinEarned,
       uniCoin: user.studentProfile.uniCoin,
-      venueCheckinsToday: user.studentProfile.venueCheckinsToday.filter(vc => {
+      venueName,
+      // false = quán chưa có toạ độ thật nên chưa kiểm tra được vị trí
+      locationVerified: distance !== null,
+      distanceMeters: distance,
+      venueCheckinsToday:user.studentProfile.venueCheckinsToday.filter(vc => {
         const d = new Date(vc.date); d.setHours(0, 0, 0, 0);
         return d.getTime() === today.getTime();
       }).length,
     },
   });
 });
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function _getEarnedToday(profile) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const lastEarnDate = profile.lastEarnDate ? new Date(profile.lastEarnDate) : null;
-  const lastEarnDay = lastEarnDate ? new Date(new Date(lastEarnDate).setHours(0, 0, 0, 0)) : null;
-  return lastEarnDay && lastEarnDay.getTime() === today.getTime() ? (profile.dailyEarned || 0) : 0;
-}
-
-function _updateDailyEarned(profile, amount) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const currentEarned = _getEarnedToday(profile);
-  profile.dailyEarned = currentEarned + amount;
-  profile.lastEarnDate = new Date();
-}
-
-function _addCoinLog(profile, entry) {
-  if (!Array.isArray(profile.coinLog)) profile.coinLog = [];
-  profile.coinLog.push({ ...entry, createdAt: new Date() });
-  // Giữ tối đa 100 giao dịch gần nhất
-  if (profile.coinLog.length > 100) {
-    profile.coinLog = profile.coinLog.slice(-100);
-  }
-}
 
 module.exports = { getCoinStatus, dailyCheckin, venueCheckin };

@@ -89,6 +89,12 @@ const venueSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Secret in trong mã QR check-in dán tại quán (xem utils/venueCheckin.js)
+    checkinSecret: {
+      type: String,
+      default: null,
+      select: false,
+    },
   },
   { timestamps: true }
 );

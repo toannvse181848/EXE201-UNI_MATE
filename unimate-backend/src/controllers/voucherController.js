@@ -2,6 +2,13 @@ const Voucher = require('../models/Voucher');
 const UserVoucher = require('../models/UserVoucher');
 const Venue = require('../models/Venue');
 const Redemption = require('../models/Redemption');
+const VoucherCode = require('../models/VoucherCode');
+const User = require('../models/User');
+const { earnCoins } = require('../utils/coinService');
+const XLSX = require('xlsx');
+
+// UniCoin thưởng cho sinh viên khi quán xác nhận dùng voucher tại quầy
+const VOUCHER_REDEEM_COIN = 20;
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const crypto = require('crypto');
@@ -22,7 +29,7 @@ const getPublicVouchers = catchAsync(async (req, res) => {
   const filter = {
     isActive: true,
     validUntil: { $gte: new Date() },
-    quantity: { $gt: 0 },
+    $or: [{ isUnlimited: true }, { quantity: { $gt: 0 } }],
   };
 
   if (venueId) filter.venueId = venueId;
@@ -48,26 +55,93 @@ const claimVoucher = catchAsync(async (req, res) => {
   if (!voucher) throw new ApiError(404, 'Không tìm thấy voucher');
   if (!voucher.isActive) throw new ApiError(400, 'Voucher đã bị tạm ngưng');
   if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn');
-  if (voucher.usedCount >= voucher.quantity) throw new ApiError(400, 'Voucher đã hết số lượng');
+  if (voucher.codeType === 'shared' && !voucher.isUnlimited && voucher.usedCount >= voucher.quantity) {
+    throw new ApiError(400, 'Voucher đã hết số lượng');
+  }
 
   // Kiểm tra đã claim chưa
   const existing = await UserVoucher.findOne({ userId, voucherId });
   if (existing) throw new ApiError(400, 'Bạn đã lưu voucher này vào ví rồi');
 
+  const coinCost = voucher.coinCost || 0;
+  if (coinCost > 0 && (req.user.studentProfile?.uniCoin ?? 0) < coinCost) {
+    throw new ApiError(400, `Bạn cần ${coinCost} UniCoin để đổi voucher này`);
+  }
+
+  // Voucher mã riêng: giữ trước 1 mã còn trống cho sinh viên
+  let reservedCode = null;
+  if (voucher.codeType === 'unique') {
+    reservedCode = await VoucherCode.findOneAndUpdate(
+      { voucherId: voucher._id, userId: null },
+      { userId, assignedAt: new Date() },
+      { returnDocument: 'after', sort: { _id: 1 } }
+    );
+    if (!reservedCode) throw new ApiError(400, 'Voucher đã được phát hết mã');
+  }
+
+  const releaseReservedCode = async () => {
+    if (reservedCode) {
+      await VoucherCode.updateOne(
+        { _id: reservedCode._id },
+        { userId: null, userVoucherId: null, assignedAt: null }
+      );
+    }
+  };
+
   // Tạo QR payload ngẫu nhiên để đối soát
   const qrPayload = `UVM-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
 
-  const userVoucher = await UserVoucher.create({
-    userId,
-    voucherId,
-    qrPayload,
-  });
+  let userVoucher;
+  try {
+    userVoucher = await UserVoucher.create({
+      userId,
+      voucherId,
+      qrPayload,
+      assignedCode: reservedCode?.code || null,
+    });
+  } catch (err) {
+    await releaseReservedCode();
+    if (err.code === 11000) throw new ApiError(400, 'Bạn đã lưu voucher này vào ví rồi');
+    throw err;
+  }
 
-  const populated = await userVoucher.populate('voucherId', 'title code discountPercent discountAmount validUntil minBill');
+  if (reservedCode) {
+    await VoucherCode.updateOne({ _id: reservedCode._id }, { userVoucherId: userVoucher._id });
+  }
+
+  // Trừ UniCoin có điều kiện để không bị âm khi bấm đổi nhiều lần cùng lúc
+  if (coinCost > 0) {
+    const paid = await User.updateOne(
+      { _id: userId, 'studentProfile.uniCoin': { $gte: coinCost } },
+      {
+        $inc: { 'studentProfile.uniCoin': -coinCost },
+        $push: {
+          'studentProfile.coinLog': {
+            $each: [{
+              type: 'voucher_exchange',
+              amount: -coinCost,
+              description: `Đổi voucher "${voucher.title}"`,
+              createdAt: new Date(),
+            }],
+            $slice: -100,
+          },
+        },
+      }
+    );
+    if (paid.modifiedCount === 0) {
+      await UserVoucher.deleteOne({ _id: userVoucher._id });
+      await releaseReservedCode();
+      throw new ApiError(400, `Bạn cần ${coinCost} UniCoin để đổi voucher này`);
+    }
+  }
+
+  const populated = await userVoucher.populate('voucherId', 'title code codeType discountPercent discountAmount validUntil minBill coinCost');
 
   res.status(201).json({
     success: true,
-    message: 'Đã lưu voucher vào ví thành công!',
+    message: coinCost > 0
+      ? `Đã đổi ${coinCost} UniCoin lấy voucher thành công!`
+      : 'Đã lưu voucher vào ví thành công!',
     data: populated,
   });
 });
@@ -79,7 +153,7 @@ const getMyWallet = catchAsync(async (req, res) => {
   const wallet = await UserVoucher.find({ userId })
     .populate({
       path: 'voucherId',
-      select: 'title code discountPercent discountAmount validUntil minBill terms isActive',
+      select: 'title code codeType discountPercent discountAmount validUntil minBill terms isActive',
       populate: { path: 'venueId', select: 'name address image' },
     })
     .sort({ claimedAt: -1 });
@@ -89,6 +163,8 @@ const getMyWallet = catchAsync(async (req, res) => {
   const expiredIds = [];
   const enriched = wallet.map((uv) => {
     const obj = uv.toObject();
+    // Mã sinh viên đọc cho thu ngân: mã riêng nếu có, không thì mã chung của quán
+    obj.displayCode = obj.assignedCode || obj.voucherId?.code || null;
     if (
       obj.status === 'saved' &&
       obj.voucherId?.validUntil &&
@@ -136,6 +212,21 @@ const findRedeemTarget = async (req) => {
   let voucher;
   let userVoucher = null;
 
+  // Thu ngân gõ mã riêng của voucher loại "unique" → tìm ra voucher trong ví sinh viên được gán mã đó
+  if (!qrPayload && code) {
+    const isSharedCode = await Voucher.exists({ code });
+    if (!isSharedCode) {
+      const voucherCode = await VoucherCode.findOne({ code });
+      if (voucherCode) {
+        if (!voucherCode.userVoucherId) throw new ApiError(400, 'Mã này chưa được phát cho sinh viên nào');
+        const owned = await UserVoucher.findById(voucherCode.userVoucherId).select('qrPayload');
+        if (!owned) throw new ApiError(404, 'Không tìm thấy voucher trong ví sinh viên');
+        qrPayload = owned.qrPayload;
+        code = '';
+      }
+    }
+  }
+
   if (qrPayload) {
     userVoucher = await UserVoucher.findOne({ qrPayload }).populate(
       'userId',
@@ -150,7 +241,12 @@ const findRedeemTarget = async (req) => {
   } else {
     voucher = await Voucher.findOne({ code }).populate('venueId', 'name address');
     if (!voucher) throw new ApiError(404, 'Mã voucher không tồn tại');
-    if (voucher.usedCount >= voucher.quantity) throw new ApiError(400, 'Voucher đã hết số lượng');
+    if (voucher.codeType === 'unique') {
+      throw new ApiError(400, 'Đây là mã chiến dịch. Vui lòng nhập mã riêng hoặc mã UVM-... trong ví của sinh viên');
+    }
+    if (!voucher.isUnlimited && voucher.usedCount >= voucher.quantity) {
+      throw new ApiError(400, 'Voucher đã hết số lượng');
+    }
   }
 
   if (req.user.role !== 'admin' && voucher.partnerId.toString() !== req.user._id.toString()) {
@@ -190,7 +286,9 @@ const verifyVoucher = catchAsync(async (req, res) => {
       minBill: voucher.minBill,
       validUntil: voucher.validUntil,
       venueName: voucher.venueId?.name || null,
-      remainingCount: voucher.quantity - voucher.usedCount,
+      assignedCode: userVoucher?.assignedCode || null,
+      // null = không giới hạn lượt
+      remainingCount: voucher.isUnlimited ? null : voucher.quantity - voucher.usedCount,
       student: toStudentInfo(userVoucher?.userId),
     },
   });
@@ -207,6 +305,8 @@ const redeemVoucher = catchAsync(async (req, res) => {
       { status: 'used', usedAt: new Date() }
     );
     if (!marked) throw new ApiError(400, 'Voucher này đã được sử dụng');
+    await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } });
+  } else if (voucher.isUnlimited) {
     await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } });
   } else {
     const updated = await Voucher.updateOne(
@@ -226,10 +326,24 @@ const redeemVoucher = catchAsync(async (req, res) => {
     method: userVoucher ? 'qr' : 'code',
   });
 
+  // Quán đã xác nhận sinh viên dùng voucher tại quầy → thưởng UniCoin (vẫn tính trong giới hạn ngày)
+  let coinAwarded = 0;
+  if (userVoucher?.userId?._id) {
+    const student = await User.findById(userVoucher.userId._id);
+    if (student) {
+      coinAwarded = earnCoins(student, VOUCHER_REDEEM_COIN, {
+        type: 'voucher_redeem',
+        description: `Dùng voucher tại ${voucher.venueId?.name || 'quán đối tác'} ☕`,
+      });
+      if (coinAwarded > 0) await student.save({ validateBeforeSave: false });
+    }
+  }
+
   res.status(200).json({
     success: true,
     message: 'Đối soát & áp dụng voucher thành công! 🎉',
     data: {
+      coinAwarded,
       id: redemption._id,
       code: voucher.code,
       title: voucher.title,
@@ -237,7 +351,7 @@ const redeemVoucher = catchAsync(async (req, res) => {
       discountAmount: voucher.discountAmount,
       venueName: voucher.venueId?.name,
       student: userVoucher?.userId?.fullName || null,
-      remainingCount: voucher.quantity - voucher.usedCount - 1,
+      remainingCount: voucher.isUnlimited ? null : voucher.quantity - voucher.usedCount - 1,
       redeemedAt: redemption.createdAt,
     },
   });
@@ -353,12 +467,18 @@ const createVoucher = catchAsync(async (req, res) => {
     parsedDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
   }
 
+  const isUnique = req.body.codeType === 'unique';
   const voucher = await Voucher.create({
     ...req.body,
     venueId: venue._id,
     validUntil: parsedDate,
     code: code.toUpperCase().trim(),
     partnerId: req.user._id,
+    usedCount: 0,
+    codeType: isUnique ? 'unique' : 'shared',
+    isUnlimited: !isUnique && Boolean(req.body.isUnlimited),
+    // Mã riêng: số lượng tự tính khi nạp danh sách mã (POST /api/vouchers/:id/codes)
+    ...(isUnique ? { quantity: 0 } : {}),
   });
 
   res.status(201).json({
@@ -554,6 +674,7 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
       parsedDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
     }
 
+    const isUnique = item.codeType === 'unique';
     const voucherData = {
       code,
       title: item.title,
@@ -561,11 +682,16 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
       discountPercent: Number(item.discountPercent) || 0,
       discountAmount: Number(item.discountAmount) || 0,
       minBill: Number(item.minBill) || 0,
-      quantity: Number(item.quantity) || 100,
+      codeType: isUnique ? 'unique' : 'shared',
+      isUnlimited: !isUnique && Boolean(item.isUnlimited),
+      // Mã riêng: số lượng = số mã nạp sau qua POST /api/vouchers/:id/codes
+      quantity: isUnique ? 0 : (Number(item.quantity) || 100),
+      coinCost: Math.max(0, Number(item.coinCost) || 0),
       validUntil: parsedDate,
       terms: Array.isArray(item.terms) ? item.terms : [],
       venueId: venue._id,
-      partnerId: req.user._id,
+      // Admin nhập hộ thì voucher vẫn thuộc về quán, không thuộc về admin
+      partnerId: venue.partnerId,
       isActive: item.isActive !== false,
     };
 
@@ -576,6 +702,12 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
         if (existing.partnerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
           skippedList.push({ code, reason: 'Mã voucher thuộc về đối tác khác' });
           continue;
+        }
+        // Không ghi đè số lượng / loại mã của voucher mã riêng đã nạp danh sách mã
+        if (existing.codeType === 'unique') {
+          delete voucherData.quantity;
+          delete voucherData.codeType;
+          delete voucherData.isUnlimited;
         }
         Object.assign(existing, voucherData);
         await existing.save();
@@ -601,7 +733,105 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
   });
 });
 
+// ─── MÃ RIÊNG (voucher loại "unique") ────────────────────────────────────────
+
+const findManagedVoucher = async (req) => {
+  const voucher = await Voucher.findById(req.params.id);
+  if (!voucher) throw new ApiError(404, 'Không tìm thấy voucher');
+  if (req.user.role !== 'admin' && voucher.partnerId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, 'Bạn không có quyền chỉnh sửa voucher này');
+  }
+  return voucher;
+};
+
+/** Lấy danh sách mã từ body.codes (mảng hoặc chuỗi nhiều dòng) hoặc cột đầu tiên của file Excel/CSV */
+const readCodeList = (req) => {
+  let raw = [];
+  if (req.file?.buffer) {
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    raw = rows.map((r) => r[0]);
+    // Bỏ dòng tiêu đề nếu có
+    if (raw.length && /ma|code/i.test(String(raw[0]).normalize('NFD').replace(/[̀-ͯ]/g, ''))) {
+      raw = raw.slice(1);
+    }
+  } else if (Array.isArray(req.body.codes)) {
+    raw = req.body.codes;
+  } else if (typeof req.body.codes === 'string') {
+    raw = req.body.codes.split(/[\n,;]+/);
+  }
+  return raw.map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+};
+
+/** POST /api/vouchers/:id/codes — nạp danh sách mã riêng (mỗi mã dùng 1 lần) */
+const addVoucherCodes = catchAsync(async (req, res) => {
+  const voucher = await findManagedVoucher(req);
+  const codes = readCodeList(req);
+  if (codes.length === 0) {
+    throw new ApiError(400, 'Không có mã nào. Gửi codes (mảng hoặc mỗi mã 1 dòng) hoặc file Excel có mã ở cột đầu tiên');
+  }
+  if (codes.length > 5000) throw new ApiError(400, 'Mỗi lần nạp tối đa 5000 mã');
+
+  const uniqueInFile = [...new Set(codes)];
+  const duplicateInFile = codes.length - uniqueInFile.length;
+
+  // Mã riêng không được trùng mã riêng khác hoặc mã chung của voucher nào
+  const [takenCodes, takenShared] = await Promise.all([
+    VoucherCode.find({ code: { $in: uniqueInFile } }).select('code'),
+    Voucher.find({ code: { $in: uniqueInFile } }).select('code'),
+  ]);
+  const taken = new Set([...takenCodes, ...takenShared].map((d) => d.code));
+  const toInsert = uniqueInFile.filter((c) => !taken.has(c));
+
+  if (toInsert.length > 0) {
+    await VoucherCode.insertMany(toInsert.map((code) => ({ voucherId: voucher._id, code })), { ordered: false });
+  }
+
+  voucher.codeType = 'unique';
+  voucher.isUnlimited = false;
+  voucher.quantity = await VoucherCode.countDocuments({ voucherId: voucher._id });
+  await voucher.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Đã thêm ${toInsert.length} mã. Voucher hiện có ${voucher.quantity} mã riêng.`,
+    data: {
+      added: toInsert.length,
+      skippedExisting: [...taken],
+      duplicateInFile,
+      totalCodes: voucher.quantity,
+    },
+  });
+});
+
+/** GET /api/vouchers/:id/codes — xem danh sách mã riêng và mã nào đã phát cho ai */
+const getVoucherCodes = catchAsync(async (req, res) => {
+  const voucher = await findManagedVoucher(req);
+  const codes = await VoucherCode.find({ voucherId: voucher._id })
+    .populate('userId', 'fullName studentProfile.studentId')
+    .populate('userVoucherId', 'status usedAt')
+    .sort({ _id: 1 });
+
+  const data = codes.map((c) => ({
+    code: c.code,
+    status: !c.userId ? 'available' : (c.userVoucherId?.status === 'used' ? 'used' : 'assigned'),
+    student: c.userId ? { fullName: c.userId.fullName, studentId: c.userId.studentProfile?.studentId || null } : null,
+    assignedAt: c.assignedAt,
+    usedAt: c.userVoucherId?.usedAt || null,
+  }));
+
+  res.status(200).json({
+    success: true,
+    total: data.length,
+    available: data.filter((d) => d.status === 'available').length,
+    data,
+  });
+});
+
 module.exports = {
+  addVoucherCodes,
+  getVoucherCodes,
   getPublicVouchers,
   claimVoucher,
   getMyWallet,

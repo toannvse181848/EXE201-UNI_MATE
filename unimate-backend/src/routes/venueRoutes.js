@@ -9,6 +9,8 @@ const {
   updateVenue,
   getAllVenuesAdmin,
   updateVenueStatus,
+  getCheckinQr,
+  regenerateCheckinQr,
 } = require('../controllers/venueController');
 const { protect, authorize } = require('../middlewares/auth');
 const { uploadVenueImages: uploadImages } = require('../config/cloudinary');
@@ -28,6 +30,10 @@ router.post(
 );
 router.post('/', protect, authorize('partner'), createVenue);
 router.put('/:id', protect, authorize('partner', 'admin'), updateVenue);
+
+// Mã QR check-in dán tại quán (partner chủ quán hoặc admin)
+router.get('/:id/checkin-qr', protect, authorize('partner', 'admin'), getCheckinQr);
+router.post('/:id/checkin-qr/regenerate', protect, authorize('partner', 'admin'), regenerateCheckinQr);
 
 // Admin routes
 router.get('/admin/all', protect, authorize('admin'), getAllVenuesAdmin);

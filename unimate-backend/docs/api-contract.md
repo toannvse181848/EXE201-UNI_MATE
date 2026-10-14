@@ -279,6 +279,8 @@ Response `200`: `{ "success": true, "total": 12, "data": [ { "_id", "method", "c
 
 `GET /api/vouchers/partner/my-vouchers` và `GET /api/vouchers/admin/all` trả thêm `claimedCount` (số lượt sinh viên đã lưu vào ví).
 
+Response của `/verify` có thêm `assignedCode` (mã riêng của sinh viên, nếu là voucher mã riêng). `remainingCount` là `null` khi voucher không giới hạn lượt. Response của `/redeem` có thêm `coinAwarded`: số UniCoin sinh viên được thưởng (20, vẫn tính trong giới hạn 60/ngày).
+
 ---
 
 ## 9. Thống kê admin
@@ -299,6 +301,93 @@ Response `200`:
   }
 }
 ```
+
+---
+
+## 10. Thu phí (đơn hàng + chuyển khoản VietQR)
+
+Luồng: chọn gói → tạo đơn → hiện mã QR → người mua chuyển khoản → admin xác nhận → gói được kích hoạt. Giá các gói nằm ở `src/config/plans.js`.
+
+| Mã gói | Ai mua | Giá | Thời hạn |
+|---|---|---|---|
+| `premium_monthly` (hoặc `monthly`) | Sinh viên | 49.000đ | 30 ngày |
+| `premium_yearly` (hoặc `yearly`) | Sinh viên | 399.000đ | 365 ngày |
+| `partner_monthly` | Quán | 99.000đ | 30 ngày |
+
+`GET /api/orders/plans` — công khai, trả danh sách gói ở trên.
+
+`POST /api/orders` — đăng nhập. Request `{ "plan": "monthly" }`. Đang có đơn chờ cùng gói trong 24 giờ thì trả lại đơn đó.
+
+Response `201`:
+```json
+{
+  "success": true,
+  "data": {
+    "order": { "code": "UM000001", "planName": "UniMate Premium 1 tháng", "amount": 49000, "status": "pending", "statusLabel": "Chờ thanh toán" },
+    "payment": {
+      "configured": true,
+      "bankId": "MB",
+      "accountNo": "0123456789",
+      "accountName": "TRAN MINH QUAN",
+      "amount": 49000,
+      "transferContent": "UM000001",
+      "qrImageUrl": "https://img.vietqr.io/image/MB-0123456789-compact2.png?amount=49000&addInfo=UM000001&accountName=..."
+    }
+  }
+}
+```
+Frontend hiện ảnh `qrImageUrl` bằng thẻ `<img>`. `configured: false` nghĩa là server chưa có biến môi trường `BANK_ID`, `BANK_ACCOUNT_NO`, `BANK_ACCOUNT_NAME`.
+
+`GET /api/orders/:code` — người mua hoặc admin. Gọi lại mỗi 5–10 giây trên trang thanh toán, `status` chuyển `paid` thì báo thành công và gọi `/api/auth/me` để lấy `isPremium` mới.
+
+`GET /api/orders/my` — đơn của tôi. `POST /api/orders/:code/cancel` — huỷ đơn đang chờ.
+
+Admin:
+- `GET /api/orders/admin/all?status=pending` — danh sách đơn kèm `stats` (số đơn, tổng tiền theo trạng thái)
+- `PATCH /api/orders/admin/:code/confirm` — body `{ "note": "mã giao dịch ngân hàng" }`, xác nhận đã nhận tiền và kích hoạt gói
+- `PATCH /api/orders/admin/:code/cancel` — huỷ đơn không nhận được tiền
+
+`POST /api/users/premium/buy` giờ **chỉ dùng để đổi UniCoin** (`paymentMethod: "coin"`). Gửi giá trị khác sẽ bị lỗi `400`, mua bằng tiền phải đi qua `/api/orders`.
+
+## 11. Xuất Excel minh chứng (admin)
+
+Cả hai trả về file `.xlsx`, họ tên, email, SĐT đã được che bớt. Frontend tải bằng axios với `responseType: 'blob'` (vì cần header đăng nhập), rồi tạo link tải.
+
+- `GET /api/users/admin/export?role=student` — danh sách người dùng (`role` không bắt buộc: `student` / `partner`)
+- `GET /api/orders/admin/export?status=paid` — danh sách đơn hàng, mặc định chỉ đơn đã thanh toán, `status=all` để lấy tất cả
+
+## 12. Check-in bằng mã QR dán tại quán
+
+Mỗi quán có một mã QR cố định, nội dung dạng `UNIMATE-CHECKIN:<venueId>:<secret>`.
+
+- `GET /api/venues/:id/checkin-qr` — partner chủ quán hoặc admin. Trả `{ qrContent, qrImageUrl }`, mở `qrImageUrl` để in dán tại quán
+- `POST /api/venues/:id/checkin-qr/regenerate` — tạo mã mới khi ảnh QR bị lộ, mã cũ hết hiệu lực ngay
+
+`POST /api/coins/venue-checkin` — sinh viên quét QR. Request:
+```json
+{ "qrContent": "UNIMATE-CHECKIN:...", "lat": 10.8451, "lng": 106.7881 }
+```
+- Quán đã nhập toạ độ thật (`location.coordinates` khác mặc định) thì bắt buộc gửi `lat`, `lng` và phải cách quán dưới 300m.
+- Quán chưa có toạ độ thì không kiểm tra vị trí, response trả `locationVerified: false`.
+- Vẫn giữ giới hạn 1 lần/quán/ngày, 2 quán/ngày, 60 coin/ngày.
+
+## 13. Voucher mã chung và mã riêng
+
+Field mới của voucher:
+
+| Field | Ý nghĩa |
+|---|---|
+| `codeType` | `shared` (mặc định): 1 mã chung dùng nhiều lượt · `unique`: danh sách mã riêng, mỗi sinh viên nhận 1 mã dùng 1 lần |
+| `isUnlimited` | Mã chung không giới hạn lượt dùng |
+| `coinCost` | Số UniCoin bị trừ khi sinh viên nhận voucher (0 = miễn phí) |
+
+Tạo voucher (`POST /api/vouchers`) gửi thêm các field trên. File Excel nhập voucher có thêm cột **Loại mã** (Chung / Riêng), **Giá UniCoin**, và cột Số lượng nhận chữ **Không giới hạn**. Tải lại file mẫu để có cột mới.
+
+Voucher mã riêng:
+- `POST /api/vouchers/:id/codes` — nạp danh sách mã: JSON `{ "codes": ["BT-001", "BT-002"] }` (hoặc chuỗi mỗi mã một dòng), hoặc form-data `file` là Excel/CSV có mã ở cột đầu tiên. Mã trùng sẽ bị bỏ qua.
+- `GET /api/vouchers/:id/codes` — tình trạng từng mã: `available` / `assigned` / `used`, kèm tên sinh viên.
+- Sinh viên nhận voucher thì response có `assignedCode`. Trong ví (`/my-wallet`) mỗi item có `displayCode`, là mã cần hiện cho sinh viên đọc ở quầy.
+- Thu ngân gõ mã riêng (VD `BT-001`) vào trang đối soát như gõ mã chung, hệ thống tự tìm đúng voucher của sinh viên.
 
 ---
 

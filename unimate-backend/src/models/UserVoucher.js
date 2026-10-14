@@ -36,6 +36,11 @@ const userVoucherSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    // Mã riêng được gán cho sinh viên (chỉ có với voucher loại "unique")
+    assignedCode: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

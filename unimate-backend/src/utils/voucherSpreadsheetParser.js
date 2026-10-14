@@ -17,6 +17,8 @@ const normalizeHeader = (header = '') => {
  * Map các header nhận diện được sang field chuẩn của hệ thống
  */
 const mapField = (normalizedHeader) => {
+  if (normalizedHeader.includes('unicoin') || normalizedHeader.includes('giacoin') || normalizedHeader.includes('coincost') || normalizedHeader.includes('giadiem')) return 'coinCost';
+  if (normalizedHeader.includes('loaima') || normalizedHeader.includes('kieuma') || normalizedHeader.includes('codetype')) return 'codeType';
   if (normalizedHeader.includes('mavoucher') || normalizedHeader.includes('vouchercode') || ['ma', 'code'].includes(normalizedHeader)) return 'code';
   if (normalizedHeader.includes('tieude') || normalizedHeader.includes('tenvoucher') || ['title', 'name'].includes(normalizedHeader)) return 'title';
   if (normalizedHeader.includes('mota') || normalizedHeader.includes('chitiet') || normalizedHeader.includes('description') || normalizedHeader.includes('noidung')) return 'description';
@@ -30,6 +32,18 @@ const mapField = (normalizedHeader) => {
   if (normalizedHeader.includes('dieukhoan') || normalizedHeader.includes('dieukien') || normalizedHeader.includes('terms')) return 'terms';
   if (normalizedHeader.includes('trangthai') || normalizedHeader.includes('status') || normalizedHeader.includes('isactive') || normalizedHeader.includes('hoatdong')) return 'isActive';
   return null;
+};
+
+/** "Không giới hạn", "vô hạn", "unlimited", "∞" → không giới hạn số lượt */
+const isUnlimitedText = (value) => {
+  const normalized = normalizeHeader(value);
+  return ['khonggioihan', 'vohan', 'unlimited', 'khonggh'].includes(normalized) || String(value).trim() === '∞';
+};
+
+/** "Riêng" / "unique" / "1 lần" → mã riêng, còn lại → mã chung */
+const parseCodeType = (value) => {
+  const normalized = normalizeHeader(value);
+  return ['rieng', 'marieng', 'unique', '1lan', 'motlan'].includes(normalized) ? 'unique' : 'shared';
 };
 
 /**
@@ -127,6 +141,9 @@ const parseSpreadsheetBuffer = (buffer) => {
       discountAmount: 0,
       minBill: 0,
       quantity: 100,
+      isUnlimited: false,
+      codeType: 'shared',
+      coinCost: 0,
       validUntil: null,
       terms: [],
       isActive: true,
@@ -149,7 +166,12 @@ const parseSpreadsheetBuffer = (buffer) => {
       else if (field === 'discountPercent') item.discountPercent = Number(strVal) || 0;
       else if (field === 'discountAmount') item.discountAmount = Number(strVal) || 0;
       else if (field === 'minBill') item.minBill = Math.max(0, Number(strVal) || 0);
-      else if (field === 'quantity') item.quantity = Math.max(0, parseInt(strVal, 10) || 100);
+      else if (field === 'quantity') {
+        if (isUnlimitedText(strVal)) item.isUnlimited = true;
+        else item.quantity = Math.max(0, parseInt(strVal, 10) || 100);
+      }
+      else if (field === 'codeType') item.codeType = parseCodeType(strVal);
+      else if (field === 'coinCost') item.coinCost = Math.max(0, parseInt(strVal, 10) || 0);
       else if (field === 'validUntil') item.validUntil = parseDateValue(cellVal);
       else if (field === 'terms') {
         if (typeof strVal === 'string' && strVal.length > 0) {
@@ -199,7 +221,10 @@ const parseSpreadsheetBuffer = (buffer) => {
     if (!item.discountPercent && !item.discountAmount) {
       rowErrors.push('Mức giảm giá không hợp lệ (cần > 0)');
     }
-    if (item.quantity <= 0) {
+    if (item.codeType === 'unique') {
+      item.isUnlimited = false;
+    }
+    if (item.codeType === 'shared' && !item.isUnlimited && item.quantity <= 0) {
       rowErrors.push('Số lượng phát hành phải lớn hơn 0');
     }
 
@@ -305,19 +330,22 @@ const generateVoucherTemplate = () => {
 
   const headers = [
     'Mã voucher (*)',
+    'Loại mã (Chung / Riêng)',
     'Tiêu đề voucher (*)',
     'Mô tả chi tiết',
     'Loại giảm (% hoặc VNĐ)',
     'Mức giảm (*)',
     'Đơn tối thiểu (VNĐ)',
-    'Số lượng phát hành (*)',
+    'Số lượng phát hành (số hoặc "Không giới hạn")',
     'Hạn sử dụng (DD/MM/YYYY)',
     'Điều khoản sử dụng (phân cách bằng ;)',
+    'Giá UniCoin (0 = miễn phí)',
   ];
 
   const sampleData = [
     [
       'UNIKHAIXUAN',
+      'Chung',
       'Giảm 25% tổng hóa đơn mừng năm mới',
       'Áp dụng cho tất cả sinh viên xuất trình thẻ sinh viên hoặc app UNI-MATE',
       '%',
@@ -326,9 +354,11 @@ const generateVoucherTemplate = () => {
       200,
       '31/12/2026',
       'Áp dụng tại quán; Mỗi SV dùng 1 lần/ngày; Không cộng dồn ưu đãi khác',
+      0,
     ],
     [
       'UNIFRESH50K',
+      'Chung',
       'Giảm 50.000đ cho đơn từ 150k',
       'Ưu đãi đặc quyền cho sinh viên các trường ĐHQG TP.HCM',
       'VNĐ',
@@ -337,17 +367,33 @@ const generateVoucherTemplate = () => {
       100,
       '30/06/2026',
       'Áp dụng cho hóa đơn từ 150.000đ; Áp dụng cả mang đi và tại quán',
+      50,
     ],
     [
       'MILKTEA20',
+      'Chung',
       'Giảm 20% nhóm thức uống Trà Sữa',
       'Giảm ngay 20% khi order bất kỳ món nào trong menu trà sữa',
       '%',
       20,
       0,
-      500,
+      'Không giới hạn',
       '15/11/2026',
       'Áp dụng vào khung giờ 13h - 18h mỗi ngày',
+      0,
+    ],
+    [
+      'TRASUA-RIENG',
+      'Riêng',
+      'Giảm 10% (mỗi bạn 1 mã riêng)',
+      'Mã riêng: nạp danh sách mã sau khi nhập file',
+      '%',
+      10,
+      0,
+      '',
+      '31/12/2026',
+      'Mỗi mã chỉ dùng 1 lần',
+      100,
     ],
   ];
 
@@ -357,6 +403,7 @@ const generateVoucherTemplate = () => {
   // Đặt độ rộng các cột cho đẹp mắt
   ws['!cols'] = [
     { wch: 18 }, // Mã voucher
+    { wch: 20 }, // Loại mã
     { wch: 35 }, // Tiêu đề
     { wch: 45 }, // Mô tả
     { wch: 22 }, // Loại giảm
@@ -365,6 +412,7 @@ const generateVoucherTemplate = () => {
     { wch: 22 }, // Số lượng
     { wch: 24 }, // Hạn sử dụng
     { wch: 55 }, // Điều khoản
+    { wch: 22 }, // Giá UniCoin
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'Mau_Voucher_UNIMATE');

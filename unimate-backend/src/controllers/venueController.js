@@ -4,6 +4,7 @@ const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
 const { extractDistrict } = require('../utils/addressUtils');
 const { escapeRegex } = require('../middlewares/security');
+const { generateSecret, buildQrContent } = require('../utils/venueCheckin');
 
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
@@ -233,7 +234,53 @@ const updateVenueStatus = catchAsync(async (req, res) => {
   });
 });
 
+// ─── MÃ QR CHECK-IN DÁN TẠI QUÁN ─────────────────────────────────────────────
+
+const findVenueForQr = async (req) => {
+  const venue = await Venue.findById(req.params.id).select('+checkinSecret name partnerId');
+  if (!venue) throw new ApiError(404, 'Không tìm thấy địa điểm');
+  if (req.user.role !== 'admin' && venue.partnerId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, 'Bạn không sở hữu địa điểm này');
+  }
+  return venue;
+};
+
+const toQrResponse = (venue) => {
+  const qrContent = buildQrContent(venue._id.toString(), venue.checkinSecret);
+  return {
+    venueId: venue._id,
+    venueName: venue.name,
+    qrContent,
+    // Ảnh QR khổ lớn để in dán tại quầy / bàn
+    qrImageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(qrContent)}`,
+  };
+};
+
+/** GET /api/venues/:id/checkin-qr — Partner/Admin lấy mã QR check-in để in (tự tạo nếu chưa có) */
+const getCheckinQr = catchAsync(async (req, res) => {
+  const venue = await findVenueForQr(req);
+  if (!venue.checkinSecret) {
+    venue.checkinSecret = generateSecret();
+    await venue.save({ validateBeforeSave: false });
+  }
+  res.status(200).json({ success: true, data: toQrResponse(venue) });
+});
+
+/** POST /api/venues/:id/checkin-qr/regenerate — tạo mã mới khi ảnh QR cũ bị lộ, QR cũ hết hiệu lực ngay */
+const regenerateCheckinQr = catchAsync(async (req, res) => {
+  const venue = await findVenueForQr(req);
+  venue.checkinSecret = generateSecret();
+  await venue.save({ validateBeforeSave: false });
+  res.status(200).json({
+    success: true,
+    message: 'Đã tạo mã QR mới. Vui lòng in lại và thay mã cũ tại quán.',
+    data: toQrResponse(venue),
+  });
+});
+
 module.exports = {
+  getCheckinQr,
+  regenerateCheckinQr,
   getVenues,
   getVenueById,
   getMyVenues,

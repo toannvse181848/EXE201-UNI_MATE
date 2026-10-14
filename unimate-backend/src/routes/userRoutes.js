@@ -8,6 +8,7 @@ const {
   updateMe,
   buyPremium,
   toggleUserPremium,
+  exportUsers,
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middlewares/auth');
 const { uploadAvatar } = require('../config/cloudinary');
@@ -27,6 +28,7 @@ router.get('/students', getSuggestedStudents);
 
 // Admin quản trị toàn bộ danh sách người dùng
 router.get('/all', authorize('admin'), getAllUsers);
+router.get('/admin/export', authorize('admin'), exportUsers);
 router.patch('/:id/status', authorize('admin'), updateUserStatus);
 router.patch('/:id/premium', authorize('admin'), toggleUserPremium);
 

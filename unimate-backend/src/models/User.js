@@ -97,6 +97,9 @@ const userSchema = new mongoose.Schema(
 
     partnerProfile: {
       businessName: String,
+      // Gói Đối tác trả phí (xem config/plans.js)
+      plan: { type: String, default: null },
+      planExpiresAt: { type: Date, default: null },
     },
 
     lastActiveAt: { type: Date, default: Date.now },
@@ -125,6 +128,12 @@ userSchema.methods.comparePassword = function (candidate) {
 // Chuẩn hoá object trả về cho frontend
 userSchema.methods.toPublicJSON = function () {
   const normalizedRole = (this.role === "student" || this.role === "user") ? "user" : this.role;
+  // Premium chỉ còn hiệu lực khi chưa quá hạn
+  const premiumExpiresAt = this.studentProfile?.premiumExpiresAt;
+  const isPremium = Boolean(
+    this.studentProfile?.isPremium &&
+    (!premiumExpiresAt || new Date(premiumExpiresAt) > new Date())
+  );
   return {
     id: this._id,
     email: this.email,
@@ -155,11 +164,11 @@ userSchema.methods.toPublicJSON = function () {
     onboardingCompleted: this.studentProfile?.onboardingCompleted ?? false,
     uniCoin: this.studentProfile?.uniCoin ?? 200,
     trustScore: this.studentProfile?.trustScore ?? 95,
-    isPremium: Boolean(this.studentProfile?.isPremium),
-    premiumPlan: this.studentProfile?.premiumPlan || null,
-    premiumExpiresAt: this.studentProfile?.premiumExpiresAt || null,
+    isPremium,
+    premiumPlan: isPremium ? (this.studentProfile?.premiumPlan || null) : null,
+    premiumExpiresAt: premiumExpiresAt || null,
     // Tài khoản được xác thực tích xanh khi và chỉ khi là Premium hoặc isVerifiedStudent là true
-    isVerifiedStudent: Boolean(this.studentProfile?.isPremium || this.studentProfile?.isVerifiedStudent),
+    isVerifiedStudent: Boolean(isPremium || this.studentProfile?.isVerifiedStudent),
     // Nested objects
     studentProfile: (this.role === "student" || this.role === "user") ? this.studentProfile : undefined,
     partnerProfile: this.role === "partner" ? this.partnerProfile : undefined,
