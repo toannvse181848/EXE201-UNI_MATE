@@ -2905,10 +2905,10 @@ export default function UserMessages() {
                         <img src={getAvatarUrl(friend.avatar)} alt={friend.fullName} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: '13.5px', fontWeight: '700', color: isSelected ? '#7C3AED' : 'var(--text-primary)' }}>{friend.fullName}</div>
-                          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{friend.university || 'Sinh vien'}</div>
+                          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{friend.university || 'Sinh viên'}</div>
                         </div>
                         <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: isSelected ? '#7C3AED' : '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {isSelected && <span style={{ color: '#FFF', fontSize: '13px', fontWeight: '800' }}>check</span>}
+                          {isSelected && <span style={{ color: '#FFF', fontSize: '13px', fontWeight: '800' }}>✓</span>}
                         </div>
                       </div>
                     );
@@ -2917,14 +2917,14 @@ export default function UserMessages() {
               )}
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowAddMemberModal(false)} style={{ flex: 1, padding: '11px', borderRadius: '12px', border: '1.5px solid var(--border-color)', background: '#FFF', color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}>Huy</button>
+              <button onClick={() => setShowAddMemberModal(false)} style={{ flex: 1, padding: '11px', borderRadius: '12px', border: '1.5px solid var(--border-color)', background: '#FFF', color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}>Hủy</button>
               <button
                 onClick={handleAddMembers}
                 disabled={!addMemberSelected.length || addingMembers}
                 style={{ flex: 2, padding: '11px', borderRadius: '12px', border: 'none', background: !addMemberSelected.length || addingMembers ? '#CBD5E1' : 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#FFF', fontSize: '14px', fontWeight: '800', cursor: !addMemberSelected.length || addingMembers ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               >
                 {addingMembers ? <Loader2 size={15} className="spinner" /> : <UserPlus size={15} />}
-                {addingMembers ? 'Dang them...' : 'Them thanh vien'}
+                {addingMembers ? 'Đang thêm...' : 'Thêm thành viên'}
               </button>
             </div>
           </div>
@@ -2943,7 +2943,7 @@ export default function UserMessages() {
           >
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '17px', fontWeight: '900', color: 'var(--text-primary)' }}>
-                Thanh vien nhom ({activeGroup.memberCount})
+                Thành viên nhóm ({activeGroup.memberCount})
               </h3>
               <button onClick={() => setShowGroupMembersModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
             </div>
@@ -2958,7 +2958,7 @@ export default function UserMessages() {
                       <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {member.fullName}
                         {isAdmin && <span style={{ fontSize: '10px', backgroundColor: '#F5F0FF', color: '#7C3AED', padding: '2px 7px', borderRadius: '10px', fontWeight: '800' }}>Admin</span>}
-                        {memberId?.toString() === currentUserId && <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>(Ban)</span>}
+                        {memberId?.toString() === currentUserId && <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>(Bạn)</span>}
                       </div>
                       {member.university && <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{member.university}</div>}
                     </div>
@@ -2968,7 +2968,7 @@ export default function UserMessages() {
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)' }}>
               <button onClick={() => { setShowGroupMembersModal(false); openAddMemberModal(); }} style={{ width: '100%', padding: '11px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#FFF', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <UserPlus size={16} /> Them thanh vien moi
+                <UserPlus size={16} /> Thêm thành viên mới
               </button>
             </div>
           </div>
