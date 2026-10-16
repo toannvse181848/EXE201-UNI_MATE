@@ -301,7 +301,7 @@ export default function UserMessages() {
       setConversations(realConvs);
       setSentLikes(realSent);
       setReceivedLikes(realReceived);
-      if (!selectedMatchId && realConvs.length > 0) {
+      if (!selectedMatchId && !selectedGroupId && realConvs.length > 0) {
         setSelectedMatchId(realConvs[0].matchId);
       }
     } catch (err) {
@@ -378,7 +378,7 @@ export default function UserMessages() {
   // 4. Tìm kiếm cuộc trò chuyện
   const activeConversation =
     conversations.find((c) => c.matchId === selectedMatchId) ||
-    conversations[0];
+    (!selectedGroupId && conversations.length > 0 ? conversations[0] : null);
 
   const filteredConversations = conversations.filter((c) => {
     const q = searchTerm.trim().toLowerCase();
@@ -723,7 +723,8 @@ export default function UserMessages() {
       const newGroup = res.data;
       setGroups((prev) => [newGroup, ...prev]);
       setShowCreateGroupModal(false);
-      setSelectedGroupId(newGroup.groupId);
+      const gId = newGroup.groupId || newGroup._id || newGroup.id;
+      setSelectedGroupId(gId);
       setSelectedMatchId(null);
       setActiveTab('groups');
     } catch (err) {
@@ -811,7 +812,10 @@ export default function UserMessages() {
     return g.name?.toLowerCase().includes(q);
   });
 
-  const activeGroup = groups.find((g) => g.groupId === selectedGroupId);
+  const activeGroup =
+    groups.find(
+      (g) => (g.groupId || g._id || g.id)?.toString() === selectedGroupId?.toString()
+    ) || groupInfo;
 
   return (
 
@@ -1142,12 +1146,13 @@ export default function UserMessages() {
                 </div>
               ) : (
                 filteredGroups.map((group) => {
-                  const isActive = group.groupId === selectedGroupId;
+                  const gId = group.groupId || group._id || group.id;
+                  const isActive = gId?.toString() === selectedGroupId?.toString();
                   return (
                     <div
-                      key={group.groupId}
+                      key={gId}
                       onClick={() => {
-                        setSelectedGroupId(group.groupId);
+                        setSelectedGroupId(gId);
                         setSelectedMatchId(null);
                       }}
                       style={{
@@ -1286,7 +1291,10 @@ export default function UserMessages() {
                   return (
                     <div
                       key={chat.matchId}
-                      onClick={() => setSelectedMatchId(chat.matchId)}
+                      onClick={() => {
+                        setSelectedMatchId(chat.matchId);
+                        setSelectedGroupId(null);
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1694,7 +1702,7 @@ export default function UserMessages() {
       </div>
 
       {/* ================= KHUNG CHAT CHÍNH (BÊN PHẢI) ================= */}
-      {activeConversation ? (
+      {!selectedGroupId && activeConversation ? (
         <div
           className="messages-chat-area"
           style={{
