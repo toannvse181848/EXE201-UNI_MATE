@@ -2,6 +2,7 @@ const Message = require('../models/Message');
 const Match = require('../models/Match');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { getUploadedFileUrl } = require('../config/cloudinary');
 
 /**
  * Lấy danh sách hội thoại của user hiện tại.
@@ -32,13 +33,26 @@ const getConversations = catchAsync(async (req, res) => {
 
       const lastMessage = await Message.findOne({ matchId: match._id })
         .sort({ createdAt: -1 })
-        .select('text sender createdAt isRead');
+        .select('text type fileName sender createdAt isRead');
 
       const unreadCount = await Message.countDocuments({
         matchId: match._id,
         receiver: currentUserId,
         isRead: false,
       });
+
+      let previewText = '';
+      if (lastMessage) {
+        if (lastMessage.text) {
+          previewText = lastMessage.text;
+        } else if (lastMessage.type === 'image') {
+          previewText = '📷 [Hình ảnh]';
+        } else if (lastMessage.type === 'video') {
+          previewText = '🎥 [Video]';
+        } else if (lastMessage.type === 'file') {
+          previewText = `📎 [Tệp] ${lastMessage.fileName || 'Tài liệu'}`;
+        }
+      }
 
       return {
         matchId: match._id,
@@ -54,7 +68,8 @@ const getConversations = catchAsync(async (req, res) => {
         },
         lastMessage: lastMessage
           ? {
-              text: lastMessage.text,
+              text: previewText,
+              type: lastMessage.type || 'text',
               isFromMe: lastMessage.sender.toString() === currentUserId.toString(),
               createdAt: lastMessage.createdAt,
               isRead: lastMessage.isRead,
@@ -151,10 +166,15 @@ const getMessages = catchAsync(async (req, res) => {
  */
 const sendMessage = catchAsync(async (req, res) => {
   const { matchId } = req.params;
-  const { text } = req.body;
+  const { text, type = 'text', fileUrl, fileName, fileSize, fileMimeType } = req.body;
   const senderId = req.user._id;
 
-  if (!text?.trim()) throw new ApiError(400, 'Nội dung tin nhắn không được trống');
+  const hasText = Boolean(text?.trim());
+  const hasFile = Boolean(fileUrl);
+
+  if (!hasText && !hasFile) {
+    throw new ApiError(400, 'Nội dung tin nhắn hoặc file đính kèm không được trống');
+  }
 
   const match = await Match.findById(matchId);
   if (!match || match.status !== 'matched') {
@@ -173,7 +193,12 @@ const sendMessage = catchAsync(async (req, res) => {
     matchId,
     sender: senderId,
     receiver: receiverId,
-    text: text.trim(),
+    text: text?.trim() || '',
+    type: type || 'text',
+    fileUrl: fileUrl || null,
+    fileName: fileName || null,
+    fileSize: fileSize || null,
+    fileMimeType: fileMimeType || null,
   });
 
   const populated = await message.populate('sender', 'fullName avatar');
@@ -190,4 +215,31 @@ const sendMessage = catchAsync(async (req, res) => {
   });
 });
 
-module.exports = { getConversations, getMessages, sendMessage };
+/**
+ * Upload file/ảnh/video cho chat
+ * POST /api/chat/upload
+ */
+const uploadMedia = catchAsync(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'Vui lòng chọn file cần gửi');
+  }
+
+  const fileUrl = getUploadedFileUrl(req, req.file, 'chat');
+  const mimetype = req.file.mimetype || '';
+  let mediaType = 'file';
+  if (mimetype.startsWith('image/')) mediaType = 'image';
+  else if (mimetype.startsWith('video/')) mediaType = 'video';
+
+  res.status(200).json({
+    success: true,
+    data: {
+      fileUrl,
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      fileMimeType: mimetype,
+      mediaType,
+    },
+  });
+});
+
+module.exports = { getConversations, getMessages, sendMessage, uploadMedia };

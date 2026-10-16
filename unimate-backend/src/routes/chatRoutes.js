@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { getConversations, getMessages, sendMessage } = require('../controllers/chatController');
+const { getConversations, getMessages, sendMessage, uploadMedia } = require('../controllers/chatController');
+const { uploadChatMedia } = require('../config/cloudinary');
 const { protect, authorize } = require('../middlewares/auth');
 
 // Tất cả chat routes yêu cầu đăng nhập sinh viên
 router.use(protect);
 router.use(authorize('student'));
+
+// Upload file / ảnh / video cho chat
+router.post('/upload', uploadChatMedia.single('file'), uploadMedia);
 
 // Danh sách hội thoại (inbox)
 router.get('/conversations', getConversations);

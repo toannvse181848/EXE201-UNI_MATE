@@ -389,6 +389,37 @@ Voucher mã riêng:
 - Sinh viên nhận voucher thì response có `assignedCode`. Trong ví (`/my-wallet`) mỗi item có `displayCode`, là mã cần hiện cho sinh viên đọc ở quầy.
 - Thu ngân gõ mã riêng (VD `BT-001`) vào trang đối soát như gõ mã chung, hệ thống tự tìm đúng voucher của sinh viên.
 
+## 14. Chat đa phương tiện (Ảnh, Video, File tài liệu)
+
+- `POST /api/chat/upload` — sinh viên: form-data với trường `file` (ảnh/video/tài liệu học tập tối đa 50MB).
+  - Response `200`:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "fileUrl": "https://res.cloudinary.com/...",
+      "fileName": "de-cuong-on-tap.pdf",
+      "fileSize": 1048576,
+      "fileMimeType": "application/pdf",
+      "mediaType": "file"
+    }
+  }
+  ```
+- `POST /api/chat/:matchId/messages` — sinh viên: gửi tin nhắn văn bản hoặc kèm file media.
+  - Body:
+  ```json
+  {
+    "text": "Xem qua slide này nhé!",
+    "type": "file",
+    "fileUrl": "https://res.cloudinary.com/...",
+    "fileName": "de-cuong-on-tap.pdf",
+    "fileSize": 1048576,
+    "fileMimeType": "application/pdf"
+  }
+  ```
+  *(Cho phép `text` rỗng nếu đã có `fileUrl`, `type` gồm `text`, `image`, `video`, `file`)*
+- Socket.io event `send_message`: Hỗ trợ payload tương tự kèm `type`, `fileUrl`, `fileName`, `fileSize`, `fileMimeType`.
+
 ---
 
 ## Ghi chú

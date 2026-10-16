@@ -18,8 +18,29 @@ const messageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
-      required: [true, 'Nội dung tin nhắn không được để trống'],
       trim: true,
+      default: '',
+    },
+    type: {
+      type: String,
+      enum: ['text', 'image', 'video', 'file'],
+      default: 'text',
+    },
+    fileUrl: {
+      type: String,
+      default: null,
+    },
+    fileName: {
+      type: String,
+      default: null,
+    },
+    fileSize: {
+      type: Number,
+      default: null,
+    },
+    fileMimeType: {
+      type: String,
+      default: null,
     },
     isRead: {
       type: Boolean,

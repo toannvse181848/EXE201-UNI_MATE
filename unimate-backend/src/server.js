@@ -54,9 +54,11 @@ io.on('connection', (socket) => {
    * Client emit: send_message({ matchId, senderId, text })
    * Server broadcast: new_message(message)
    */
-  socket.on('send_message', async ({ matchId, senderId, text }) => {
+  socket.on('send_message', async ({ matchId, senderId, text, type = 'text', fileUrl, fileName, fileSize, fileMimeType }) => {
     try {
-      if (!text?.trim()) return socket.emit('error', { message: 'Tin nhắn trống' });
+      const hasText = Boolean(text?.trim());
+      const hasFile = Boolean(fileUrl);
+      if (!hasText && !hasFile) return socket.emit('error', { message: 'Tin nhắn trống' });
 
       const match = await Match.findById(matchId);
       if (!match || match.status !== 'matched') {
@@ -71,7 +73,12 @@ io.on('connection', (socket) => {
         matchId,
         sender: senderId,
         receiver: receiverId,
-        text: text.trim(),
+        text: text?.trim() || '',
+        type: type || 'text',
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
+        fileSize: fileSize || null,
+        fileMimeType: fileMimeType || null,
       });
 
       const populated = await Message.findById(message._id)
