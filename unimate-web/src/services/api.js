@@ -267,6 +267,61 @@ export const chatApi = {
   },
 };
 
+// === GROUP CHAT API ===
+export const groupChatApi = {
+  // Lấy danh sách bạn bè có thể tạo nhóm
+  getMyFriends: async () => {
+    const res = await client.get('/api/group-chat/friends');
+    return res.data;
+  },
+  // Lấy danh sách nhóm của tôi
+  getMyGroups: async () => {
+    const res = await client.get('/api/group-chat');
+    return res.data;
+  },
+  // Tạo nhóm mới
+  createGroup: async (name, memberIds = []) => {
+    const res = await client.post('/api/group-chat', { name, memberIds });
+    return res.data;
+  },
+  // Lấy tin nhắn nhóm
+  getGroupMessages: async (groupId, params = {}) => {
+    const res = await client.get(`/api/group-chat/${groupId}/messages`, { params });
+    return res.data;
+  },
+  // Gửi tin nhắn nhóm (REST fallback)
+  sendGroupMessage: async (groupId, payload) => {
+    const body = typeof payload === 'string' ? { text: payload } : payload;
+    const res = await client.post(`/api/group-chat/${groupId}/messages`, body);
+    return res.data;
+  },
+  // Lấy danh sách bạn bè có thể mời vào nhóm cụ thể
+  getInvitableFriends: async (groupId) => {
+    const res = await client.get(`/api/group-chat/${groupId}/invitable`);
+    return res.data;
+  },
+  // Thêm thành viên vào nhóm
+  addMembers: async (groupId, userIds = []) => {
+    const res = await client.post(`/api/group-chat/${groupId}/members`, { userIds });
+    return res.data;
+  },
+  // Rời nhóm
+  leaveGroup: async (groupId) => {
+    const res = await client.delete(`/api/group-chat/${groupId}/members/me`);
+    return res.data;
+  },
+  // Upload file cho nhóm (dùng chung upload endpoint)
+  uploadMedia: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await client.post('/api/group-chat/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: UPLOAD_TIMEOUT,
+    });
+    return res.data;
+  },
+};
+
 // === REPORT API ===
 export const reportApi = {
   createReport: async (data) => {
@@ -416,3 +471,5 @@ export const onboardingApi = {
 };
 
 export default client;
+
+

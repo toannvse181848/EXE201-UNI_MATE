@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search,
   Send,
@@ -27,9 +27,13 @@ import {
   Download,
   X,
   Loader2,
+  Plus,
+  UserPlus,
+  LogOut,
+  Crown,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { chatApi, matchApi } from '../../services/api';
+import { chatApi, matchApi, groupChatApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarUrl } from '../../constants/avatar';
 
@@ -161,7 +165,7 @@ export default function UserMessages() {
   const { user } = useAuth();
   const messagesEndRef = useRef(null);
 
-  // Tabs: 'conversations' | 'received' | 'sent'
+  // Tabs: 'conversations' | 'received' | 'sent' | 'groups'
   const [activeTab, setActiveTab] = useState('conversations');
   const [conversations, setConversations] = useState([]);
   const [sentLikes, setSentLikes] = useState([]);
@@ -169,7 +173,7 @@ export default function UserMessages() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Active chat
+  // Active chat (1-1)
   const [selectedMatchId, setSelectedMatchId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -188,6 +192,38 @@ export default function UserMessages() {
   const videoInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
+
+  // ─── GROUP CHAT STATES ───────────────────────────────────────────────────
+  const [groups, setGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [groupMessages, setGroupMessages] = useState([]);
+  const [groupInfo, setGroupInfo] = useState(null);
+  const [loadingGroupMessages, setLoadingGroupMessages] = useState(false);
+  const [groupInputText, setGroupInputText] = useState('');
+  const [sendingGroup, setSendingGroup] = useState(false);
+  const [groupAttachment, setGroupAttachment] = useState(null);
+  const [groupEmojiPicker, setGroupEmojiPicker] = useState(false);
+  const groupEmojiPickerRef = useRef(null);
+  const groupImageInputRef = useRef(null);
+  const groupVideoInputRef = useRef(null);
+  const groupFileInputRef = useRef(null);
+  const groupMessagesEndRef = useRef(null);
+
+  // Modal tạo nhóm
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [createGroupName, setCreateGroupName] = useState('');
+  const [createGroupFriends, setCreateGroupFriends] = useState([]);
+  const [createGroupSelected, setCreateGroupSelected] = useState([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+
+  // Modal thêm thành viên
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [addMemberFriends, setAddMemberFriends] = useState([]);
+  const [addMemberSelected, setAddMemberSelected] = useState([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+
+  // Modal danh sách thành viên nhóm
+  const [showGroupMembersModal, setShowGroupMembersModal] = useState(false);
 
   // Đóng emoji picker khi click ra ngoài
   useEffect(() => {
@@ -504,7 +540,244 @@ export default function UserMessages() {
     setInputText(inviteText);
   };
 
+  // ─── GROUP CHAT HANDLERS ──────────────────────────────────────────────────
+
+  // Tải danh sách nhóm
+  const loadGroups = useCallback(async (silent = false) => {
+    try {
+      const res = await groupChatApi.getMyGroups();
+      setGroups(res.data || []);
+    } catch (err) {
+      console.log('Lỗi tải nhóm:', err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
+
+  // Tải tin nhắn của nhóm đang chọn
+  const loadGroupMessages = useCallback(async (groupId, isPolling = false) => {
+    if (!groupId) return;
+    try {
+      if (!isPolling) setLoadingGroupMessages(true);
+      const res = await groupChatApi.getGroupMessages(groupId);
+      setGroupMessages(res.data || []);
+      if (res.group) setGroupInfo(res.group);
+    } catch (err) {
+      console.log('Lỗi tải tin nhắn nhóm:', err.message);
+    } finally {
+      if (!isPolling) setLoadingGroupMessages(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedGroupId) {
+      loadGroupMessages(selectedGroupId);
+    }
+  }, [selectedGroupId, loadGroupMessages]);
+
+  // Polling tin nhắn nhóm mỗi 4s
+  useEffect(() => {
+    if (!selectedGroupId) return;
+    const timer = setInterval(() => {
+      loadGroupMessages(selectedGroupId, true);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [selectedGroupId, loadGroupMessages]);
+
+  // Scroll xuống cuối khi có tin nhắn nhóm mới
+  useEffect(() => {
+    groupMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [groupMessages]);
+
+  // Gửi tin nhắn nhóm
+  const handleSendGroupMessage = async (e) => {
+    e?.preventDefault();
+    const text = groupInputText.trim();
+    const attachment = groupAttachment;
+    if ((!text && !attachment) || sendingGroup || !selectedGroupId) return;
+
+    setGroupInputText('');
+    setGroupAttachment(null);
+    setGroupEmojiPicker(false);
+    setSendingGroup(true);
+
+    let uploadedFile = null;
+    if (attachment?.file) {
+      try {
+        const uploadRes = await groupChatApi.uploadMedia(attachment.file);
+        if (uploadRes?.data) uploadedFile = uploadRes.data;
+      } catch (err) {
+        alert('Không thể tải file lên. Vui lòng thử lại.');
+        setSendingGroup(false);
+        return;
+      }
+    }
+
+    const payload = {
+      text: text || '',
+      type: uploadedFile ? uploadedFile.mediaType : 'text',
+      fileUrl: uploadedFile?.fileUrl || null,
+      fileName: attachment?.name || uploadedFile?.fileName || null,
+      fileSize: uploadedFile?.fileSize || null,
+      fileMimeType: uploadedFile?.fileMimeType || null,
+    };
+
+    // Optimistic UI
+    const tempMsg = {
+      _id: 'temp_' + Date.now(),
+      text: payload.text,
+      type: payload.type,
+      fileUrl: payload.fileUrl || attachment?.previewUrl || null,
+      fileName: payload.fileName || null,
+      fileSize: payload.fileSize || attachment?.size || null,
+      sender: { _id: currentUserId, fullName: user?.fullName || user?.name || 'Tôi' },
+      createdAt: new Date().toISOString(),
+    };
+    setGroupMessages((prev) => [...prev, tempMsg]);
+
+    // Update sidebar preview
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.groupId === selectedGroupId
+          ? { ...g, lastMessage: { text: payload.text || '📎 Tệp', type: payload.type, createdAt: new Date().toISOString() } }
+          : g
+      )
+    );
+
+    try {
+      const res = await groupChatApi.sendGroupMessage(selectedGroupId, payload);
+      const savedMsg = res.data;
+      if (savedMsg) {
+        setGroupMessages((prev) => prev.map((m) => (m._id === tempMsg._id ? savedMsg : m)));
+      }
+    } catch (err) {
+      console.log('Lỗi gửi tin nhắn nhóm:', err.message);
+    } finally {
+      setSendingGroup(false);
+    }
+  };
+
+  // Chọn file đính kèm cho nhóm
+  const handleGroupFileSelect = (e, forcedType = null) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (file.size > 50 * 1024 * 1024) { alert('File vượt quá 50MB'); return; }
+    const mime = file.type || '';
+    let mediaType = forcedType || 'file';
+    if (!forcedType) {
+      if (mime.startsWith('image/')) mediaType = 'image';
+      else if (mime.startsWith('video/')) mediaType = 'video';
+    }
+    const previewUrl = (mediaType === 'image' || mediaType === 'video') ? URL.createObjectURL(file) : null;
+    setGroupAttachment({ file, previewUrl, type: mediaType, name: file.name, size: file.size });
+  };
+
+  // Mở modal tạo nhóm và tải danh sách bạn bè
+  const openCreateGroupModal = async () => {
+    setCreateGroupName('');
+    setCreateGroupSelected([]);
+    setShowCreateGroupModal(true);
+    try {
+      const res = await groupChatApi.getMyFriends();
+      setCreateGroupFriends(res.data || []);
+    } catch (err) {
+      setCreateGroupFriends([]);
+    }
+  };
+
+  // Tạo nhóm mới
+  const handleCreateGroup = async () => {
+    if (!createGroupName.trim()) { alert('Vui lòng nhập tên nhóm'); return; }
+    setCreatingGroup(true);
+    try {
+      const res = await groupChatApi.createGroup(
+        createGroupName.trim(),
+        createGroupSelected.map((f) => f.id || f._id)
+      );
+      const newGroup = res.data;
+      setGroups((prev) => [newGroup, ...prev]);
+      setShowCreateGroupModal(false);
+      setSelectedGroupId(newGroup.groupId);
+      setSelectedMatchId(null);
+      setActiveTab('groups');
+    } catch (err) {
+      alert('Không thể tạo nhóm. Vui lòng thử lại: ' + err.message);
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  // Toggle chọn bạn khi tạo nhóm
+  const toggleFriendSelection = (friend, list, setList) => {
+    const id = friend.id || friend._id;
+    const exists = list.find((f) => (f.id || f._id) === id);
+    if (exists) setList(list.filter((f) => (f.id || f._id) !== id));
+    else setList([...list, friend]);
+  };
+
+  // Mở modal thêm thành viên
+  const openAddMemberModal = async () => {
+    setAddMemberSelected([]);
+    setShowAddMemberModal(true);
+    try {
+      const res = await groupChatApi.getInvitableFriends(selectedGroupId);
+      setAddMemberFriends(res.data || []);
+    } catch (err) {
+      setAddMemberFriends([]);
+    }
+  };
+
+  // Thêm thành viên vào nhóm
+  const handleAddMembers = async () => {
+    if (!addMemberSelected.length) { alert('Vui lòng chọn ít nhất 1 người'); return; }
+    setAddingMembers(true);
+    try {
+      await groupChatApi.addMembers(
+        selectedGroupId,
+        addMemberSelected.map((f) => f.id || f._id)
+      );
+      setShowAddMemberModal(false);
+      loadGroupMessages(selectedGroupId);
+      loadGroups();
+      alert(`✅ Đã thêm ${addMemberSelected.length} thành viên vào nhóm!`);
+    } catch (err) {
+      alert('Không thể thêm thành viên: ' + err.message);
+    } finally {
+      setAddingMembers(false);
+    }
+  };
+
+  // Rời nhóm
+  const handleLeaveGroup = async () => {
+    if (!selectedGroupId) return;
+    const currentGroup = groups.find((g) => g.groupId === selectedGroupId);
+    if (!window.confirm(`Bạn có chắc muốn rời nhóm "${currentGroup?.name}"?`)) return;
+    try {
+      await groupChatApi.leaveGroup(selectedGroupId);
+      setGroups((prev) => prev.filter((g) => g.groupId !== selectedGroupId));
+      setSelectedGroupId(null);
+      setGroupMessages([]);
+      setGroupInfo(null);
+      alert('Bạn đã rời nhóm thành công');
+    } catch (err) {
+      alert('Không thể rời nhóm: ' + err.message);
+    }
+  };
+
+  // Filtered groups
+  const filteredGroups = groups.filter((g) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    return g.name?.toLowerCase().includes(q);
+  });
+
+  const activeGroup = groups.find((g) => g.groupId === selectedGroupId);
+
   return (
+
     <div
       className="messages-container"
       style={{
@@ -745,10 +1018,155 @@ export default function UserMessages() {
               </span>
             )}
           </button>
+
+          {/* Tab 4: Nhóm chat */}
+          <button
+            onClick={() => setActiveTab('groups')}
+            style={{
+              flex: 1,
+              padding: '12px 6px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              fontSize: '12.5px',
+              fontWeight: activeTab === 'groups' ? '800' : '600',
+              color: activeTab === 'groups' ? '#7C3AED' : 'var(--text-secondary)',
+              borderBottom:
+                activeTab === 'groups'
+                  ? '3px solid #7C3AED'
+                  : '3px solid transparent',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              transition: 'all 0.15s',
+            }}
+          >
+            <Users size={13} />
+            <span>Nhóm</span>
+            {groups.length > 0 && (
+              <span
+                style={{
+                  backgroundColor: activeTab === 'groups' ? '#7C3AED' : '#E2E8F0',
+                  color: activeTab === 'groups' ? '#FFFFFF' : '#475569',
+                  fontSize: '10px',
+                  fontWeight: '800',
+                  padding: '1px 5px',
+                  borderRadius: '10px',
+                }}
+              >
+                {groups.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Nội dung danh sách theo Tab */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* TAB 4: DANH SÁCH NHÓM CHAT */}
+          {activeTab === 'groups' && (
+            <div>
+              {/* Nút tạo nhóm mới */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+                <button
+                  onClick={openCreateGroupModal}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    background: 'linear-gradient(135deg, #7C3AED, #A855F7)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.85'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                >
+                  <Plus size={16} />
+                  Tạo nhóm mới
+                </button>
+              </div>
+
+              {/* Danh sách nhóm */}
+              {filteredGroups.length === 0 ? (
+                <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <Users size={40} color="#CBD5E1" style={{ margin: '0 auto 12px' }} />
+                  <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    Chưa có nhóm nào
+                  </p>
+                  <p style={{ fontSize: '12px' }}>Tạo nhóm để học tập và chia sẻ cùng bạn bè!</p>
+                </div>
+              ) : (
+                filteredGroups.map((group) => {
+                  const isActive = group.groupId === selectedGroupId;
+                  return (
+                    <div
+                      key={group.groupId}
+                      onClick={() => {
+                        setSelectedGroupId(group.groupId);
+                        setSelectedMatchId(null);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '14px 16px',
+                        backgroundColor: isActive ? '#F5F0FF' : 'transparent',
+                        borderLeft: isActive ? '3px solid #7C3AED' : '3px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.15s',
+                        borderBottom: '1px solid var(--border-color)',
+                      }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = '#F8F5FF'; }}
+                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      {/* Group avatar */}
+                      <div style={{
+                        width: '46px', height: '46px', borderRadius: '14px',
+                        background: 'linear-gradient(135deg, #7C3AED, #A855F7)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, position: 'relative',
+                      }}>
+                        {group.avatar
+                          ? <img src={group.avatar} alt={group.name} style={{ width: '100%', height: '100%', borderRadius: '14px', objectFit: 'cover' }} />
+                          : <Users size={20} color="#FFFFFF" />
+                        }
+                      </div>
+                      {/* Group info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: '13.5px', fontWeight: '700', color: isActive ? '#7C3AED' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>
+                            {group.name}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                            {formatTime(group.lastMessage?.createdAt || group.createdAt)}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
+                            {group.lastMessage?.text || `${group.memberCount} thành viên`}
+                          </span>
+                          {group.unreadCount > 0 && (
+                            <span style={{ backgroundColor: '#7C3AED', color: '#FFF', fontSize: '10px', fontWeight: '800', padding: '2px 6px', borderRadius: '10px', flexShrink: 0 }}>
+                              {group.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
           {/* TAB 1: DANH SÁCH HỘI THOẠI ĐÃ GHÉP ĐÔI */}
           {activeTab === 'conversations' && (
             <div>
@@ -1935,19 +2353,22 @@ export default function UserMessages() {
                 type="submit"
                 disabled={(!inputText.trim() && !selectedAttachment) || sending || uploadingMedia}
                 style={{
-                  padding: '11px 18px',
+                  padding: '11px 20px',
                   borderRadius: '12px',
                   backgroundColor:
-                    (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia ? '#CBD5E1' : '#FF5722',
+                    (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia
+                      ? '#CBD5E1'
+                      : '#FF5722',
                   color: '#FFFFFF',
                   fontWeight: '700',
                   border: 'none',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
+                  gap: '8px',
                   cursor:
-                    (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia ? 'not-allowed' : 'pointer',
+                    (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia
+                      ? 'not-allowed'
+                      : 'pointer',
                   boxShadow:
                     (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia
                       ? 'none'
@@ -1975,6 +2396,227 @@ export default function UserMessages() {
               </button>
             </form>
           </div>
+        </div>
+      ) : selectedGroupId && activeGroup ? (
+        /* ====== GROUP CHAT PANEL ====== */
+        <div
+          className="messages-chat-area"
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#FFFFFF', position: 'relative' }}
+        >
+          {/* Group Chat Header */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={() => { setSelectedGroupId(null); setGroupMessages([]); setGroupInfo(null); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: '4px' }}
+              >
+                <ArrowLeft size={20} color="var(--text-secondary)" />
+              </button>
+              <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #7C3AED, #A855F7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {activeGroup.avatar
+                  ? <img src={activeGroup.avatar} alt={activeGroup.name} style={{ width: '100%', height: '100%', borderRadius: '12px', objectFit: 'cover' }} />
+                  : <Users size={18} color="#FFFFFF" />}
+              </div>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>{activeGroup.name}</div>
+                <div style={{ fontSize: '12px', color: '#7C3AED', fontWeight: '600' }}>{activeGroup.memberCount} thành viên</div>
+              </div>
+            </div>
+            {/* Group action buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={() => setShowGroupMembersModal(true)}
+                title="Xem thành viên"
+                style={{ background: '#F5F0FF', border: 'none', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#7C3AED', fontSize: '12px', fontWeight: '700' }}
+              >
+                <Users size={15} /> Thành viên
+              </button>
+              <button
+                onClick={openAddMemberModal}
+                title="Thêm thành viên"
+                style={{ background: '#F5F0FF', border: 'none', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#7C3AED', fontSize: '12px', fontWeight: '700' }}
+              >
+                <UserPlus size={15} /> Thêm
+              </button>
+              <button
+                onClick={handleLeaveGroup}
+                title="Rời nhóm"
+                style={{ background: '#FFF1F2', border: 'none', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#EF4444', fontSize: '12px', fontWeight: '700' }}
+              >
+                <LogOut size={15} /> Rời
+              </button>
+            </div>
+          </div>
+
+          {/* Group Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {loadingGroupMessages ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', color: '#7C3AED' }} />
+                <p style={{ marginTop: '10px', fontSize: '13px' }}>Đang tải tin nhắn nhóm...</p>
+              </div>
+            ) : groupMessages.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--text-muted)' }}>
+                <Users size={48} color="#DDD6FE" style={{ margin: '0 auto 12px' }} />
+                <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>Chưa có tin nhắn nào</p>
+                <p style={{ fontSize: '12px' }}>Hãy bắt đầu cuộc trò chuyện trong nhóm!</p>
+              </div>
+            ) : (
+              groupMessages.map((msg) => {
+                const isSystem = msg.type === 'system';
+                const isMe = msg.sender?._id?.toString() === currentUserId;
+
+                if (isSystem) {
+                  return (
+                    <div key={msg._id} style={{ textAlign: 'center', margin: '8px 0' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', backgroundColor: '#F1F5F9', padding: '4px 12px', borderRadius: '20px' }}>
+                        {msg.text}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={msg._id} style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: '8px', marginBottom: '2px' }}>
+                    {!isMe && (
+                      <img
+                        src={getAvatarUrl(msg.sender?.avatar)}
+                        alt={msg.sender?.fullName}
+                        style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #E9D5FF' }}
+                      />
+                    )}
+                    <div style={{ maxWidth: '65%' }}>
+                      {!isMe && (
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#7C3AED', marginBottom: '3px', paddingLeft: '4px' }}>
+                          {msg.sender?.fullName}
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          padding: msg.fileUrl && !msg.text ? '8px' : '10px 14px',
+                          borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                          background: isMe ? 'linear-gradient(135deg, #7C3AED, #A855F7)' : '#F3F4F6',
+                          color: isMe ? '#FFFFFF' : '#1F2937',
+                          fontSize: '13.5px',
+                          lineHeight: '1.5',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {/* Image */}
+                        {msg.fileUrl && (msg.type === 'image' || msg.fileUrl.match(/\.(jpeg|jpg|png|gif|webp)(\?.*)?$/i)) && (
+                          <div style={{ marginBottom: msg.text ? '8px' : '0' }}>
+                            <img src={msg.fileUrl} alt={msg.fileName || 'Hình ảnh'} onClick={() => setMediaPreviewModal({ isOpen: true, type: 'image', url: msg.fileUrl, name: msg.fileName })} style={{ maxWidth: '100%', maxHeight: '220px', borderRadius: '10px', objectFit: 'cover', cursor: 'pointer', display: 'block' }} />
+                          </div>
+                        )}
+                        {/* Video */}
+                        {msg.fileUrl && (msg.type === 'video' || msg.fileUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i)) && (
+                          <div style={{ marginBottom: msg.text ? '8px' : '0' }}>
+                            <video controls src={msg.fileUrl} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '10px', display: 'block', backgroundColor: '#000' }} />
+                          </div>
+                        )}
+                        {/* File */}
+                        {msg.fileUrl && msg.type === 'file' && (
+                          <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" download={repairMojibake(msg.fileName || 'tai-lieu')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '10px', backgroundColor: isMe ? 'rgba(255,255,255,0.2)' : '#F8FAFC', color: isMe ? '#FFF' : '#0F172A', textDecoration: 'none', border: isMe ? '1px solid rgba(255,255,255,0.3)' : '1px solid #E2E8F0', marginBottom: msg.text ? '8px' : '0' }}>
+                            <FileText size={18} />
+                            <div>
+                              <div style={{ fontSize: '12px', fontWeight: '700', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{repairMojibake(msg.fileName || 'Tài liệu')}</div>
+                              {msg.fileSize && <div style={{ fontSize: '10px', opacity: 0.75 }}>{formatFileSize(msg.fileSize)}</div>}
+                            </div>
+                            <Download size={14} style={{ marginLeft: 'auto', flexShrink: 0 }} />
+                          </a>
+                        )}
+                        {/* Text */}
+                        {msg.text && <span>{msg.text}</span>}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '3px', textAlign: isMe ? 'right' : 'left', paddingLeft: '4px', paddingRight: '4px' }}>
+                        {formatTime(msg.createdAt)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={groupMessagesEndRef} />
+          </div>
+
+          {/* Group attachment preview */}
+          {groupAttachment && (
+            <div style={{ padding: '10px 18px', backgroundColor: '#FFF7ED', borderTop: '1px solid #FDBA74', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                {groupAttachment.type === 'image' && groupAttachment.previewUrl ? (
+                  <img src={groupAttachment.previewUrl} alt="" style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '44px', height: '44px', borderRadius: '8px', backgroundColor: '#7C3AED', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {groupAttachment.type === 'video' ? <Video size={20} /> : <FileText size={20} />}
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#C2410C', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupAttachment.name}</div>
+                  <div style={{ fontSize: '11px', color: '#9A3412' }}>{formatFileSize(groupAttachment.size)}</div>
+                </div>
+              </div>
+              <button onClick={() => setGroupAttachment(null)} style={{ background: 'none', border: 'none', color: '#C2410C', cursor: 'pointer', padding: '4px' }}>
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Group Emoji Picker */}
+          {groupEmojiPicker && (
+            <div ref={groupEmojiPickerRef} style={{ position: 'absolute', bottom: '72px', left: '16px', backgroundColor: '#FFFFFF', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.18)', border: '1px solid var(--border-color)', width: '300px', maxHeight: '250px', overflowY: 'auto', padding: '12px', zIndex: 100 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800' }}>Biểu tượng</span>
+                <button onClick={() => setGroupEmojiPicker(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={14} /></button>
+              </div>
+              {EMOJI_CATEGORIES.map((cat) => (
+                <div key={cat.name} style={{ marginBottom: '8px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>{cat.name}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '3px' }}>
+                    {cat.emojis.map((emoji) => (
+                      <button key={emoji} onClick={() => setGroupInputText((p) => p + emoji)} style={{ fontSize: '18px', background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px' }} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>{emoji}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Hidden file inputs for group */}
+          <input ref={groupImageInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleGroupFileSelect(e, 'image')} />
+          <input ref={groupVideoInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => handleGroupFileSelect(e, 'video')} />
+          <input ref={groupFileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" style={{ display: 'none' }} onChange={(e) => handleGroupFileSelect(e, 'file')} />
+
+          {/* Group message input */}
+          <form onSubmit={handleSendGroupMessage} style={{ padding: '12px 18px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button type="button" onClick={() => groupImageInputRef.current?.click()} title="Gửi hình ảnh" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <ImageIcon size={16} />
+              </button>
+              <button type="button" onClick={() => groupVideoInputRef.current?.click()} title="Gửi video" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <Video size={16} />
+              </button>
+              <button type="button" onClick={() => groupFileInputRef.current?.click()} title="Gửi tài liệu" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <Paperclip size={16} />
+              </button>
+              <button type="button" onClick={() => setGroupEmojiPicker((p) => !p)} title="Emoji" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: groupEmojiPicker ? '#F5F0FF' : '#FFFFFF', color: groupEmojiPicker ? '#7C3AED' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <Smile size={16} />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={groupInputText}
+              onChange={(e) => setGroupInputText(e.target.value)}
+              placeholder={`Nhắn tin vào nhóm ${activeGroup.name}...`}
+              style={{ flex: 1, padding: '10px 16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', fontSize: '13.5px', outline: 'none', backgroundColor: '#F8FAFC' }}
+            />
+            <button
+              type="submit"
+              disabled={(!groupInputText.trim() && !groupAttachment) || sendingGroup}
+              style={{ padding: '10px 16px', borderRadius: '12px', backgroundColor: (!groupInputText.trim() && !groupAttachment) || sendingGroup ? '#CBD5E1' : '#7C3AED', color: '#FFFFFF', fontWeight: '700', border: 'none', display: 'flex', alignItems: 'center', gap: '6px', cursor: (!groupInputText.trim() && !groupAttachment) || sendingGroup ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: (!groupInputText.trim() && !groupAttachment) || sendingGroup ? 'none' : '0 4px 12px rgba(124,58,237,0.35)' }}
+            >
+              {sendingGroup ? <Loader2 size={15} className="spinner" /> : <><span>Gửi</span><Send size={15} /></>}
+            </button>
+          </form>
         </div>
       ) : (
         /* Empty placeholder khi không có chat nào */
@@ -2092,7 +2734,201 @@ export default function UserMessages() {
           </div>
         </div>
       )}
+
+      {/* ====== MODAL TẠO NHÓM ====== */}
+      {showCreateGroupModal && (
+        <div
+          onClick={() => setShowCreateGroupModal(false)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 99998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', animation: 'fadeIn 0.15s ease-out' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', width: '100%', maxWidth: '460px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '17px', fontWeight: '900', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={20} color="#7C3AED" /> Tạo nhóm mới
+              </h3>
+              <button onClick={() => setShowCreateGroupModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+              {/* Group name input */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>Tên nhóm *</label>
+                <input
+                  type="text"
+                  value={createGroupName}
+                  onChange={(e) => setCreateGroupName(e.target.value)}
+                  placeholder="VD: Nhóm học Toán, Cafe chill deadline..."
+                  maxLength={100}
+                  style={{ width: '100%', padding: '11px 16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                  onFocus={(e) => (e.target.style.borderColor = '#7C3AED')}
+                  onBlur={(e) => (e.target.style.borderColor = 'var(--border-color)')}
+                />
+              </div>
+
+              {/* Friend selection */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Thêm thành viên từ bạn bè {createGroupSelected.length > 0 && <span style={{ color: '#7C3AED' }}>({createGroupSelected.length} đã chọn)</span>}
+                </label>
+                {createGroupFriends.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', backgroundColor: '#F8FAFC', borderRadius: '12px' }}>
+                    <p style={{ fontSize: '13px' }}>Chưa có bạn bè để mời. Hãy ghép đôi với ai đó trước!</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                    {createGroupFriends.map((friend) => {
+                      const fId = friend.id || friend._id;
+                      const isSelected = createGroupSelected.some((f) => (f.id || f._id) === fId);
+                      return (
+                        <div
+                          key={fId}
+                          onClick={() => toggleFriendSelection(friend, createGroupSelected, setCreateGroupSelected)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '12px', border: `2px solid ${isSelected ? '#7C3AED' : 'var(--border-color)'}`, backgroundColor: isSelected ? '#F5F0FF' : '#FFFFFF', cursor: 'pointer', transition: 'all 0.15s' }}
+                        >
+                          <img src={getAvatarUrl(friend.avatar)} alt={friend.fullName} style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #E9D5FF' }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '13.5px', fontWeight: '700', color: isSelected ? '#7C3AED' : 'var(--text-primary)' }}>{friend.fullName}</div>
+                            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{friend.university || ''}{friend.major ? ` • ${friend.major}` : ''}</div>
+                          </div>
+                          <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: isSelected ? '#7C3AED' : '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isSelected && <span style={{ color: '#FFF', fontSize: '13px', fontWeight: '800' }}>✓</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShowCreateGroupModal(false)}
+                style={{ flex: 1, padding: '11px', borderRadius: '12px', border: '1.5px solid var(--border-color)', background: '#FFFFFF', color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleCreateGroup}
+                disabled={!createGroupName.trim() || creatingGroup}
+                style={{ flex: 2, padding: '11px', borderRadius: '12px', border: 'none', background: !createGroupName.trim() || creatingGroup ? '#CBD5E1' : 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#FFFFFF', fontSize: '14px', fontWeight: '800', cursor: !createGroupName.trim() || creatingGroup ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                {creatingGroup ? <><Loader2 size={15} className="spinner" />Đang tạo...</> : <><Plus size={15} />Tạo nhóm ({createGroupSelected.length + 1} người)</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== MODAL THÊM THÀNH VIÊN ====== */}
+      {showAddMemberModal && (
+        <div
+          onClick={() => setShowAddMemberModal(false)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 99998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', animation: 'fadeIn 0.15s ease-out' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', width: '100%', maxWidth: '440px', maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}
+          >
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '17px', fontWeight: '900', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserPlus size={20} color="#7C3AED" /> Thêm thành viên
+              </h3>
+              <button onClick={() => setShowAddMemberModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+              {addMemberFriends.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                  <p style={{ fontSize: '13px' }}>Tất cả bạn bè của bạn đã có trong nhóm!</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {addMemberFriends.map((friend) => {
+                    const fId = friend.id || friend._id;
+                    const isSelected = addMemberSelected.some((f) => (f.id || f._id) === fId);
+                    return (
+                      <div
+                        key={fId}
+                        onClick={() => toggleFriendSelection(friend, addMemberSelected, setAddMemberSelected)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '12px', border: `2px solid ${isSelected ? '#7C3AED' : 'var(--border-color)'}`, backgroundColor: isSelected ? '#F5F0FF' : '#FFFFFF', cursor: 'pointer', transition: 'all 0.15s' }}
+                      >
+                        <img src={getAvatarUrl(friend.avatar)} alt={friend.fullName} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: isSelected ? '#7C3AED' : 'var(--text-primary)' }}>{friend.fullName}</div>
+                          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{friend.university || 'Sinh vien'}</div>
+                        </div>
+                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: isSelected ? '#7C3AED' : '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {isSelected && <span style={{ color: '#FFF', fontSize: '13px', fontWeight: '800' }}>check</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowAddMemberModal(false)} style={{ flex: 1, padding: '11px', borderRadius: '12px', border: '1.5px solid var(--border-color)', background: '#FFF', color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}>Huy</button>
+              <button
+                onClick={handleAddMembers}
+                disabled={!addMemberSelected.length || addingMembers}
+                style={{ flex: 2, padding: '11px', borderRadius: '12px', border: 'none', background: !addMemberSelected.length || addingMembers ? '#CBD5E1' : 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#FFF', fontSize: '14px', fontWeight: '800', cursor: !addMemberSelected.length || addingMembers ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                {addingMembers ? <Loader2 size={15} className="spinner" /> : <UserPlus size={15} />}
+                {addingMembers ? 'Dang them...' : 'Them thanh vien'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DANH SACH THANH VIEN */}
+      {showGroupMembersModal && activeGroup && (
+        <div
+          onClick={() => setShowGroupMembersModal(false)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 99998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', width: '100%', maxWidth: '400px', maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}
+          >
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '17px', fontWeight: '900', color: 'var(--text-primary)' }}>
+                Thanh vien nhom ({activeGroup.memberCount})
+              </h3>
+              <button onClick={() => setShowGroupMembersModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+              {(groupInfo?.members || activeGroup.members || []).map((member) => {
+                const memberId = member.id || member._id || member.user;
+                const isAdmin = member.role === 'admin';
+                return (
+                  <div key={memberId?.toString()} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
+                    <img src={getAvatarUrl(member.avatar)} alt={member.fullName} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: isAdmin ? '2px solid #7C3AED' : '2px solid #E2E8F0' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {member.fullName}
+                        {isAdmin && <span style={{ fontSize: '10px', backgroundColor: '#F5F0FF', color: '#7C3AED', padding: '2px 7px', borderRadius: '10px', fontWeight: '800' }}>Admin</span>}
+                        {memberId?.toString() === currentUserId && <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>(Ban)</span>}
+                      </div>
+                      {member.university && <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{member.university}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-color)' }}>
+              <button onClick={() => { setShowGroupMembersModal(false); openAddMemberModal(); }} style={{ width: '100%', padding: '11px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #7C3AED, #A855F7)', color: '#FFF', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <UserPlus size={16} /> Them thanh vien moi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

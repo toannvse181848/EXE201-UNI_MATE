@@ -6,6 +6,7 @@ const voucherRoutes = require('./routes/voucherRoutes');
 const matchRoutes = require('./routes/matchRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const groupChatRoutes = require('./routes/groupChatRoutes');
 const userRoutes = require('./routes/userRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -80,7 +81,7 @@ app.get('/', (req, res) => {
     success: true,
     message: 'UNI-MATE API v1.3.0',
     version: '1.3.0',
-    features: ['Auth', 'Venues', 'Vouchers + Wallet', 'Match/Swipe', 'Real-time Chat', 'Reports', 'Users', 'Onboarding & AI Matching', 'Image Upload', 'Admin Stats'],
+    features: ['Auth', 'Venues', 'Vouchers + Wallet', 'Match/Swipe', 'Real-time Chat', 'Group Chat', 'Reports', 'Users', 'Onboarding & AI Matching', 'Image Upload', 'Admin Stats'],
     endpoints: {
       auth: '/api/auth',
       venues: '/api/venues',
@@ -100,6 +101,7 @@ app.use('/api/venues', venueRoutes);
 app.use('/api/vouchers', voucherRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/group-chat', groupChatRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/onboarding', onboardingRoutes);

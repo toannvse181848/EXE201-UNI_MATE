@@ -50,7 +50,7 @@ io.on('connection', (socket) => {
   });
 
   /**
-   * Gửi tin nhắn real-time
+   * Gửi tin nhắn real-time (chat 1-1)
    * Client emit: send_message({ matchId, senderId, text })
    * Server broadcast: new_message(message)
    */
@@ -92,7 +92,7 @@ io.on('connection', (socket) => {
   });
 
   /**
-   * Typing indicator
+   * Typing indicator (1-1)
    * Client emit: typing({ matchId, userId, isTyping })
    */
   socket.on('typing', ({ matchId, userId, isTyping }) => {
@@ -100,7 +100,7 @@ io.on('connection', (socket) => {
   });
 
   /**
-   * Mark messages as read
+   * Mark messages as read (1-1)
    * Client emit: mark_read({ matchId, userId })
    */
   socket.on('mark_read', async ({ matchId, userId }) => {
@@ -113,6 +113,96 @@ io.on('connection', (socket) => {
     } catch (err) {
       socket.emit('error', { message: err.message });
     }
+  });
+
+  // ─── GROUP CHAT SOCKET EVENTS ─────────────────────────────────────────────
+
+  /**
+   * Join vào room của một nhóm chat
+   * Client emit: join_group_room({ groupId, userId })
+   */
+  socket.on('join_group_room', async ({ groupId, userId }) => {
+    try {
+      const GroupChat = require('./models/GroupChat');
+      const group = await GroupChat.findById(groupId);
+      if (!group || !group.isActive) {
+        return socket.emit('error', { message: 'Nhóm không tồn tại' });
+      }
+
+      const isMember = group.members.some(
+        (m) => m.user.toString() === userId
+      );
+      if (!isMember) {
+        return socket.emit('error', { message: 'Bạn không phải thành viên nhóm này' });
+      }
+
+      socket.join(`group_${groupId}`);
+      console.log(`[Socket] User ${userId} joined group room group_${groupId}`);
+      socket.emit('joined_group_room', { groupId });
+    } catch (err) {
+      socket.emit('error', { message: err.message });
+    }
+  });
+
+  /**
+   * Gửi tin nhắn vào nhóm real-time
+   * Client emit: send_group_message({ groupId, senderId, text, type, fileUrl, ... })
+   * Server broadcast: new_group_message(message)
+   */
+  socket.on('send_group_message', async ({ groupId, senderId, text, type = 'text', fileUrl, fileName, fileSize, fileMimeType }) => {
+    try {
+      const GroupChat = require('./models/GroupChat');
+      const GroupMessage = require('./models/GroupMessage');
+
+      const hasText = Boolean(text?.trim());
+      const hasFile = Boolean(fileUrl);
+      if (!hasText && !hasFile) return socket.emit('error', { message: 'Tin nhắn trống' });
+
+      const group = await GroupChat.findById(groupId);
+      if (!group || !group.isActive) {
+        return socket.emit('error', { message: 'Nhóm không tồn tại' });
+      }
+
+      const isMember = group.members.some(
+        (m) => m.user.toString() === senderId
+      );
+      if (!isMember) {
+        return socket.emit('error', { message: 'Bạn không phải thành viên nhóm này' });
+      }
+
+      const message = await GroupMessage.create({
+        groupId,
+        sender: senderId,
+        text: text?.trim() || '',
+        type: type || 'text',
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
+        fileSize: fileSize || null,
+        fileMimeType: fileMimeType || null,
+        readBy: [senderId],
+      });
+
+      // Cập nhật lastMessageAt
+      await GroupChat.findByIdAndUpdate(groupId, {
+        lastMessage: message._id,
+        lastMessageAt: message.createdAt,
+      });
+
+      const populated = await GroupMessage.findById(message._id)
+        .populate('sender', 'fullName avatar');
+
+      io.to(`group_${groupId}`).emit('new_group_message', populated);
+    } catch (err) {
+      socket.emit('error', { message: err.message });
+    }
+  });
+
+  /**
+   * Typing indicator trong nhóm
+   * Client emit: group_typing({ groupId, userId, userName, isTyping })
+   */
+  socket.on('group_typing', ({ groupId, userId, userName, isTyping }) => {
+    socket.to(`group_${groupId}`).emit('group_user_typing', { userId, userName, isTyping });
   });
 
   socket.on('disconnect', () => {
