@@ -230,11 +230,19 @@ const uploadMedia = catchAsync(async (req, res) => {
   if (mimetype.startsWith('image/')) mediaType = 'image';
   else if (mimetype.startsWith('video/')) mediaType = 'video';
 
+  // Sửa lỗi encoding tên file tiếng Việt do multer đọc latin1
+  let safeFileName = req.file.originalname;
+  try {
+    safeFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+  } catch (err) {
+    safeFileName = req.file.originalname;
+  }
+
   res.status(200).json({
     success: true,
     data: {
       fileUrl,
-      fileName: req.file.originalname,
+      fileName: safeFileName,
       fileSize: req.file.size,
       fileMimeType: mimetype,
       mediaType,
