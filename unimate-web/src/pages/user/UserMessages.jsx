@@ -55,6 +55,21 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
+// Helper sửa lỗi encoding tên file tiếng Việt bị hiển thị dạng latin1 / mojibake
+const repairMojibake = (str) => {
+  if (!str) return 'Tài liệu';
+  try {
+    if (/(?:[\u00C2\u00C3]|á[º»¼½¾¿])/.test(str)) {
+      const bytes = new Uint8Array([...str].map((c) => c.charCodeAt(0) & 0xff));
+      const decoded = new TextDecoder('utf-8').decode(bytes);
+      if (decoded && !decoded.includes('\uFFFD')) {
+        return decoded;
+      }
+    }
+  } catch (e) {}
+  return str;
+};
+
 // Danh mục biểu tượng & icon phổ biến cho sinh viên
 const EMOJI_CATEGORIES = [
   {
@@ -391,7 +406,7 @@ export default function UserMessages() {
       text: text || '',
       type: uploadedFile ? uploadedFile.mediaType : 'text',
       fileUrl: uploadedFile ? uploadedFile.fileUrl : null,
-      fileName: uploadedFile ? uploadedFile.fileName : null,
+      fileName: attachment?.name || uploadedFile?.fileName || null,
       fileSize: uploadedFile ? uploadedFile.fileSize : null,
       fileMimeType: uploadedFile ? uploadedFile.fileMimeType : null,
     };
@@ -1555,7 +1570,7 @@ export default function UserMessages() {
                           href={msg.fileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          download={msg.fileName || 'tai-lieu'}
+                          download={repairMojibake(msg.fileName || 'tai-lieu')}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1594,7 +1609,7 @@ export default function UserMessages() {
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {msg.fileName || 'Tài liệu đính kèm'}
+                              {repairMojibake(msg.fileName || 'Tài liệu đính kèm')}
                             </div>
                             <div style={{ fontSize: '11px', opacity: 0.85 }}>
                               {msg.fileSize ? formatFileSize(msg.fileSize) : 'Tài liệu'}
@@ -2071,7 +2086,7 @@ export default function UserMessages() {
                   textShadow: '0 2px 4px rgba(0,0,0,0.5)',
                 }}
               >
-                {mediaPreviewModal.name}
+                {repairMojibake(mediaPreviewModal.name)}
               </div>
             )}
           </div>
