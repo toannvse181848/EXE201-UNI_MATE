@@ -24,6 +24,7 @@ import {
   RefreshCw,
   X,
   Loader2,
+  Crown,
 } from 'lucide-react';
 import { venueApi } from '../../services/api';
 import { extractDistrict } from '../../utils/addressUtils';
