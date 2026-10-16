@@ -153,6 +153,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('unimate_portal_user', JSON.stringify(merged));
   };
 
+  // Nâng cấp tài khoản Premium để nhận tích xanh xác thực (dùng UniCoin)
+  const upgradePremium = async (plan = 'monthly', paymentMethod = 'coin') => {
+    const res = await userApi.buyPremium({ plan, paymentMethod });
+    if (res?.data?.user) {
+      updateUser(res.data.user);
+    }
+    return res;
+  };
+
   // Tải lại thông tin người dùng từ máy chủ (để cập nhật isPremium, uniCoin mới nhất)
   const reloadUser = async () => {
     try {
