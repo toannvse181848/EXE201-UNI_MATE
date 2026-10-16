@@ -16,17 +16,20 @@ const getMatchedFriends = async (userId) => {
     .populate('user1', 'fullName avatar studentProfile')
     .populate('user2', 'fullName avatar studentProfile');
 
-  return matches.map((m) => {
-    const friend =
-      m.user1._id.toString() === userId.toString() ? m.user2 : m.user1;
-    return {
-      id: friend._id,
-      fullName: friend.fullName,
-      avatar: friend.avatar,
-      university: friend.studentProfile?.university,
-      major: friend.studentProfile?.major,
-    };
-  });
+  return matches
+    .filter((m) => m.user1 && m.user2)
+    .map((m) => {
+      const friend =
+        m.user1._id.toString() === userId.toString() ? m.user2 : m.user1;
+      return {
+        id: friend._id,
+        _id: friend._id,
+        fullName: friend.fullName,
+        avatar: friend.avatar,
+        university: friend.studentProfile?.university,
+        major: friend.studentProfile?.major,
+      };
+    });
 };
 
 /**

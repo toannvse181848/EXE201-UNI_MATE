@@ -675,16 +675,39 @@ export default function UserMessages() {
     setGroupAttachment({ file, previewUrl, type: mediaType, name: file.name, size: file.size });
   };
 
+  // Lấy danh sách bạn bè dự phòng từ chính conversations đã load thành công
+  const getFallbackFriends = () => {
+    return (conversations || [])
+      .filter((c) => c.buddy && (c.buddy.id || c.buddy._id))
+      .map((c) => ({
+        id: c.buddy.id || c.buddy._id,
+        _id: c.buddy.id || c.buddy._id,
+        fullName: c.buddy.fullName,
+        avatar: c.buddy.avatar,
+        university: c.buddy.university,
+        major: c.buddy.major,
+      }));
+  };
+
   // Mở modal tạo nhóm và tải danh sách bạn bè
   const openCreateGroupModal = async () => {
     setCreateGroupName('');
     setCreateGroupSelected([]);
+    const fallbackFriends = getFallbackFriends();
+    setCreateGroupFriends(fallbackFriends);
     setShowCreateGroupModal(true);
     try {
       const res = await groupChatApi.getMyFriends();
-      setCreateGroupFriends(res.data || []);
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        setCreateGroupFriends(res.data);
+      } else if (fallbackFriends.length > 0) {
+        setCreateGroupFriends(fallbackFriends);
+      }
     } catch (err) {
-      setCreateGroupFriends([]);
+      console.warn('Tải bạn bè qua API gặp lỗi, dùng danh sách bạn từ hội thoại:', err.message);
+      if (fallbackFriends.length > 0) {
+        setCreateGroupFriends(fallbackFriends);
+      }
     }
   };
 
@@ -721,12 +744,26 @@ export default function UserMessages() {
   // Mở modal thêm thành viên
   const openAddMemberModal = async () => {
     setAddMemberSelected([]);
+    const existingMemberIds = (groupInfo?.members || activeGroup?.members || []).map((m) =>
+      (m.id || m._id || m.user || '').toString()
+    );
+    const fallbackFriends = getFallbackFriends().filter(
+      (f) => !existingMemberIds.includes((f.id || f._id).toString())
+    );
+    setAddMemberFriends(fallbackFriends);
     setShowAddMemberModal(true);
     try {
       const res = await groupChatApi.getInvitableFriends(selectedGroupId);
-      setAddMemberFriends(res.data || []);
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        setAddMemberFriends(res.data);
+      } else if (fallbackFriends.length > 0) {
+        setAddMemberFriends(fallbackFriends);
+      }
     } catch (err) {
-      setAddMemberFriends([]);
+      console.warn('Tải bạn bè mời qua API gặp lỗi, dùng fallback:', err.message);
+      if (fallbackFriends.length > 0) {
+        setAddMemberFriends(fallbackFriends);
+      }
     }
   };
 
