@@ -17,8 +17,13 @@ import {
   Image as ImageIcon,
   Trash2,
   Plus,
-  Crown,
   Link as LinkIcon,
+  QrCode,
+  Printer,
+  Download,
+  RefreshCw,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { venueApi } from '../../services/api';
 import { extractDistrict } from '../../utils/addressUtils';
@@ -47,6 +52,12 @@ export default function VenueManagement() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isBoosted, setIsBoosted] = useState(false);
+
+  // === Check-in QR State ===
+  const [showCheckinQrModal, setShowCheckinQrModal] = useState(false);
+  const [checkinQrData, setCheckinQrData] = useState(null); // { qrContent, qrImageUrl }
+  const [loadingQr, setLoadingQr] = useState(false);
+  const [regeneratingQr, setRegeneratingQr] = useState(false);
 
   React.useEffect(() => {
     const loadMyVenue = async () => {
@@ -191,6 +202,83 @@ export default function VenueManagement() {
     }
   };
 
+  const handleOpenCheckinQr = async () => {
+    if (!venueId) {
+      alert('Vui lòng lưu thông tin địa điểm trước khi lấy mã QR');
+      return;
+    }
+    setShowCheckinQrModal(true);
+    setLoadingQr(true);
+    try {
+      const res = await venueApi.getCheckinQr(venueId);
+      setCheckinQrData(res.data);
+    } catch (err) {
+      alert('Lỗi lấy mã QR check-in: ' + err.message);
+    } finally {
+      setLoadingQr(false);
+    }
+  };
+
+  const handleRegenerateQr = async () => {
+    if (!venueId) return;
+    if (!window.confirm('Bạn có chắc chắn muốn tạo lại mã QR mới? Mã QR cũ đã in sẽ hết hiệu lực ngay lập tức!')) return;
+    setRegeneratingQr(true);
+    try {
+      const res = await venueApi.regenerateCheckinQr(venueId);
+      setCheckinQrData(res.data);
+      alert('Đã tạo mã QR check-in mới thành công! Vui lòng in lại mã mới dán tại quán.');
+    } catch (err) {
+      alert('Lỗi tạo lại mã QR: ' + err.message);
+    } finally {
+      setRegeneratingQr(false);
+    }
+  };
+
+  const handlePrintQr = () => {
+    if (!checkinQrData?.qrImageUrl) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Vui lòng cho phép popup để mở trang in ấn.');
+      return;
+    }
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Mã QR Check-in - ${formData.name || 'UNI-MATE'}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px; margin: 0; background: #f8fafc; }
+            .card { background: #fff; border: 3px solid #FF5722; border-radius: 28px; padding: 36px 28px; display: inline-block; max-width: 360px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
+            .badge { background: #FFF7ED; color: #EA580C; font-weight: 800; font-size: 12px; padding: 6px 14px; border-radius: 20px; display: inline-block; margin-bottom: 12px; }
+            h2 { color: #1E293B; margin: 0 0 6px 0; font-size: 22px; font-weight: 900; }
+            p { color: #64748B; font-size: 13px; margin: 0 0 20px 0; line-height: 1.4; }
+            img { width: 240px; height: 240px; display: block; margin: 0 auto; border-radius: 16px; border: 1px solid #E2E8F0; }
+            .footer { margin-top: 20px; font-weight: 900; color: #FF5722; font-size: 16px; letter-spacing: 0.5px; }
+            .sub { color: #16A34A; font-size: 13.5px; font-weight: 800; margin-top: 4px; }
+            @media print {
+              body { background: #fff; padding: 0; }
+              .card { border: 2px solid #000; box-shadow: none; max-width: 100%; width: 340px; margin: 20px auto; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="badge">ĐỐI TÁC CHÍNH THỨC UNI-MATE</div>
+            <h2>${formData.name || 'Quán Cafe'}</h2>
+            <p>Mở app UNI-MATE quét mã để nhận UniCoin tích luỹ ưu đãi</p>
+            <img src="${checkinQrData.qrImageUrl}" alt="Check-in QR" />
+            <div class="footer">CHECK-IN TẠI QUÁN</div>
+            <div class="sub">+20 UNICOIN / LẦN</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Page Header */}
@@ -204,7 +292,23 @@ export default function VenueManagement() {
           </p>
         </div>
 
-        <div className="venue-header-actions">
+        <div className="venue-header-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleOpenCheckinQr}
+            className="btn"
+            style={{
+              backgroundColor: '#2563EB',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <QrCode size={16} />
+            <span>Mã QR Check-in quán</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsBoosted(!isBoosted)}
@@ -960,6 +1064,182 @@ export default function VenueManagement() {
           </div>
         </div>
       </div>
+
+      {/* MODAL MÃ QR CHECK-IN TẠI QUÁN (IN & TẢI XUỐNG) */}
+      {showCheckinQrModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '24px',
+              maxWidth: '440px',
+              width: '100%',
+              padding: '28px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              position: 'relative',
+              textAlign: 'center',
+            }}
+          >
+            <button
+              onClick={() => setShowCheckinQrModal(false)}
+              style={{
+                position: 'absolute',
+                top: '18px',
+                right: '18px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#94A3B8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                backgroundColor: '#EFF6FF',
+                color: '#2563EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 12px auto',
+              }}
+            >
+              <QrCode size={28} />
+            </div>
+
+            <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#0F172A', marginBottom: '4px' }}>
+              Mã QR Check-in Quán ☕
+            </h3>
+            <p style={{ fontSize: '12.5px', color: '#64748B', marginBottom: '18px', lineHeight: '1.4' }}>
+              In và dán mã này tại bàn hoặc quầy thu ngân. Sinh viên quét mã bằng ứng dụng UNI-MATE để nhận UniCoin.
+            </p>
+
+            {loadingQr ? (
+              <div style={{ padding: '60px 0', color: '#64748B' }}>
+                <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 10px auto' }} />
+                <div style={{ fontSize: '13px' }}>Đang tải mã QR của quán...</div>
+              </div>
+            ) : checkinQrData ? (
+              <div>
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '2px dashed #2563EB',
+                    borderRadius: '20px',
+                    padding: '18px',
+                    margin: '0 auto 16px auto',
+                    maxWidth: '240px',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)',
+                  }}
+                >
+                  <img
+                    src={checkinQrData.qrImageUrl}
+                    alt="Checkin QR"
+                    style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '10px' }}
+                  />
+                  <div style={{ fontSize: '12px', fontWeight: '800', color: '#1E40AF', marginTop: '10px' }}>
+                    {formData.name || 'Quán Đối Tác'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: '700', marginTop: '2px' }}>
+                    +20 UniCoin cho sinh viên
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: '#64748B',
+                    backgroundColor: '#F8FAFC',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    marginBottom: '18px',
+                    wordBreak: 'break-all',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {checkinQrData.qrContent}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handlePrintQr}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      backgroundColor: '#2563EB',
+                      color: '#FFFFFF',
+                      fontSize: '13.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                    }}
+                  >
+                    <Printer size={16} /> In / Tải mã QR
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={regeneratingQr}
+                  onClick={handleRegenerateQr}
+                  style={{
+                    width: '100%',
+                    padding: '9px',
+                    borderRadius: '10px',
+                    border: '1px solid #CBD5E1',
+                    backgroundColor: '#FFFFFF',
+                    color: '#64748B',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: regeneratingQr ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  {regeneratingQr ? (
+                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  Tạo lại mã QR mới (khi ảnh cũ bị lộ)
+                </button>
+              </div>
+            ) : (
+              <div style={{ padding: '30px 0', color: '#DC2626' }}>
+                Không tìm thấy mã QR check-in
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

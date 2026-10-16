@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { coinApi, venueApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import QRCheckinModal from '../../components/user/QRCheckinModal';
 
 export default function UserUniCoin() {
   const navigate = useNavigate();
@@ -99,37 +100,12 @@ export default function UserUniCoin() {
     }
   };
 
-  // Xử lý Check-in quán cafe
-  const handleVenueCheckin = async (venueToUse) => {
-    const target = venueToUse || selectedVenue;
-    if (!target) {
-      setMessage({ type: 'error', text: 'Vui lòng chọn một quán cafe để check-in!' });
-      return;
+  // Xử lý Check-in quán cafe qua mã QR & vị trí GPS
+  const handleVenueCheckin = (venueToUse) => {
+    if (venueToUse) {
+      setSelectedVenue(venueToUse);
     }
-    try {
-      setSubmittingVenue(true);
-      setMessage(null);
-      const res = await coinApi.venueCheckin(
-        target._id || target.id || 'mock-venue-01',
-        target.name || 'Quán Cafe Học Nhóm'
-      );
-      if (res?.success) {
-        setMessage({
-          type: 'success',
-          text: res.message || `Check-in thành công tại ${target.name}! +${res.data?.coinEarned} UniCoin`,
-        });
-        if (res.data?.uniCoin !== undefined) {
-          updateUser({ uniCoin: res.data.uniCoin });
-        }
-        setShowQRModal(false);
-        await fetchStatus();
-      }
-    } catch (err) {
-      const errorMsg = err.response?.data?.message || err.message || 'Check-in quán thất bại!';
-      setMessage({ type: 'error', text: errorMsg });
-    } finally {
-      setSubmittingVenue(false);
-    }
+    setShowQRModal(true);
   };
 
   // Tính chuỗi streak 7 ngày
@@ -690,137 +666,17 @@ export default function UserUniCoin() {
         </div>
       </div>
 
-      {/* MODAL QUÉT QR CODE GIẢ LẬP / THỰC THI */}
-      {showQRModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '24px',
-              maxWidth: '460px',
-              width: '100%',
-              padding: '28px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-              position: 'relative',
-              textAlign: 'center',
-            }}
-          >
-            <button
-              onClick={() => setShowQRModal(false)}
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                background: 'none',
-                border: 'none',
-                fontSize: '20px',
-                cursor: 'pointer',
-                color: '#64748B',
-              }}
-            >
-              ✕
-            </button>
-
-            <div
-              style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '20px',
-                backgroundColor: '#EFF6FF',
-                color: '#2563EB',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px auto',
-              }}
-            >
-              <QrCode size={32} />
-            </div>
-
-            <h3 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 8px 0', color: '#1E293B' }}>
-              Quét mã QR tại quán cafe
-            </h3>
-            <p style={{ fontSize: '13px', color: '#64748B', margin: '0 0 20px 0', lineHeight: '1.5' }}>
-              Hướng camera điện thoại vào mã QR dán trên bàn đối tác Uni-Mate hoặc chọn quán bên dưới để hoàn tất check-in:
-            </p>
-
-            {/* Khung mô phỏng viewfinder camera QR */}
-            <div
-              style={{
-                width: '220px',
-                height: '220px',
-                margin: '0 auto 20px auto',
-                borderRadius: '20px',
-                border: '3px dashed #3B82F6',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#F8FAFC',
-                position: 'relative',
-              }}
-            >
-              <Camera size={44} color="#3B82F6" style={{ marginBottom: '8px' }} />
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#1E40AF' }}>
-                {selectedVenue?.name || 'Đang quét quán...'}
-              </div>
-              <div style={{ fontSize: '11px', color: '#10B981', fontWeight: '800', marginTop: '4px' }}>
-                Nhận +20 UniCoin
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => setShowQRModal(false)}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: '12px',
-                  border: '1px solid #CBD5E1',
-                  backgroundColor: '#FFFFFF',
-                  fontWeight: '700',
-                  color: '#475569',
-                  cursor: 'pointer',
-                }}
-              >
-                Hủy bỏ
-              </button>
-              <button
-                onClick={() => handleVenueCheckin(selectedVenue)}
-                disabled={submittingVenue}
-                style={{
-                  flex: 2,
-                  padding: '12px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  backgroundColor: '#2563EB',
-                  fontWeight: '800',
-                  color: '#FFFFFF',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                {submittingVenue ? <RefreshCw size={16} className="animate-spin" /> : 'Xác nhận Check-in ngay'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL QUÉT QR CODE DÁN TẠI QUÁN + XÁC THỰC GPS */}
+      <QRCheckinModal
+        isOpen={showQRModal}
+        onClose={() => setShowQRModal(false)}
+        onSuccess={(res) => {
+          if (res?.data?.uniCoin !== undefined) {
+            updateUser({ uniCoin: res.data.uniCoin });
+          }
+          fetchStatus();
+        }}
+      />
 
       {/* BẢNG CHÍNH SÁCH CHỐNG LẠM PHÁT & GIỮ CHÂN USER (TOKENOMICS) */}
       <div

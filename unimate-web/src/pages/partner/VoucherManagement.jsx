@@ -36,11 +36,21 @@ export default function VoucherManagement() {
   const [newVoucher, setNewVoucher] = useState({
     name: '',
     code: '',
+    codeType: 'shared', // 'shared' | 'unique'
+    isUnlimited: false,
+    coinCost: 0,
     type: 'Phần trăm (%)',
     value: '',
     total: 500,
     expiry: '2026-12-31',
   });
+
+  // Modal quản lý danh sách mã riêng
+  const [selectedUniqueVoucher, setSelectedUniqueVoucher] = useState(null);
+  const [codesData, setCodesData] = useState([]);
+  const [codesLoading, setCodesLoading] = useState(false);
+  const [newCodesInput, setNewCodesInput] = useState('');
+  const [addingCodes, setAddingCodes] = useState(false);
 
   const loadVenues = async () => {
     try {
@@ -64,9 +74,12 @@ export default function VoucherManagement() {
         id: v._id || v.id,
         name: v.title,
         code: v.code,
+        codeType: v.codeType || 'shared',
+        isUnlimited: Boolean(v.isUnlimited),
+        coinCost: Number(v.coinCost) || 0,
         type: v.discountPercent ? 'Phần trăm (%)' : (v.discountAmount ? 'Tiền mặt (VNĐ)' : 'Quà tặng'),
         value: v.discountPercent ? `${v.discountPercent}%` : (v.discountAmount ? `${v.discountAmount.toLocaleString()}đ` : v.title),
-        total: v.quantity || 500,
+        total: v.isUnlimited ? 'Không giới hạn' : (v.quantity || 500),
         issued: v.claimedCount || 0,
         used: v.usedCount || 0,
         expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : 'Không thời hạn',
@@ -128,7 +141,10 @@ export default function VoucherManagement() {
         venueId: effectiveVenueId,
         title: newVoucher.name,
         code: newVoucher.code.toUpperCase().trim(),
-        quantity: Number(newVoucher.total) || 500,
+        codeType: newVoucher.codeType,
+        isUnlimited: Boolean(newVoucher.isUnlimited),
+        coinCost: Number(newVoucher.coinCost) || 0,
+        quantity: newVoucher.isUnlimited ? null : (Number(newVoucher.total) || 500),
         validUntil: parsedDate.toISOString(),
         ...(newVoucher.type === 'Phần trăm (%)' ? { discountPercent: valNum || 20 } : {}),
         ...(newVoucher.type === 'Tiền mặt (VNĐ)' ? { discountAmount: valNum || 50000 } : {}),
@@ -139,6 +155,9 @@ export default function VoucherManagement() {
       setNewVoucher({
         name: '',
         code: '',
+        codeType: 'shared',
+        isUnlimited: false,
+        coinCost: 0,
         type: 'Phần trăm (%)',
         value: '',
         total: 500,
@@ -149,6 +168,43 @@ export default function VoucherManagement() {
       alert('Lỗi tạo voucher: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleOpenCodesModal = async (v) => {
+    setSelectedUniqueVoucher(v);
+    setCodesLoading(true);
+    setNewCodesInput('');
+    try {
+      const res = await voucherApi.getVoucherCodes(v.id);
+      setCodesData(res.data || []);
+    } catch (err) {
+      alert('Lỗi tải danh sách mã: ' + err.message);
+    } finally {
+      setCodesLoading(false);
+    }
+  };
+
+  const handleAddCodes = async (e) => {
+    e.preventDefault();
+    if (!newCodesInput.trim() || !selectedUniqueVoucher) return;
+    const codes = newCodesInput
+      .split('\n')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (codes.length === 0) return;
+    setAddingCodes(true);
+    try {
+      const res = await voucherApi.addVoucherCodes(selectedUniqueVoucher.id, { codes });
+      alert(res.message || `Đã nạp ${res.data?.addedCount || codes.length} mã thành công!`);
+      setNewCodesInput('');
+      const updated = await voucherApi.getVoucherCodes(selectedUniqueVoucher.id);
+      setCodesData(updated.data || []);
+      fetchVouchers();
+    } catch (err) {
+      alert('Lỗi nạp mã: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setAddingCodes(false);
     }
   };
 
@@ -280,8 +336,9 @@ export default function VoucherManagement() {
             <thead>
               <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1.5px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '800', letterSpacing: '0.5px' }}>
                 <th style={{ padding: '14px 20px' }}>TÊN VOUCHER</th>
-                <th style={{ padding: '14px 16px' }}>LOẠI ƯU ĐÃI</th>
+                <th style={{ padding: '14px 16px' }}>LOẠI MÃ</th>
                 <th style={{ padding: '14px 16px' }}>GIÁ TRỊ</th>
+                <th style={{ padding: '14px 16px', textAlign: 'center' }}>GIÁ UNICOIN</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center' }}>SỐ LƯỢNG</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center' }}>ĐÃ PHÁT</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center' }}>ĐÃ DÙNG</th>
@@ -325,14 +382,34 @@ export default function VoucherManagement() {
                       MÃ: {item.code}
                     </span>
                   </td>
-                  <td style={{ padding: '16px 16px', color: 'var(--text-secondary)' }}>
-                    {item.type}
+                  <td style={{ padding: '16px 16px' }}>
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        backgroundColor: item.codeType === 'unique' ? '#EDE9FE' : '#F1F5F9',
+                        color: item.codeType === 'unique' ? '#6D28D9' : '#475569',
+                      }}
+                    >
+                      {item.codeType === 'unique' ? 'Mã riêng' : 'Mã chung'}
+                    </span>
                   </td>
                   <td style={{ padding: '16px 16px', fontWeight: '700', color: 'var(--text-primary)' }}>
                     {item.value}
                   </td>
+                  <td style={{ padding: '16px 16px', textAlign: 'center' }}>
+                    {item.coinCost > 0 ? (
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: '#B45309', backgroundColor: '#FEF3C7', padding: '2px 8px', borderRadius: '6px' }}>
+                        {item.coinCost} Coin
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>Miễn phí</span>
+                    )}
+                  </td>
                   <td style={{ padding: '16px 16px', textAlign: 'center', fontWeight: '600' }}>
-                    {item.total.toLocaleString()}
+                    {typeof item.total === 'number' ? item.total.toLocaleString() : item.total}
                   </td>
                   <td style={{ padding: '16px 16px', textAlign: 'center', fontWeight: '600', color: '#8B5CF6' }}>
                     {item.issued.toLocaleString()}
@@ -347,20 +424,41 @@ export default function VoucherManagement() {
                     {getStatusBadge(item.status)}
                   </td>
                   <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                    <button
-                      onClick={() => handleToggleStatus(item.id)}
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        border: '1px solid var(--border-color)',
-                        backgroundColor: '#FFFFFF',
-                        color: item.status === 'active' ? '#DC2626' : '#059669',
-                      }}
-                    >
-                      {item.status === 'active' ? 'Tạm dừng' : 'Bật chạy'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                      {item.codeType === 'unique' && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCodesModal(item)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            border: '1px solid #C4B5FD',
+                            backgroundColor: '#F5F3FF',
+                            color: '#6D28D9',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Nạp mã
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleToggleStatus(item.id)}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: '#FFFFFF',
+                          color: item.status === 'active' ? '#DC2626' : '#059669',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {item.status === 'active' ? 'Tạm dừng' : 'Bật chạy'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )))}
@@ -516,6 +614,36 @@ export default function VoucherManagement() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
+                    Cơ chế loại mã *
+                  </label>
+                  <select
+                    value={newVoucher.codeType}
+                    onChange={(e) => setNewVoucher({ ...newVoucher, codeType: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: '#fff' }}
+                  >
+                    <option value="shared">Mã chung (1 mã dùng nhiều lượt)</option>
+                    <option value="unique">Mã riêng (danh sách mã, mỗi bạn 1 mã)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
+                    Giá UniCoin đổi voucher
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0 = Miễn phí"
+                    value={newVoucher.coinCost}
+                    onChange={(e) => setNewVoucher({ ...newVoucher, coinCost: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
                     Giá trị ưu đãi
                   </label>
                   <input
@@ -533,10 +661,22 @@ export default function VoucherManagement() {
                   </label>
                   <input
                     type="number"
-                    value={newVoucher.total}
+                    disabled={newVoucher.isUnlimited}
+                    value={newVoucher.isUnlimited ? '' : newVoucher.total}
                     onChange={(e) => setNewVoucher({ ...newVoucher, total: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}
+                    placeholder={newVoucher.isUnlimited ? 'Không giới hạn' : '500'}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: newVoucher.isUnlimited ? '#F1F5F9' : '#fff' }}
                   />
+                  {newVoucher.codeType === 'shared' && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '6px', color: '#475569', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={newVoucher.isUnlimited}
+                        onChange={(e) => setNewVoucher({ ...newVoucher, isUnlimited: e.target.checked })}
+                      />
+                      <span>Không giới hạn số lượng (áp dụng cho quán của thầy)</span>
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -584,6 +724,160 @@ export default function VoucherManagement() {
           fetchVouchers();
         }}
       />
+
+      {/* Modal Quản lý / Nạp danh sách mã riêng */}
+      {selectedUniqueVoucher && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '24px',
+              maxWidth: '560px',
+              width: '100%',
+              padding: '28px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              position: 'relative',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#6D28D9', textTransform: 'uppercase' }}>
+                  Voucher Mã Riêng
+                </span>
+                <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#0F172A', marginTop: '2px' }}>
+                  {selectedUniqueVoucher.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUniqueVoucher(null)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form nạp thêm mã */}
+            <form onSubmit={handleAddCodes} style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px', color: '#334155' }}>
+                Nạp thêm danh sách mã riêng (mỗi mã 1 dòng)
+              </label>
+              <textarea
+                rows={3}
+                placeholder="VD:&#10;BT-001&#10;BT-002&#10;BT-003"
+                value={newCodesInput}
+                onChange={(e) => setNewCodesInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #CBD5E1',
+                  fontSize: '13px',
+                  fontFamily: 'monospace',
+                  marginBottom: '10px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={addingCodes || !newCodesInput.trim()}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: '#6D28D9',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: addingCodes || !newCodesInput.trim() ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {addingCodes ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
+                Nạp mã vào kho
+              </button>
+            </form>
+
+            {/* Danh sách mã hiện có */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: '800', color: '#334155' }}>
+                  Tình trạng mã trong kho ({codesData.length} mã)
+                </span>
+                <span style={{ fontSize: '12px', color: '#64748B' }}>
+                  Khả dụng: <strong>{codesData.filter((c) => c.status === 'available').length}</strong> · Đã phát: <strong>{codesData.filter((c) => c.status === 'assigned').length}</strong> · Đã dùng: <strong>{codesData.filter((c) => c.status === 'used').length}</strong>
+                </span>
+              </div>
+
+              {codesLoading ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: '#64748B' }}>
+                  <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px auto' }} />
+                  Đang tải danh sách mã...
+                </div>
+              ) : codesData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px', backgroundColor: '#F8FAFC', borderRadius: '12px', color: '#64748B', fontSize: '13px' }}>
+                  Chưa có mã riêng nào. Hãy nạp danh sách mã ở ô phía trên!
+                </div>
+              ) : (
+                <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: '12px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                    <thead style={{ backgroundColor: '#F1F5F9', position: 'sticky', top: 0 }}>
+                      <tr>
+                        <th style={{ padding: '8px 12px' }}>Mã riêng</th>
+                        <th style={{ padding: '8px 12px' }}>Trạng thái</th>
+                        <th style={{ padding: '8px 12px' }}>Sinh viên nhận</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {codesData.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: '700' }}>
+                            {item.code}
+                          </td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                backgroundColor: item.status === 'available' ? '#DCFCE7' : item.status === 'assigned' ? '#FEF3C7' : '#F1F5F9',
+                                color: item.status === 'available' ? '#15803D' : item.status === 'assigned' ? '#B45309' : '#64748B',
+                              }}
+                            >
+                              {item.status === 'available' ? 'Sẵn sàng' : item.status === 'assigned' ? 'Đã cấp' : 'Đã dùng'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 12px', color: '#475569' }}>
+                            {item.userId?.fullName || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

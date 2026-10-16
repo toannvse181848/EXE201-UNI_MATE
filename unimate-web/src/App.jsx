@@ -38,6 +38,7 @@ import UserManagement from './pages/admin/UserManagement';
 import VenueModeration from './pages/admin/VenueModeration';
 import VoucherOversight from './pages/admin/VoucherOversight';
 import ReportQueue from './pages/admin/ReportQueue';
+import OrderManagement from './pages/admin/OrderManagement';
 
 // Smart Home / Default Redirect based on current role
 function RootRedirect() {
@@ -116,6 +117,7 @@ export default function App() {
             <Route path="users" element={<UserManagement />} />
             <Route path="venues" element={<VenueModeration />} />
             <Route path="vouchers" element={<VoucherOversight />} />
+            <Route path="orders" element={<OrderManagement />} />
             <Route path="reports" element={<ReportQueue />} />
           </Route>
 

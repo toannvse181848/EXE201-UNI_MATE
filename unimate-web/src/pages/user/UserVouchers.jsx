@@ -16,7 +16,7 @@ import { voucherApi } from '../../services/api';
 
 export default function UserVouchers() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, reloadUser } = useAuth();
   const [activeTab, setActiveTab] = useState('my_vouchers');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -56,8 +56,10 @@ export default function UserVouchers() {
   const handleClaimVoucher = async (voucherId) => {
     setClaimingId(voucherId);
     try {
-      await voucherApi.claimVoucher(voucherId);
+      const res = await voucherApi.claimVoucher(voucherId);
+      if (reloadUser) await reloadUser();
       await fetchData(); // refresh wallet
+      alert(res?.message || 'Đã nhận voucher thành công!');
     } catch (err) {
       alert('Không thể nhận voucher: ' + err.message);
     } finally {
@@ -77,16 +79,21 @@ export default function UserVouchers() {
   };
 
   // Chuẩn hoá voucher từ backend. Nhận cả 2 dạng:
-  // - Voucher công khai: { _id, code, title, venueId: {name}, ... }
-  // - Item trong ví (UserVoucher): { _id, status, qrPayload, voucherId: { code, title, venueId: {name}, ... } }
+  // - Voucher công khai: { _id, code, title, venueId: {name}, codeType, coinCost, isUnlimited, ... }
+  // - Item trong ví (UserVoucher): { _id, status, qrPayload, displayCode, assignedCode, voucherId: { ... } }
   const normalizeVoucher = (raw) => {
     const isWalletItem = raw.voucherId && typeof raw.voucherId === 'object';
     const v = isWalletItem ? raw.voucherId : raw;
     const venue = v.venueId && typeof v.venueId === 'object' ? v.venueId : null;
+    const displayCode = raw.displayCode || raw.assignedCode || v.code || '';
     return {
       id: raw._id || raw.id,
-      voucherId: v._id,
+      voucherId: v._id || v.id,
       code: v.code || '',
+      displayCode,
+      codeType: v.codeType || 'shared',
+      isUnlimited: Boolean(v.isUnlimited),
+      coinCost: Number(v.coinCost) || 0,
       qrPayload: isWalletItem ? raw.qrPayload : null,
       title: v.title || 'Voucher',
       brand: venue?.name || '—',
@@ -290,6 +297,14 @@ export default function UserVouchers() {
 
               {/* Body */}
               <div style={{ padding: '18px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: vch.codeType === 'unique' ? '#EDE9FE' : '#F1F5F9', color: vch.codeType === 'unique' ? '#6D28D9' : '#475569' }}>
+                    {vch.codeType === 'unique' ? 'Mã riêng' : 'Mã chung'}
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#1E293B', letterSpacing: '0.5px' }}>
+                    Mã: <code style={{ backgroundColor: '#F8FAFC', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E2E8F0', color: '#EA580C' }}>{vch.displayCode || vch.code}</code>
+                  </span>
+                </div>
                 <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '6px' }}>
                   {vch.title}
                 </h3>
@@ -364,6 +379,25 @@ export default function UserVouchers() {
                     <span style={{ fontSize: '28px' }}>{vch.logo}</span>
                     <div style={{ backgroundColor: '#FFF3E0', padding: '4px 10px', borderRadius: '20px', color: '#E64A19', fontSize: '13px', fontWeight: '800' }}>{vch.discount}</div>
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                    {vch.coinCost > 0 ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#FEF3C7', color: '#B45309' }}>
+                        <Coins size={12} /> {vch.coinCost} UniCoin
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                        Miễn phí
+                      </span>
+                    )}
+                    <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: vch.codeType === 'unique' ? '#EDE9FE' : '#F1F5F9', color: vch.codeType === 'unique' ? '#6D28D9' : '#475569' }}>
+                      {vch.codeType === 'unique' ? 'Mã riêng' : 'Mã chung'}
+                    </span>
+                    {vch.isUnlimited && (
+                      <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+                        Không giới hạn
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: '12px', fontWeight: '700', color: '#E64A19', marginBottom: '4px' }}>{vch.brand}</div>
                   <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '6px' }}>{vch.title}</h4>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.5', flex: 1 }}>{vch.description}</p>
@@ -374,7 +408,7 @@ export default function UserVouchers() {
                     style={{ padding: '10px', borderRadius: '10px', backgroundColor: alreadyClaimed ? '#E2E8F0' : '#FF5722', color: alreadyClaimed ? 'var(--text-muted)' : '#FFFFFF', fontSize: '13px', fontWeight: '700', cursor: alreadyClaimed ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
                     {claimingId === vch.id ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : alreadyClaimed ? <CheckCircle2 size={14} /> : null}
-                    {alreadyClaimed ? 'Đã nhận' : claimingId === vch.id ? 'Đang nhận...' : 'Nhận Voucher'}
+                    {alreadyClaimed ? 'Đã có trong ví' : claimingId === vch.id ? 'Đang nhận...' : vch.coinCost > 0 ? `Đổi (${vch.coinCost} UniCoin)` : 'Nhận Voucher'}
                   </button>
                 </div>
               );
@@ -456,20 +490,26 @@ export default function UserVouchers() {
                 justifyContent: 'center',
                 gap: '8px',
                 padding: '10px 14px',
-                backgroundColor: '#F1F5F9',
-                borderRadius: '10px',
+                backgroundColor: '#F8FAFC',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
                 marginBottom: '16px',
               }}
             >
-              <span style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '1px', color: 'var(--text-primary)' }}>
-                {selectedVoucher.qrPayload || selectedVoucher.code}
-              </span>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>
+                  {selectedVoucher.codeType === 'unique' ? 'Mã riêng của bạn' : 'Mã chung ưu đãi'}
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '1.5px', color: '#0F172A' }}>
+                  {selectedVoucher.displayCode || selectedVoucher.code}
+                </div>
+              </div>
               <button
-                onClick={() => handleCopyCode(selectedVoucher.qrPayload || selectedVoucher.code)}
-                style={{ color: '#FF5722', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                onClick={() => handleCopyCode(selectedVoucher.displayCode || selectedVoucher.code)}
+                style={{ color: '#FF5722', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '6px', borderRadius: '6px', backgroundColor: '#FFF7ED' }}
                 title="Sao chép mã"
               >
-                {copiedCode ? <CheckCircle2 size={16} color="#FF7043" /> : <Copy size={16} />}
+                {copiedCode ? <CheckCircle2 size={16} color="#10B981" /> : <Copy size={16} />}
               </button>
             </div>
 

@@ -63,76 +63,111 @@ export default function ImportVoucherModal({ isOpen, onClose, venues = [], onSuc
     setImportResult(null);
   };
 
-  // Tải file mẫu trực tiếp
-  const handleDownloadTemplate = () => {
+  // Tải file mẫu trực tiếp (chứa cột Loại mã, Giá UniCoin, Số lượng Không giới hạn)
+  const handleDownloadTemplate = async () => {
     try {
-      const headers = [
-        'Mã voucher (*)',
-        'Tiêu đề voucher (*)',
-        'Mô tả chi tiết',
-        'Loại giảm (% hoặc VNĐ)',
-        'Mức giảm (*)',
-        'Đơn tối thiểu (VNĐ)',
-        'Số lượng phát hành (*)',
-        'Hạn sử dụng (DD/MM/YYYY)',
-        'Điều khoản sử dụng (cách nhau bởi ;)',
-      ];
-
-      const sampleData = [
-        [
-          'UNIKHAIXUAN',
-          'Giảm 25% tổng hóa đơn mừng năm mới',
-          'Áp dụng cho tất cả sinh viên xuất trình app UNI-MATE',
-          '%',
-          25,
-          50000,
-          200,
-          '31/12/2026',
-          'Áp dụng tại quán; Mỗi SV 1 lần/ngày; Không áp dụng lễ Tết',
-        ],
-        [
-          'UNIFRESH50K',
-          'Giảm 50.000đ cho hóa đơn từ 150k',
-          'Ưu đãi đặc quyền cho sinh viên ĐHQG TP.HCM',
-          'VNĐ',
-          50000,
-          150000,
-          100,
-          '30/06/2026',
-          'Áp dụng cho hóa đơn từ 150k; Áp dụng mang đi và tại quán',
-        ],
-        [
-          'COFFEE15',
-          'Giảm 15% nhóm thức uống Cà Phê',
-          'Khởi động ngày học tập tỉnh táo cho sinh viên',
-          '%',
-          15,
-          0,
-          300,
-          '15/10/2026',
-          'Áp dụng trước 12h trưa mỗi ngày',
-        ],
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
-      ws['!cols'] = [
-        { wch: 18 },
-        { wch: 36 },
-        { wch: 45 },
-        { wch: 22 },
-        { wch: 14 },
-        { wch: 20 },
-        { wch: 22 },
-        { wch: 24 },
-        { wch: 55 },
-      ];
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Mau_Voucher_UNIMATE');
-      XLSX.writeFile(wb, 'mau_nhap_voucher_unimate.xlsx');
+      const blob = await voucherApi.downloadTemplate();
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'mau_nhap_voucher_unimate.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      // Fallback gọi API tải template
-      window.open('/api/vouchers/partner/template', '_blank');
+      // Fallback tạo file cục bộ bằng xlsx nếu API không khả dụng
+      try {
+        const headers = [
+          'Mã voucher (*)',
+          'Loại mã (Chung / Riêng)',
+          'Tiêu đề voucher (*)',
+          'Mô tả chi tiết',
+          'Loại giảm (% hoặc VNĐ)',
+          'Mức giảm (*)',
+          'Đơn tối thiểu (VNĐ)',
+          'Số lượng phát hành (số hoặc "Không giới hạn")',
+          'Hạn sử dụng (DD/MM/YYYY)',
+          'Điều khoản sử dụng (phân cách bằng ;)',
+          'Giá UniCoin (0 = miễn phí)',
+        ];
+
+        const sampleData = [
+          [
+            'UNIKHAIXUAN',
+            'Chung',
+            'Giảm 25% tổng hóa đơn mừng năm mới',
+            'Áp dụng cho tất cả sinh viên xuất trình thẻ sinh viên hoặc app UNI-MATE',
+            '%',
+            25,
+            50000,
+            200,
+            '31/12/2026',
+            'Áp dụng tại quán; Mỗi SV 1 lần/ngày; Không áp dụng lễ Tết',
+            0,
+          ],
+          [
+            'UNIFRESH50K',
+            'Chung',
+            'Giảm 50.000đ cho đơn từ 150k',
+            'Ưu đãi đặc quyền cho sinh viên các trường ĐHQG TP.HCM',
+            'VNĐ',
+            50000,
+            150000,
+            100,
+            '30/06/2026',
+            'Áp dụng cho đơn từ 150.000đ; Áp dụng cả mang đi và tại quán',
+            50,
+          ],
+          [
+            'MILKTEA20',
+            'Chung',
+            'Giảm 20% nhóm thức uống Trà Sữa',
+            'Giảm ngay 20% khi order bất kỳ món nào trong menu trà sữa',
+            '%',
+            20,
+            0,
+            'Không giới hạn',
+            '15/11/2026',
+            'Áp dụng vào khung giờ 13h - 18h mỗi ngày',
+            0,
+          ],
+          [
+            'TRASUA-RIENG',
+            'Riêng',
+            'Giảm 10% (mỗi bạn 1 mã riêng)',
+            'Mã riêng: nạp danh sách mã sau khi nhập file',
+            '%',
+            10,
+            0,
+            '',
+            '31/12/2026',
+            'Mỗi mã chỉ dùng 1 lần',
+            100,
+          ],
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+        ws['!cols'] = [
+          { wch: 18 },
+          { wch: 22 },
+          { wch: 36 },
+          { wch: 45 },
+          { wch: 22 },
+          { wch: 14 },
+          { wch: 20 },
+          { wch: 28 },
+          { wch: 24 },
+          { wch: 55 },
+          { wch: 24 },
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Mau_Voucher_UNIMATE');
+        XLSX.writeFile(wb, 'mau_nhap_voucher_unimate.xlsx');
+      } catch (e) {
+        window.open('/api/vouchers/partner/template', '_blank');
+      }
     }
   };
 

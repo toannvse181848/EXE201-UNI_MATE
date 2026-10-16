@@ -15,6 +15,7 @@ import {
   Phone,
   Calendar,
   Crown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { userApi } from '../../services/api';
 
@@ -27,6 +28,20 @@ export default function UserManagement() {
   const [total, setTotal] = useState(0);
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExportExcel = async () => {
+    try {
+      setExportLoading(true);
+      await userApi.exportUsersAdmin();
+      setToast({ type: 'success', text: 'Xuất file Excel danh sách người dùng thành công!' });
+    } catch (err) {
+      setToast({ type: 'error', text: err.response?.data?.message || 'Không thể xuất file Excel' });
+    } finally {
+      setExportLoading(false);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -178,18 +193,35 @@ export default function UserManagement() {
             Danh sách tất cả tài khoản thực tế đã đăng ký trong cơ sở dữ liệu hệ thống UNI-MATE.
           </p>
         </div>
-        <button
-          onClick={fetchUsers}
-          className="portal-btn"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-            cursor: 'pointer', padding: '10px 16px', borderRadius: '8px'
-          }}
-        >
-          <RefreshCw size={16} className={loading ? 'spin' : ''} />
-          <span>Làm mới ({total} user)</span>
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportLoading}
+            className="portal-btn"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              backgroundColor: '#10B981', color: '#fff', border: 'none',
+              cursor: exportLoading ? 'not-allowed' : 'pointer', padding: '10px 16px', borderRadius: '8px',
+              fontWeight: '600', fontSize: '14px',
+            }}
+          >
+            <FileSpreadsheet size={16} />
+            <span>{exportLoading ? 'Đang xuất...' : 'Xuất Excel'}</span>
+          </button>
+
+          <button
+            onClick={fetchUsers}
+            className="portal-btn"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+              cursor: 'pointer', padding: '10px 16px', borderRadius: '8px'
+            }}
+          >
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+            <span>Làm mới ({total} user)</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters & Search Bar */}
