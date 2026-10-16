@@ -21,6 +21,12 @@ import {
   MapPin,
   Award,
   ArrowLeft,
+  Image as ImageIcon,
+  Video,
+  FileText,
+  Download,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { chatApi, matchApi } from '../../services/api';
@@ -39,6 +45,31 @@ const formatTime = (dateStr) => {
   else if (diffDays < 7) return `${diffDays} ngày trước`;
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 };
+
+// Helper format dung lượng tệp
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+// Danh mục biểu tượng & icon phổ biến cho sinh viên
+const EMOJI_CATEGORIES = [
+  {
+    name: 'Cảm xúc & Biểu cảm',
+    emojis: ['😀', '😂', '🤣', '😊', '😍', '🥰', '😎', '🥳', '🥺', '😴', '🤯', '😇', '🤩', '🤔', '😋', '🤗'],
+  },
+  {
+    name: 'Học tập & Cafe',
+    emojis: ['☕', '🧋', '🍵', '🍰', '🥐', '🍕', '🥤', '📚', '📖', '📝', '💻', '🎓', '🎒', '💡', '🎯', '🚀'],
+  },
+  {
+    name: 'Thả tim & Cử chỉ',
+    emojis: ['👍', '👏', '🙌', '🤝', '✌️', '🤞', '👋', '💖', '❤️', '💕', '🔥', '✨', '🎉', '🌸', '🍀', '⭐'],
+  },
+];
 
 // Helper định dạng trạng thái trực tuyến / ngoại tuyến theo thời gian thực
 const getPresenceInfo = (buddy) => {
@@ -131,6 +162,63 @@ export default function UserMessages() {
   const [sending, setSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  // Đa phương tiện & Emoji states
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedAttachment, setSelectedAttachment] = useState(null); // { file, previewUrl, type, name, size }
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [mediaPreviewModal, setMediaPreviewModal] = useState(null);
+
+  const imageInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+
+  // Đóng emoji picker khi click ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
+
+  const handleSelectEmoji = (emoji) => {
+    setInputText((prev) => prev + emoji);
+  };
+
+  const handleFileSelect = (e, forcedType = null) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const mime = file.type || '';
+    let mediaType = forcedType || 'file';
+    if (!forcedType) {
+      if (mime.startsWith('image/')) mediaType = 'image';
+      else if (mime.startsWith('video/')) mediaType = 'video';
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      alert('File vượt quá giới hạn 50MB cho phép');
+      return;
+    }
+
+    const previewUrl = mediaType === 'image' || mediaType === 'video' ? URL.createObjectURL(file) : null;
+    setSelectedAttachment({
+      file,
+      previewUrl,
+      type: mediaType,
+      name: file.name,
+      size: file.size,
+    });
+  };
 
   const currentUserId = (user?.id || user?._id)?.toString();
 
@@ -268,19 +356,54 @@ export default function UserMessages() {
     );
   });
 
-  // 5. Gửi tin nhắn
+  // 5. Gửi tin nhắn (hỗ trợ văn bản + đa phương tiện ảnh/video/tài liệu)
   const handleSendMessage = async (e) => {
     e?.preventDefault();
     const text = inputText.trim();
-    if (!text || sending || !selectedMatchId) return;
+    const attachment = selectedAttachment;
+    if ((!text && !attachment) || sending || uploadingMedia || !selectedMatchId) return;
 
     setInputText('');
+    setSelectedAttachment(null);
+    setShowEmojiPicker(false);
     setSending(true);
+
+    let uploadedFile = null;
+    if (attachment?.file) {
+      setUploadingMedia(true);
+      try {
+        const uploadRes = await chatApi.uploadMedia(attachment.file);
+        if (uploadRes?.data) {
+          uploadedFile = uploadRes.data;
+        }
+      } catch (uploadErr) {
+        console.error('Lỗi upload tệp đính kèm:', uploadErr);
+        alert('Không thể tải file lên. Vui lòng thử lại.');
+        setSending(false);
+        setUploadingMedia(false);
+        return;
+      } finally {
+        setUploadingMedia(false);
+      }
+    }
+
+    const payload = {
+      text: text || '',
+      type: uploadedFile ? uploadedFile.mediaType : 'text',
+      fileUrl: uploadedFile ? uploadedFile.fileUrl : null,
+      fileName: uploadedFile ? uploadedFile.fileName : null,
+      fileSize: uploadedFile ? uploadedFile.fileSize : null,
+      fileMimeType: uploadedFile ? uploadedFile.fileMimeType : null,
+    };
 
     // Optimistic UI update
     const tempMsg = {
       _id: 'temp_' + Date.now(),
-      text,
+      text: payload.text,
+      type: payload.type,
+      fileUrl: payload.fileUrl || attachment?.previewUrl || null,
+      fileName: payload.fileName || attachment?.name || null,
+      fileSize: payload.fileSize || attachment?.size || null,
       sender: {
         _id: currentUserId,
         fullName: user?.name || user?.fullName || 'Tôi',
@@ -290,13 +413,21 @@ export default function UserMessages() {
     setMessages((prev) => [...prev, tempMsg]);
 
     // Update conversation snippet in sidebar
+    let previewSnippet = payload.text;
+    if (!previewSnippet) {
+      if (payload.type === 'image') previewSnippet = '📷 [Hình ảnh]';
+      else if (payload.type === 'video') previewSnippet = '🎥 [Video]';
+      else if (payload.type === 'file') previewSnippet = `📎 [Tệp] ${payload.fileName || ''}`;
+    }
+
     setConversations((prev) =>
       prev.map((c) =>
         c.matchId === selectedMatchId
           ? {
               ...c,
               lastMessage: {
-                text,
+                text: previewSnippet,
+                type: payload.type,
                 isFromMe: true,
                 createdAt: new Date().toISOString(),
               },
@@ -311,7 +442,7 @@ export default function UserMessages() {
     }
 
     try {
-      const res = await chatApi.sendMessage(selectedMatchId, text);
+      const res = await chatApi.sendMessage(selectedMatchId, payload);
       const savedMsg = res.data;
       if (savedMsg) {
         setMessages((prev) =>
@@ -1368,7 +1499,7 @@ export default function UserMessages() {
 
                     <div
                       style={{
-                        maxWidth: '65%',
+                        maxWidth: '70%',
                         padding: '11px 16px',
                         borderRadius: isMe
                           ? '18px 18px 4px 18px'
@@ -1382,7 +1513,100 @@ export default function UserMessages() {
                         wordBreak: 'break-word',
                       }}
                     >
-                      <div>{msg.text}</div>
+                      {/* Media: Image */}
+                      {Boolean(msg.fileUrl && (msg.type === 'image' || msg.fileUrl.match(/\.(jpeg|jpg|png|gif|webp)(\?.*)?$/i))) && (
+                        <div style={{ marginBottom: msg.text ? '8px' : '0' }}>
+                          <img
+                            src={msg.fileUrl}
+                            alt={msg.fileName || 'Hình ảnh'}
+                            onClick={() => setMediaPreviewModal({ isOpen: true, type: 'image', url: msg.fileUrl, name: msg.fileName })}
+                            style={{
+                              maxWidth: '100%',
+                              maxHeight: '260px',
+                              borderRadius: '12px',
+                              objectFit: 'cover',
+                              cursor: 'pointer',
+                              display: 'block',
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Media: Video */}
+                      {Boolean(msg.fileUrl && (msg.type === 'video' || msg.fileUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i))) && (
+                        <div style={{ marginBottom: msg.text ? '8px' : '0' }}>
+                          <video
+                            controls
+                            src={msg.fileUrl}
+                            style={{
+                              maxWidth: '100%',
+                              maxHeight: '240px',
+                              borderRadius: '12px',
+                              display: 'block',
+                              backgroundColor: '#000',
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Media: File / Document */}
+                      {Boolean(msg.fileUrl && (msg.type === 'file' || (!msg.type && !msg.fileUrl.match(/\.(jpeg|jpg|png|gif|webp|mp4|webm|mov)(\?.*)?$/i)))) && (
+                        <a
+                          href={msg.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={msg.fileName || 'tai-lieu'}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 14px',
+                            borderRadius: '12px',
+                            backgroundColor: isMe ? 'rgba(255, 255, 255, 0.2)' : '#F8FAFC',
+                            color: isMe ? '#FFFFFF' : '#0F172A',
+                            textDecoration: 'none',
+                            marginBottom: msg.text ? '8px' : '0',
+                            border: isMe ? '1px solid rgba(255,255,255,0.35)' : '1px solid #E2E8F0',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '8px',
+                              backgroundColor: isMe ? '#FFFFFF' : '#FF5722',
+                              color: isMe ? '#FF5722' : '#FFFFFF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <FileText size={20} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {msg.fileName || 'Tài liệu đính kèm'}
+                            </div>
+                            <div style={{ fontSize: '11px', opacity: 0.85 }}>
+                              {msg.fileSize ? formatFileSize(msg.fileSize) : 'Tài liệu'}
+                            </div>
+                          </div>
+                          <Download size={16} style={{ flexShrink: 0, opacity: 0.9 }} />
+                        </a>
+                      )}
+
+                      {/* Text caption / body */}
+                      {msg.text && <div>{msg.text}</div>}
+
                       <div
                         style={{
                           fontSize: '10px',
@@ -1408,62 +1632,334 @@ export default function UserMessages() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Form Nhập Tin Nhắn */}
-          <form
-            onSubmit={handleSendMessage}
-            style={{
-              padding: '14px 20px',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              backgroundColor: '#FFFFFF',
-            }}
-          >
+          {/* Form Nhập Tin Nhắn & Đa Phương Tiện */}
+          <div style={{ position: 'relative' }}>
+            {/* Attachment preview bar */}
+            {selectedAttachment && (
+              <div
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#FFF7ED',
+                  borderTop: '1px solid #FED7AA',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                  {selectedAttachment.previewUrl && selectedAttachment.type === 'image' ? (
+                    <img
+                      src={selectedAttachment.previewUrl}
+                      alt="Preview"
+                      style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '8px',
+                        backgroundColor: '#FFEDE5',
+                        color: '#FF5722',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {selectedAttachment.type === 'video' ? <Video size={20} /> : <FileText size={20} />}
+                    </div>
+                  )}
+                  <div style={{ overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        color: '#C2410C',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: '260px',
+                      }}
+                    >
+                      {selectedAttachment.name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#9A3412' }}>
+                      {formatFileSize(selectedAttachment.size)} • {selectedAttachment.type === 'image' ? 'Hình ảnh' : selectedAttachment.type === 'video' ? 'Video' : 'Tài liệu'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAttachment(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#C2410C',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    borderRadius: '50%',
+                  }}
+                  title="Hủy tệp đính kèm"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            )}
+
+            {/* Emoji Picker Popover */}
+            {showEmojiPicker && (
+              <div
+                ref={emojiPickerRef}
+                style={{
+                  position: 'absolute',
+                  bottom: '72px',
+                  left: '16px',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '16px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
+                  border: '1px solid var(--border-color)',
+                  width: '320px',
+                  maxHeight: '260px',
+                  overflowY: 'auto',
+                  padding: '12px',
+                  zIndex: 100,
+                  animation: 'fadeIn 0.15s ease-out',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-primary)' }}>Chọn Biểu Tượng / Icon</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker(false)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+                {EMOJI_CATEGORIES.map((cat) => (
+                  <div key={cat.name} style={{ marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px' }}>{cat.name}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px' }}>
+                      {cat.emojis.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => handleSelectEmoji(emoji)}
+                          style={{
+                            fontSize: '20px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '8px',
+                            transition: 'transform 0.1s, background-color 0.1s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Hidden file inputs */}
             <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Nhập tin nhắn trò chuyện với bạn học..."
-              style={{
-                flex: 1,
-                padding: '12px 18px',
-                borderRadius: '12px',
-                border: '1.5px solid var(--border-color)',
-                fontSize: '13.5px',
-                outline: 'none',
-                backgroundColor: '#F8FAFC',
-              }}
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => handleFileSelect(e, 'image')}
+            />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              style={{ display: 'none' }}
+              onChange={(e) => handleFileSelect(e, 'video')}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+              style={{ display: 'none' }}
+              onChange={(e) => handleFileSelect(e, 'file')}
             />
 
-            <button
-              type="submit"
-              disabled={!inputText.trim() || sending}
+            <form
+              onSubmit={handleSendMessage}
               style={{
-                padding: '12px 20px',
-                borderRadius: '12px',
-                backgroundColor:
-                  !inputText.trim() || sending ? '#CBD5E1' : '#FF5722',
-                color: '#FFFFFF',
-                fontWeight: '700',
-                border: 'none',
+                padding: '12px 18px',
+                borderTop: '1px solid var(--border-color)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                cursor:
-                  !inputText.trim() || sending ? 'not-allowed' : 'pointer',
-                boxShadow:
-                  !inputText.trim() || sending
-                    ? 'none'
-                    : '0 4px 12px rgba(255, 87, 34, 0.35)',
-                transition: 'all 0.15s',
+                gap: '8px',
+                backgroundColor: '#FFFFFF',
               }}
             >
-              <span>{sending ? 'Đang gửi...' : 'Gửi'}</span>
-              <Send size={16} />
-            </button>
-          </form>
+              {/* Media Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  title="Gửi hình ảnh"
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-color)',
+                    background: '#FFFFFF',
+                    color: '#64748B',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FF5722'; e.currentTarget.style.borderColor = '#FF5722'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#64748B'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                >
+                  <ImageIcon size={18} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => videoInputRef.current?.click()}
+                  title="Gửi video"
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-color)',
+                    background: '#FFFFFF',
+                    color: '#64748B',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FF5722'; e.currentTarget.style.borderColor = '#FF5722'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#64748B'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                >
+                  <Video size={18} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Gửi tài liệu (PDF, Word, Excel...)"
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-color)',
+                    background: '#FFFFFF',
+                    color: '#64748B',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FF5722'; e.currentTarget.style.borderColor = '#FF5722'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#64748B'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                >
+                  <Paperclip size={18} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowEmojiPicker((prev) => !prev)}
+                  title="Chọn biểu tượng / icon"
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-color)',
+                    background: showEmojiPicker ? '#FFF3E0' : '#FFFFFF',
+                    color: showEmojiPicker ? '#FF5722' : '#64748B',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#FF5722'; }}
+                  onMouseLeave={(e) => { if (!showEmojiPicker) e.currentTarget.style.color = '#64748B'; }}
+                >
+                  <Smile size={18} />
+                </button>
+              </div>
+
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder={selectedAttachment ? "Thêm chú thích cho file..." : "Nhập tin nhắn trò chuyện với bạn học..."}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: '12px',
+                  border: '1.5px solid var(--border-color)',
+                  fontSize: '13.5px',
+                  outline: 'none',
+                  backgroundColor: '#F8FAFC',
+                }}
+              />
+
+              <button
+                type="submit"
+                disabled={(!inputText.trim() && !selectedAttachment) || sending || uploadingMedia}
+                style={{
+                  padding: '11px 18px',
+                  borderRadius: '12px',
+                  backgroundColor:
+                    (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia ? '#CBD5E1' : '#FF5722',
+                  color: '#FFFFFF',
+                  fontWeight: '700',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  cursor:
+                    (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia ? 'not-allowed' : 'pointer',
+                  boxShadow:
+                    (!inputText.trim() && !selectedAttachment) || sending || uploadingMedia
+                      ? 'none'
+                      : '0 4px 12px rgba(255, 87, 34, 0.35)',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                {uploadingMedia ? (
+                  <>
+                    <Loader2 size={16} className="spinner" />
+                    <span>Tải file...</span>
+                  </>
+                ) : sending ? (
+                  <>
+                    <Loader2 size={16} className="spinner" />
+                    <span>Gửi...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Gửi</span>
+                    <Send size={16} />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
       ) : (
         /* Empty placeholder khi không có chat nào */
@@ -1500,6 +1996,85 @@ export default function UserMessages() {
             Bắt đầu trò chuyện, chia sẻ tài liệu và hẹn bạn học đi cafe cày
             deadline cùng UNI-MATE.
           </p>
+        </div>
+      )}
+
+      {/* Lightbox Preview Modal cho ảnh phóng to */}
+      {mediaPreviewModal?.isOpen && (
+        <div
+          onClick={() => setMediaPreviewModal(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.88)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            animation: 'fadeIn 0.15s ease-out',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '92vw',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+          >
+            <button
+              onClick={() => setMediaPreviewModal(null)}
+              style={{
+                position: 'absolute',
+                top: '-45px',
+                right: '0',
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                color: '#FFFFFF',
+                cursor: 'pointer',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color 0.15s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.4)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)')}
+            >
+              <X size={22} />
+            </button>
+            <img
+              src={mediaPreviewModal.url}
+              alt={mediaPreviewModal.name || 'Ảnh chi tiết'}
+              style={{
+                maxWidth: '90vw',
+                maxHeight: '85vh',
+                borderRadius: '16px',
+                objectFit: 'contain',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              }}
+            />
+            {mediaPreviewModal.name && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+                }}
+              >
+                {mediaPreviewModal.name}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

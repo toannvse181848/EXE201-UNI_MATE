@@ -250,8 +250,19 @@ export const chatApi = {
     const res = await client.get(`/api/chat/${matchId}/messages`, { params });
     return res.data;
   },
-  sendMessage: async (matchId, text) => {
-    const res = await client.post(`/api/chat/${matchId}/messages`, { text });
+  sendMessage: async (matchId, payload) => {
+    const body = typeof payload === 'string' ? { text: payload } : payload;
+    const res = await client.post(`/api/chat/${matchId}/messages`, body);
+    return res.data;
+  },
+  uploadMedia: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await client.post('/api/chat/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return res.data;
   },
 };

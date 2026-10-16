@@ -91,7 +91,6 @@ export default function UserDiscover() {
                 'Boardgame',
                 'Kết nối bạn bè',
               ]),
-            favoritePlace: 'The Coffee House - Làng Đại Học',
           };
         });
         setStudents(formatted);
@@ -598,20 +597,6 @@ export default function UserDiscover() {
                         Ngành: <strong>{student.major}</strong>
                       </span>
                     </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '12px',
-                        color: 'var(--text-primary)',
-                      }}
-                    >
-                      <Coffee size={14} color="#FF5722" />
-                      <span>
-                        Quán yêu thích: <strong>{student.favoritePlace}</strong>
-                      </span>
-                    </div>
                   </div>
 
                   {/* Interest Tags */}
@@ -838,9 +823,7 @@ export default function UserDiscover() {
                       outline: 'none',
                     }}
                   >
-                    <option>
-                      {invitedStudent.favoritePlace} (Ưu đãi SV -20%)
-                    </option>
+                    <option>The Coffee House - Làng Đại Học (Ưu đãi SV -20%)</option>
                     <option>Highlands Coffee - Gần trường ĐH (Tặng bánh)</option>
                     <option>Cheese Coffee - Sư Vạn Hạnh (Giảm 15k)</option>
                   </select>
