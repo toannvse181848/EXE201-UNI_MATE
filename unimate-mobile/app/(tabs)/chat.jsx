@@ -10,6 +10,8 @@ import {
   RefreshControl,
   Image,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +19,8 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS } from '../../src/constants/colors';
 import { Avatar } from '../../src/components/Avatar';
 import { chatApi } from '../../src/api/chatApi';
+import { groupChatApi } from '../../src/api/groupChatApi';
+import { LinearGradient } from 'expo-linear-gradient';
 import { matchApi } from '../../src/api/matchApi';
 import { useAuth } from '../../src/context/AuthContext';
 
@@ -42,6 +46,13 @@ export default function ChatScreen() {
   const [conversations, setConversations] = useState([]);
   const [sentLikes, setSentLikes] = useState([]);
   const [receivedLikes, setReceivedLikes] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [createGroupName, setCreateGroupName] = useState('');
+  const [createGroupFriends, setCreateGroupFriends] = useState([]);
+  const [createGroupSelected, setCreateGroupSelected] = useState([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [loadingFriends, setLoadingFriends] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -63,10 +74,11 @@ export default function ChatScreen() {
       setError(null);
 
       // Gọi đồng thời lấy hội thoại, lời thích đã gửi và lời thích nhận được
-      const [convRes, sentRes, receivedRes] = await Promise.allSettled([
+      const [convRes, sentRes, receivedRes, groupRes] = await Promise.allSettled([
         chatApi.getConversations(),
         matchApi.getSentLikes(),
         matchApi.getReceivedLikes(),
+        groupChatApi.getMyGroups(),
       ]);
 
       if (convRes.status === 'fulfilled') {
@@ -77,6 +89,9 @@ export default function ChatScreen() {
       }
       if (receivedRes.status === 'fulfilled') {
         setReceivedLikes(receivedRes.value.data?.data || []);
+      }
+      if (groupRes.status === 'fulfilled') {
+        setGroups(groupRes.value.data?.data || []);
       }
     } catch (err) {
       setError(err.message || 'Không thể tải tin nhắn');
@@ -146,6 +161,139 @@ export default function ChatScreen() {
         isVerifiedStudent: Boolean(conv.buddy?.isVerifiedStudent || conv.buddy?.isPremium),
       },
     });
+  };
+
+
+  // Mở modal tạo nhóm với danh sách bạn bè (có fallback từ danh sách hội thoại)
+  const openCreateGroupModal = async () => {
+    setCreateGroupName('');
+    setCreateGroupSelected([]);
+    const fallback = conversations
+      .filter((item) => item.buddy && (item.buddy.id || item.buddy._id))
+      .map((item) => ({
+        id: item.buddy.id || item.buddy._id,
+        _id: item.buddy.id || item.buddy._id,
+        fullName: item.buddy.fullName,
+        avatar: item.buddy.avatar,
+        university: item.buddy.university,
+      }));
+    setCreateGroupFriends(fallback);
+    setShowCreateGroupModal(true);
+    setLoadingFriends(true);
+    try {
+      const res = await groupChatApi.getMyFriends();
+      if (res.data?.data && res.data.data.length > 0) {
+        setCreateGroupFriends(res.data.data);
+      }
+    } catch (err) {
+      console.log('Lỗi tải bạn bè tạo nhóm:', err.message);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
+
+  const toggleSelectGroupFriend = (fId) => {
+    setCreateGroupSelected((prev) =>
+      prev.includes(fId) ? prev.filter((id) => id !== fId) : [...prev, fId]
+    );
+  };
+
+  const handleCreateGroup = async () => {
+    if (!createGroupName.trim()) {
+      Alert.alert('Thông báo', 'Vui lòng nhập tên nhóm');
+      return;
+    }
+    setCreatingGroup(true);
+    try {
+      const res = await groupChatApi.createGroup(
+        createGroupName.trim(),
+        createGroupSelected
+      );
+      const newGroup = res.data?.data;
+      if (newGroup) {
+        setGroups((prev) => [newGroup, ...prev]);
+        setShowCreateGroupModal(false);
+        router.push({
+          pathname: '/group-chat-room',
+          params: {
+            groupId: newGroup.groupId || newGroup._id,
+            groupName: newGroup.name,
+            groupAvatar: newGroup.avatar,
+            memberCount: newGroup.memberCount || 1,
+          },
+        });
+      }
+    } catch (err) {
+      Alert.alert('Lỗi tạo nhóm', err.message || 'Không thể tạo nhóm');
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  const renderGroupItem = ({ item }) => {
+    const hasUnread = item.unreadCount > 0;
+    const lastMsg = item.lastMessage;
+
+    return (
+      <TouchableOpacity
+        style={styles.chatRow}
+        activeOpacity={0.7}
+        onPress={() =>
+          router.push({
+            pathname: '/group-chat-room',
+            params: {
+              groupId: item.groupId || item._id,
+              groupName: item.name,
+              groupAvatar: item.avatar,
+              memberCount: item.memberCount || item.members?.length || 1,
+            },
+          })
+        }
+      >
+        <LinearGradient
+          colors={['#7C3AED', '#A855F7']}
+          style={styles.groupAvatarWrap}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          {item.avatar ? (
+            <Image source={{ uri: item.avatar }} style={styles.groupAvatarImg} />
+          ) : (
+            <Ionicons name="people" size={24} color="#FFFFFF" />
+          )}
+        </LinearGradient>
+
+        <View style={styles.chatMain}>
+          <View style={styles.chatTopLine}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+              <Text style={styles.chatName} numberOfLines={1}>{item.name}</Text>
+              <View style={styles.groupTag}>
+                <Text style={styles.groupTagText}>
+                  {item.memberCount || item.members?.length || 1} TV
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.chatTime}>
+              {formatTime(lastMsg?.createdAt || item.createdAt)}
+            </Text>
+          </View>
+
+          <View style={styles.chatBottomLine}>
+            <Text
+              style={[styles.chatMsg, hasUnread && styles.chatMsgBold]}
+              numberOfLines={1}
+            >
+              {lastMsg?.text || 'Nhóm đã được tạo. Hãy gửi tin nhắn đầu tiên!'}
+            </Text>
+            {hasUnread && (
+              <View style={[styles.unreadBadge, { backgroundColor: '#7C3AED' }]}>
+                <Text style={styles.unreadCount}>{item.unreadCount}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   // Render từng hội thoại đã ghép đôi
@@ -275,6 +423,18 @@ export default function ChatScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'groups' && styles.tabItemActive]}
+          onPress={() => setActiveTab('groups')}
+        >
+          <Text style={[styles.tabLabel, activeTab === 'groups' && styles.tabLabelActive, activeTab === 'groups' && { color: '#7C3AED' }]}>
+            Nhóm ({groups.length})
+          </Text>
+          {groups.some((g) => g.unreadCount > 0) && (
+            <View style={[styles.badgeDot, { backgroundColor: '#7C3AED' }]} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.tabItem, activeTab === 'sent' && styles.tabItemActive]}
           onPress={() => setActiveTab('sent')}
         >
@@ -374,6 +534,60 @@ export default function ChatScreen() {
             }
           />
         )
+      ) : activeTab === 'groups' ? (
+        // TAB: DANH SÁCH NHÓM CHAT
+        <View style={{ flex: 1 }}>
+          <View style={styles.createGroupBtnRow}>
+            <TouchableOpacity
+              style={styles.createGroupHeaderBtn}
+              onPress={openCreateGroupModal}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#A855F7']}
+                style={styles.createGroupGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="add-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.createGroupBtnText}>Tạo nhóm mới</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {groups.length === 0 ? (
+            <View style={styles.center}>
+              <View style={styles.emptyGroupIconWrap}>
+                <Ionicons name="people-outline" size={54} color="#7C3AED" />
+              </View>
+              <Text style={styles.emptyTitle}>Chưa có nhóm nào</Text>
+              <Text style={styles.emptySubtitle}>
+                Tạo nhóm để cùng các bạn đã kết bạn học tập, chia sẻ tài liệu và hẹn cafe cày deadline nhé!
+              </Text>
+              <TouchableOpacity
+                style={styles.createFirstGroupBtn}
+                onPress={openCreateGroupModal}
+              >
+                <Text style={styles.createFirstGroupBtnText}>+ Tạo nhóm đầu tiên</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={groups}
+              keyExtractor={(item) => (item.groupId || item._id || item.id || '').toString()}
+              renderItem={renderGroupItem}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => loadAllData(true)}
+                  tintColor="#7C3AED"
+                />
+              }
+            />
+          )}
+        </View>
       ) : activeTab === 'sent' ? (
         // TAB 2: DANH SÁCH NHỮNG NGƯỜI MÌNH ĐÃ THẢ TIM
         sentLikes.length === 0 ? (
@@ -449,12 +663,290 @@ export default function ChatScreen() {
           />
         )
       )}
+
+      {/* MODAL TẠO NHÓM MỚI */}
+      <Modal visible={showCreateGroupModal} transparent animationType="fade" onRequestClose={() => setShowCreateGroupModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Tạo nhóm chat mới</Text>
+              <TouchableOpacity onPress={() => setShowCreateGroupModal(false)}>
+                <Ionicons name="close" size={24} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Tên nhóm *</Text>
+              <TextInput
+                style={styles.groupNameInput}
+                placeholder="VD: Nhóm học Toán, Cafe chill deadline..."
+                placeholderTextColor={COLORS.textMuted}
+                value={createGroupName}
+                onChangeText={setCreateGroupName}
+                maxLength={80}
+              />
+
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>
+                Thêm thành viên từ bạn bè ({createGroupSelected.length} đã chọn)
+              </Text>
+
+              {loadingFriends ? (
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#7C3AED" />
+                  <Text style={{ marginTop: 8, color: COLORS.textMuted, fontSize: 13 }}>Đang tải danh sách bạn bè...</Text>
+                </View>
+              ) : createGroupFriends.length === 0 ? (
+                <View style={styles.emptyFriendsBox}>
+                  <Text style={{ fontSize: 13, color: COLORS.textMuted, textAlign: 'center' }}>
+                    Chưa có bạn bè để mời. Hãy ghép đôi với ai đó trước nhé!
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView style={{ maxHeight: 260 }}>
+                  {createGroupFriends.map((f) => {
+                    const fId = f.id || f._id;
+                    const isSelected = createGroupSelected.includes(fId);
+                    return (
+                      <TouchableOpacity
+                        key={fId}
+                        style={[styles.friendSelectItem, isSelected && styles.friendSelectItemActive]}
+                        onPress={() => toggleSelectGroupFriend(fId)}
+                        activeOpacity={0.7}
+                      >
+                        <Avatar name={f.fullName} uri={f.avatar} size={40} />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[styles.friendSelectName, isSelected && { color: '#7C3AED' }]}>
+                            {f.fullName}
+                          </Text>
+                          <Text style={styles.friendSelectUni}>{f.university || 'Sinh viên'}</Text>
+                        </View>
+                        <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
+                          {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCreateGroupModal(false)}>
+                <Text style={styles.cancelBtnText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!createGroupName.trim() || creatingGroup) && styles.confirmBtnDisabled]}
+                onPress={handleCreateGroup}
+                disabled={!createGroupName.trim() || creatingGroup}
+              >
+                {creatingGroup ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>
+                    Tạo nhóm ({createGroupSelected.length + 1} người)
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  groupAvatarWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    overflow: 'hidden',
+  },
+  groupAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  groupTag: {
+    backgroundColor: '#F5F0FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  groupTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#7C3AED',
+  },
+  createGroupBtnRow: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+  createGroupHeaderBtn: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  createGroupGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+  },
+  createGroupBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  emptyGroupIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F5F0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  createFirstGroupBtn: {
+    backgroundColor: '#7C3AED',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    marginTop: 16,
+  },
+  createFirstGroupBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    maxHeight: '82%',
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  modalBody: {
+    padding: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  groupNameInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  emptyFriendsBox: {
+    padding: 24,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  friendSelectItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+  },
+  friendSelectItemActive: {
+    borderColor: '#7C3AED',
+    backgroundColor: '#F5F0FF',
+  },
+  friendSelectName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  friendSelectUni: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: '#7C3AED',
+    borderColor: '#7C3AED',
+  },
+  modalFooterRow: {
+    flexDirection: 'row',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  confirmBtn: {
+    flex: 2,
+    backgroundColor: '#7C3AED',
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  confirmBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+  },
+  confirmBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

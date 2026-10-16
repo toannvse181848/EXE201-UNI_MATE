@@ -9,14 +9,21 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  Image,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../src/constants/colors';
 import { Avatar } from '../src/components/Avatar';
 import { chatApi } from '../src/api/chatApi';
 import { useAuth } from '../src/context/AuthContext';
+
+const QUICK_EMOJIS = ['☕', '📚', '🎉', '🔥', '❤️', '👍', '😂', '👋', '💯', '✨', '💻', '🙌'];
 
 export default function ChatRoomScreen() {
   const router = useRouter();
@@ -32,8 +39,28 @@ export default function ChatRoomScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [showEmojiBar, setShowEmojiBar] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
   const [buddyPresence, setBuddyPresence] = useState({ isOnline: false, lastActiveAt: null });
   const flatListRef = useRef(null);
+  const currentUserId = (user?.id || user?._id)?.toString();
+
+  // Helper build FormData cho ảnh
+  const buildMediaFormData = (uri) => {
+    const filename = uri.split('/').pop() || 'photo.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const ext = match ? match[1].toLowerCase() : 'jpg';
+    const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+      name: filename,
+      type,
+    });
+    return formData;
+  };
 
   // Helper tính trạng thái trực tuyến
   const getPresenceText = () => {
@@ -61,7 +88,6 @@ export default function ChatRoomScreen() {
       const res = await chatApi.getMessages(matchId);
       const data = res.data?.data || [];
       setMessages(data);
-      // Cập nhật trạng thái trực tuyến buddy từ API response
       if (res.data?.buddy) {
         setBuddyPresence({
           isOnline: res.data.buddy.isOnline || false,
@@ -78,7 +104,6 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     fetchMessages(true);
 
-    // Polling tự động làm mới tin nhắn mỗi 3 giây
     const interval = setInterval(() => {
       fetchMessages(false);
     }, 3000);
@@ -86,20 +111,22 @@ export default function ChatRoomScreen() {
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
-  // Gửi tin nhắn
+  // Gửi tin nhắn văn bản
   const handleSend = async () => {
     const text = inputText.trim();
     if (!text || sending || !matchId) return;
 
     setInputText('');
+    setShowEmojiBar(false);
     setSending(true);
 
-    // Optimistic UI: hiển thị ngay tin nhắn
+    // Optimistic UI
     const tempMsg = {
       _id: 'temp_' + Date.now(),
       text,
+      type: 'text',
       sender: {
-        _id: user?.id || user?._id,
+        _id: currentUserId,
         fullName: user?.fullName,
       },
       createdAt: new Date().toISOString(),
@@ -107,7 +134,7 @@ export default function ChatRoomScreen() {
     setMessages((prev) => [...prev, tempMsg]);
 
     try {
-      const res = await chatApi.sendMessage(matchId, text);
+      const res = await chatApi.sendMessage(matchId, { text, type: 'text' });
       const savedMsg = res.data?.data;
       if (savedMsg) {
         setMessages((prev) =>
@@ -121,6 +148,88 @@ export default function ChatRoomScreen() {
     }
   };
 
+  // Chọn và gửi hình ảnh
+  const handlePickImage = () => {
+    Alert.alert(
+      'Gửi hình ảnh',
+      'Chọn phương thức tải ảnh',
+      [
+        {
+          text: 'Chụp ảnh mới 📷',
+          onPress: () => processImagePick('camera'),
+        },
+        {
+          text: 'Chọn từ thư viện 🖼️',
+          onPress: () => processImagePick('library'),
+        },
+        { text: 'Hủy', style: 'cancel' },
+      ]
+    );
+  };
+
+  const processImagePick = async (source) => {
+    try {
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền máy ảnh để chụp ảnh');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: false,
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền thư viện để chọn ảnh');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await uploadAndSendImage(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Lỗi', err.message || 'Không thể chọn ảnh');
+    }
+  };
+
+  const uploadAndSendImage = async (uri) => {
+    setUploadingImage(true);
+    try {
+      const formData = buildMediaFormData(uri);
+      const uploadRes = await chatApi.uploadMedia(formData);
+      const fileData = uploadRes.data?.data;
+      if (!fileData?.fileUrl) {
+        throw new Error('Không nhận được đường dẫn ảnh từ máy chủ');
+      }
+
+      const res = await chatApi.sendMessage(matchId, {
+        text: '',
+        type: 'image',
+        fileUrl: fileData.fileUrl,
+        fileName: fileData.fileName || 'photo.jpg',
+        fileSize: fileData.fileSize || null,
+        fileMimeType: fileData.fileMimeType || 'image/jpeg',
+      });
+
+      if (res.data?.data) {
+        setMessages((prev) => [...prev, res.data.data]);
+      }
+    } catch (err) {
+      Alert.alert('Lỗi gửi ảnh', err.message || 'Không thể tải ảnh lên');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const formatMessageTime = (dateStr) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -128,7 +237,6 @@ export default function ChatRoomScreen() {
   };
 
   const renderItem = ({ item }) => {
-    const currentUserId = (user?.id || user?._id)?.toString();
     const isMe =
       item.sender?._id?.toString() === currentUserId ||
       item.sender?.toString() === currentUserId;
@@ -154,9 +262,28 @@ export default function ChatRoomScreen() {
             isMe ? styles.bubbleMe : styles.bubbleOther,
           ]}
         >
-          <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextOther]}>
-            {item.text}
-          </Text>
+          {/* Hiển thị hình ảnh nếu có */}
+          {Boolean(item.fileUrl) && item.type === 'image' && (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setPreviewImage(item.fileUrl)}
+              style={styles.imageBubble}
+            >
+              <Image
+                source={{ uri: item.fileUrl }}
+                style={styles.chatImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          )}
+
+          {/* Hiển thị văn bản nếu có */}
+          {Boolean(item.text) && (
+            <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextOther]}>
+              {item.text}
+            </Text>
+          )}
+
           <Text style={[styles.timeText, isMe ? styles.timeTextMe : styles.timeTextOther]}>
             {formatMessageTime(item.createdAt)}
           </Text>
@@ -180,22 +307,31 @@ export default function ChatRoomScreen() {
         <TouchableOpacity
           style={styles.buddyInfo}
           activeOpacity={0.8}
-          onPress={() => {}}
+          onPress={() => {
+            if (buddyId) {
+              router.push({
+                pathname: '/profile',
+                params: { userId: buddyId },
+              });
+            }
+          }}
         >
-          <View style={styles.headerAvatarWrap}>
+          <View style={{ position: 'relative' }}>
             <Avatar name={buddyName} uri={buddyAvatar} size={40} />
-            <View style={[styles.onlineDot, !isBuddyOnline && { backgroundColor: '#94A3B8' }]} />
+            <View
+              style={[
+                styles.presenceDot,
+                isBuddyOnline ? styles.presenceOnline : styles.presenceOffline,
+              ]}
+            />
           </View>
-          <View style={styles.buddyTextWrap}>
-            <View style={styles.nameRow}>
-              <Text style={styles.headerName} numberOfLines={1}>
-                {buddyName}
-              </Text>
-              {(params.isVerifiedStudent === 'true' || params.isVerifiedStudent === true) && (
-                <Ionicons name="checkmark-circle" size={14} color="#0284C7" />
-              )}
-            </View>
-            <Text style={[styles.headerStatus, !isBuddyOnline && { color: '#94A3B8' }]}>{getPresenceText()}</Text>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {buddyName}
+            </Text>
+            <Text style={[styles.headerStatus, isBuddyOnline && styles.headerStatusOnline]}>
+              {getPresenceText()}
+            </Text>
           </View>
         </TouchableOpacity>
 
@@ -251,8 +387,48 @@ export default function ChatRoomScreen() {
           />
         )}
 
+        {/* Emoji Quick Bar */}
+        {showEmojiBar && (
+          <View style={styles.emojiBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiList}>
+              {QUICK_EMOJIS.map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={styles.emojiBtn}
+                  onPress={() => setInputText((prev) => prev + emoji)}
+                >
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Input Bar */}
         <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={styles.actionIconBtn}
+            onPress={handlePickImage}
+            disabled={uploadingImage}
+          >
+            {uploadingImage ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <Ionicons name="image-outline" size={22} color={COLORS.primary} />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionIconBtn}
+            onPress={() => setShowEmojiBar((prev) => !prev)}
+          >
+            <Ionicons
+              name={showEmojiBar ? 'happy' : 'happy-outline'}
+              size={22}
+              color={showEmojiBar ? COLORS.primary : COLORS.textMuted}
+            />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.actionIconBtn}
             onPress={() =>
@@ -291,6 +467,18 @@ export default function ChatRoomScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* LIGHTBOX PREVIEW ẢNH */}
+      <Modal visible={Boolean(previewImage)} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <View style={styles.lightboxOverlay}>
+          <TouchableOpacity style={styles.lightboxCloseBtn} onPress={() => setPreviewImage(null)}>
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          {Boolean(previewImage) && (
+            <Image source={{ uri: previewImage }} style={styles.lightboxImage} resizeMode="contain" />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -320,38 +508,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  headerAvatarWrap: {
-    position: 'relative',
-  },
-  onlineDot: {
+  presenceDot: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: COLORS.white,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
-  buddyTextWrap: {
+  presenceOnline: {
+    backgroundColor: '#10B981',
+  },
+  presenceOffline: {
+    backgroundColor: '#94A3B8',
+  },
+  headerTextWrap: {
     flex: 1,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
   headerName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: COLORS.text,
   },
   headerStatus: {
-    fontSize: 11.5,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 1,
+  },
+  headerStatusOnline: {
     color: '#10B981',
     fontWeight: '600',
-    marginTop: 1,
   },
   cafeInviteBtn: {
     flexDirection: 'row',
@@ -362,66 +550,67 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FFD180',
+    borderColor: '#FFE0B2',
   },
   cafeInviteText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.primary,
   },
   keyboardContainer: {
     flex: 1,
   },
-  listContent: {
-    padding: 16,
-    paddingBottom: 20,
-  },
   centerLoading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
   loadingLabel: {
-    marginTop: 10,
+    fontSize: 14,
     color: COLORS.textMuted,
-    fontSize: 13,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   matchIntroBox: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFF8F6',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#FFEBE5',
     marginBottom: 20,
   },
   matchIconWrap: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFF3E0',
+    backgroundColor: '#FFEBE5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
   },
   matchIntroTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: COLORS.text,
     marginBottom: 6,
     textAlign: 'center',
   },
   matchIntroDesc: {
-    fontSize: 12.5,
+    fontSize: 13,
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
-    paddingHorizontal: 10,
   },
   messageRow: {
     flexDirection: 'row',
-    marginBottom: 12,
     alignItems: 'flex-end',
+    marginBottom: 12,
+    gap: 8,
   },
   messageRowMe: {
     justifyContent: 'flex-end',
@@ -430,7 +619,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   msgAvatar: {
-    marginRight: 8,
     marginBottom: 2,
   },
   bubble: {
@@ -444,13 +632,23 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
+  imageBubble: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  chatImage: {
+    width: 200,
+    height: 150,
+    borderRadius: 12,
+  },
   msgText: {
-    fontSize: 14.5,
+    fontSize: 14,
     lineHeight: 20,
   },
   msgTextMe: {
@@ -465,10 +663,27 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   timeTextMe: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255, 255, 255, 0.75)',
   },
   timeTextOther: {
     color: COLORS.textMuted,
+  },
+  emojiBar: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingVertical: 8,
+  },
+  emojiList: {
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  emojiBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  emojiText: {
+    fontSize: 22,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -481,32 +696,50 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFF3E0',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
   },
   input: {
     flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
     backgroundColor: '#F1F5F9',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
     fontSize: 14,
-    maxHeight: 100,
     color: COLORS.text,
   },
   sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendBtnDisabled: {
     backgroundColor: '#CBD5E1',
+  },
+  lightboxOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lightboxCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 99,
+    padding: 10,
+  },
+  lightboxImage: {
+    width: '94%',
+    height: '80%',
   },
 });
