@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { userApi, authApi } from '../../services/api';
+import { userApi, authApi, orderApi } from '../../services/api';
 import { getAvatarUrl } from '../../constants/avatar';
 import {
   GraduationCap,
@@ -27,12 +27,15 @@ import {
   Crown,
   X,
   Zap,
+  Copy,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 
 import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
 
 export default function UserProfile() {
-  const { user, setUser, updateUser, upgradePremium } = useAuth();
+  const { user, setUser, updateUser, upgradePremium, reloadUser } = useAuth();
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || '');
@@ -48,6 +51,12 @@ export default function UserProfile() {
   const [upgrading, setUpgrading] = useState(false);
   const [premiumNotice, setPremiumNotice] = useState(null);
 
+  // === Order & VietQR State ===
+  const [currentOrder, setCurrentOrder] = useState(null); // { order, payment }
+  const [copiedField, setCopiedField] = useState(null);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [orderPolling, setOrderPolling] = useState(false);
+
   // === Change Password State ===
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -58,6 +67,99 @@ export default function UserProfile() {
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
   const [pwdNotice, setPwdNotice] = useState(null); // { type: 'success'|'error', text }
+
+  // Tự động kiểm tra trạng thái đơn hàng khi đang mở màn hình thanh toán VietQR
+  useEffect(() => {
+    let timer = null;
+    if (currentOrder && currentOrder.order?.status === 'pending' && showPremiumModal) {
+      timer = setInterval(async () => {
+        try {
+          const res = await orderApi.getOrder(currentOrder.order.code);
+          if (res?.data?.order?.status === 'paid') {
+            clearInterval(timer);
+            setPremiumNotice({
+              type: 'success',
+              text: 'Đã nhận được thanh toán! Gói Premium đã được kích hoạt thành công 🎉',
+            });
+            await reloadUser?.();
+            setTimeout(() => {
+              setShowPremiumModal(false);
+              setCurrentOrder(null);
+              setPremiumNotice(null);
+            }, 2500);
+          } else if (res?.data?.order?.status === 'cancelled') {
+            clearInterval(timer);
+            setPremiumNotice({ type: 'error', text: 'Đơn hàng đã bị huỷ.' });
+            setCurrentOrder(null);
+          }
+        } catch (err) {
+          console.log('Poll order error:', err.message);
+        }
+      }, 3500);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [currentOrder, showPremiumModal, reloadUser]);
+
+  const handleStartOrderPayment = async () => {
+    try {
+      setIsCreatingOrder(true);
+      setPremiumNotice(null);
+      const res = await orderApi.createOrder(selectedPlan);
+      setCurrentOrder(res.data);
+    } catch (err) {
+      setPremiumNotice({ type: 'error', text: err.message || 'Không thể tạo đơn hàng' });
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!currentOrder?.order?.code) return;
+    try {
+      await orderApi.cancelMyOrder(currentOrder.order.code);
+      setCurrentOrder(null);
+      setPremiumNotice({ type: 'success', text: 'Đã huỷ đơn hàng.' });
+    } catch (err) {
+      setPremiumNotice({ type: 'error', text: err.message || 'Không thể huỷ đơn hàng' });
+    }
+  };
+
+  const handleCheckOrderNow = async () => {
+    if (!currentOrder?.order?.code) return;
+    try {
+      setOrderPolling(true);
+      const res = await orderApi.getOrder(currentOrder.order.code);
+      if (res?.data?.order?.status === 'paid') {
+        setPremiumNotice({
+          type: 'success',
+          text: 'Đã nhận được thanh toán! Gói Premium đã được kích hoạt thành công 🎉',
+        });
+        await reloadUser?.();
+        setTimeout(() => {
+          setShowPremiumModal(false);
+          setCurrentOrder(null);
+          setPremiumNotice(null);
+        }, 2000);
+      } else {
+        setPremiumNotice({
+          type: 'error',
+          text: 'Hệ thống chưa ghi nhận tiền về tài khoản. Bạn vui lòng đợi 1-2 phút hoặc kiểm tra lại nội dung chuyển khoản nhé!',
+        });
+      }
+    } catch (err) {
+      setPremiumNotice({ type: 'error', text: err.message || 'Kiểm tra thất bại' });
+    } finally {
+      setOrderPolling(false);
+    }
+  };
+
+  const copyToClipboard = (text, field) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
 
   const handleAvatarSelect = async (e) => {
@@ -919,239 +1021,416 @@ export default function UserProfile() {
                 </div>
               )}
 
-              {/* Benefits list */}
-              <div
-                style={{
-                  backgroundColor: '#F8FAFC',
-                  borderRadius: '16px',
-                  padding: '16px',
-                  marginBottom: '20px',
-                  border: '1px solid #E2E8F0',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
-                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <CheckCircle2 size={15} color="#0284C7" />
-                  </div>
-                  <div>
-                    <strong>Tích xanh xác thực chính chủ:</strong> Tăng uy tín và 3x tỷ lệ phản hồi kết nối.
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
-                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Zap size={14} color="#D97706" />
-                  </div>
-                  <div>
-                    <strong>Ưu tiên gợi ý ghép đôi:</strong> Hồ sơ xuất hiện hàng đầu trong trang Khám phá.
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
-                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Coffee size={14} color="#15803D" />
-                  </div>
-                  <div>
-                    <strong>Ưu đãi Cafe đối tác:</strong> Nhận voucher giảm giá độc quyền đến 50%.
-                  </div>
-                </div>
-              </div>
-
-              {/* Plan Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
-                {/* Monthly */}
-                <div
-                  onClick={() => setSelectedPlan('monthly')}
-                  style={{
-                    border: `2px solid ${selectedPlan === 'monthly' ? '#FF5722' : '#E2E8F0'}`,
-                    backgroundColor: selectedPlan === 'monthly' ? '#FFF7ED' : '#FFFFFF',
-                    borderRadius: '16px',
-                    padding: '16px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'monthly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
-                    GÓI THÁNG (30 NGÀY)
-                  </div>
-                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
-                    100 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>
-                    Hoặc 49.000 VNĐ
-                  </div>
-                </div>
-
-                {/* Yearly */}
-                <div
-                  onClick={() => setSelectedPlan('yearly')}
-                  style={{
-                    border: `2px solid ${selectedPlan === 'yearly' ? '#FF5722' : '#E2E8F0'}`,
-                    backgroundColor: selectedPlan === 'yearly' ? '#FFF7ED' : '#FFFFFF',
-                    borderRadius: '16px',
-                    padding: '16px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                  }}
-                >
-                  <span
+              {/* Khi đang có đơn hàng chờ thanh toán VietQR */}
+              {currentOrder ? (
+                <div>
+                  <div
                     style={{
-                      position: 'absolute',
-                      top: '-10px',
-                      right: '10px',
-                      backgroundColor: '#10B981',
-                      color: '#FFFFFF',
-                      fontSize: '10px',
-                      fontWeight: '800',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
+                      textAlign: 'center',
+                      backgroundColor: '#FFF7ED',
+                      padding: '14px',
+                      borderRadius: '16px',
+                      marginBottom: '16px',
+                      border: '1.5px solid #FFEDD5',
                     }}
                   >
-                    TIẾT KIỆM 30%
-                  </span>
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'yearly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
-                    GÓI NĂM (365 NGÀY)
+                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#EA580C', marginBottom: '2px' }}>
+                      {currentOrder.order?.planName || 'UniMate Premium'}
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '900', color: '#C2410C' }}>
+                      {currentOrder.order?.amount?.toLocaleString('vi-VN')} đ
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#9A3412', marginTop: '2px' }}>
+                      Mã đơn hàng: <strong>{currentOrder.order?.code}</strong>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
-                    800 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
+
+                  {/* QR Image Box */}
+                  <div
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '2px dashed #FB923C',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      textAlign: 'center',
+                      marginBottom: '16px',
+                      boxShadow: '0 4px 12px rgba(251, 146, 60, 0.1)',
+                    }}
+                  >
+                    {currentOrder.payment?.qrImageUrl ? (
+                      <img
+                        src={currentOrder.payment.qrImageUrl}
+                        alt="Mã VietQR"
+                        style={{
+                          width: '200px',
+                          height: '200px',
+                          objectFit: 'contain',
+                          margin: '0 auto',
+                          borderRadius: '8px',
+                          display: 'block',
+                        }}
+                      />
+                    ) : (
+                      <div style={{ padding: '40px 0', color: '#64748B', fontSize: '13px' }}>
+                        Đang tạo mã VietQR...
+                      </div>
+                    )}
+                    <p style={{ fontSize: '11.5px', color: '#64748B', marginTop: '8px', marginBottom: 0 }}>
+                      Mở ứng dụng Ngân hàng (Vietcombank, MB, Techcombank...) để quét mã
+                    </p>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>
-                    Hoặc 399.000 VNĐ
+
+                  {/* Bank Details Table */}
+                  <div
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: '14px',
+                      padding: '12px 14px',
+                      marginBottom: '16px',
+                      border: '1px solid #E2E8F0',
+                      fontSize: '12.5px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#64748B' }}>Ngân hàng:</span>
+                      <strong style={{ color: '#1E293B' }}>{currentOrder.payment?.bankId || 'MB Bank'}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#64748B' }}>Số tài khoản:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <strong style={{ color: '#1E293B' }}>{currentOrder.payment?.accountNo}</strong>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(currentOrder.payment?.accountNo, 'accountNo')}
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#FF5722', display: 'flex', alignItems: 'center' }}
+                          title="Sao chép số tài khoản"
+                        >
+                          {copiedField === 'accountNo' ? <CheckCircle size={14} color="#10B981" /> : <Copy size={14} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#64748B' }}>Chủ tài khoản:</span>
+                      <strong style={{ color: '#1E293B' }}>{currentOrder.payment?.accountName}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FEF3C7', padding: '6px 8px', borderRadius: '8px' }}>
+                      <span style={{ color: '#92400E', fontWeight: '700' }}>Nội dung CK (bắt buộc):</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <strong style={{ color: '#B45309', fontSize: '13px', letterSpacing: '0.5px' }}>
+                          {currentOrder.payment?.transferContent || currentOrder.order?.code}
+                        </strong>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(currentOrder.payment?.transferContent || currentOrder.order?.code, 'content')}
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#B45309', display: 'flex', alignItems: 'center' }}
+                          title="Sao chép nội dung chuyển khoản"
+                        >
+                          {copiedField === 'content' ? <CheckCircle size={14} color="#10B981" /> : <Copy size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Polling Indicator */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      fontSize: '12px',
+                      color: '#0284C7',
+                      backgroundColor: '#F0F9FF',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    <span>Đang chờ chuyển khoản... Hệ thống tự động kích hoạt sau khi nhận</span>
+                  </div>
+
+                  {/* Buttons in Order View */}
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      disabled={orderPolling}
+                      onClick={handleCheckOrderNow}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        backgroundColor: '#FF5722',
+                        color: '#FFFFFF',
+                        fontWeight: '800',
+                        fontSize: '13px',
+                        cursor: orderPolling ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      {orderPolling ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={16} />}
+                      Kiểm tra ngay
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCancelOrder}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        color: '#64748B',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Huỷ đơn
+                    </button>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* Màn hình chọn gói cước */
+                <div>
+                  {/* Benefits list */}
+                  <div
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      marginBottom: '20px',
+                      border: '1px solid #E2E8F0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <CheckCircle2 size={15} color="#0284C7" />
+                      </div>
+                      <div>
+                        <strong>Tích xanh xác thực chính chủ:</strong> Tăng uy tín và 3x tỷ lệ phản hồi kết nối.
+                      </div>
+                    </div>
 
-              {/* Wallet info */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor: '#FFFBEB',
-                  borderRadius: '12px',
-                  marginBottom: '20px',
-                  border: '1px solid #FDE68A',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#92400E' }}>
-                  <Coins size={16} color="#D97706" />
-                  <span>Số dư UniCoin hiện có:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Zap size={14} color="#D97706" />
+                      </div>
+                      <div>
+                        <strong>Ưu tiên gợi ý ghép đôi:</strong> Hồ sơ xuất hiện hàng đầu trong trang Khám phá.
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Coffee size={14} color="#15803D" />
+                      </div>
+                      <div>
+                        <strong>Ưu đãi Cafe đối tác:</strong> Nhận voucher giảm giá độc quyền đến 50%.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Plan Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
+                    {/* Monthly */}
+                    <div
+                      onClick={() => setSelectedPlan('monthly')}
+                      style={{
+                        border: `2px solid ${selectedPlan === 'monthly' ? '#FF5722' : '#E2E8F0'}`,
+                        backgroundColor: selectedPlan === 'monthly' ? '#FFF7ED' : '#FFFFFF',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'monthly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
+                        GÓI THÁNG (30 NGÀY)
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
+                        100 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                        Hoặc 49.000 VNĐ
+                      </div>
+                    </div>
+
+                    {/* Yearly */}
+                    <div
+                      onClick={() => setSelectedPlan('yearly')}
+                      style={{
+                        border: `2px solid ${selectedPlan === 'yearly' ? '#FF5722' : '#E2E8F0'}`,
+                        backgroundColor: selectedPlan === 'yearly' ? '#FFF7ED' : '#FFFFFF',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        position: 'relative',
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '-10px',
+                          right: '10px',
+                          backgroundColor: '#10B981',
+                          color: '#FFFFFF',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        TIẾT KIỆM 30%
+                      </span>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'yearly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
+                        GÓI NĂM (365 NGÀY)
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
+                        800 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                        Hoặc 399.000 VNĐ
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet info */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      backgroundColor: '#FFFBEB',
+                      borderRadius: '12px',
+                      marginBottom: '20px',
+                      border: '1px solid #FDE68A',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#92400E' }}>
+                      <Coins size={16} color="#D97706" />
+                      <span>Số dư UniCoin hiện có:</span>
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: '800', color: '#B45309' }}>
+                      {user?.uniCoin ?? 0} UniCoin
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <button
+                      type="button"
+                      disabled={upgrading || isCreatingOrder}
+                      onClick={async () => {
+                        const cost = selectedPlan === 'yearly' ? 800 : 100;
+                        if ((user?.uniCoin || 0) < cost) {
+                          setPremiumNotice({
+                            type: 'error',
+                            text: `Bạn không đủ UniCoin (cần ${cost} Coin, hiện có ${user?.uniCoin || 0} Coin). Bạn có thể đổi điểm hoặc thanh toán chuyển khoản VietQR.`,
+                          });
+                          return;
+                        }
+                        try {
+                          setUpgrading(true);
+                          setPremiumNotice(null);
+                          const res = await upgradePremium(selectedPlan, 'coin');
+                          setPremiumNotice({
+                            type: 'success',
+                            text: res.message || 'Nâng cấp Premium thành công! Tài khoản đã được cấp tích xanh.',
+                          });
+                          setTimeout(() => {
+                            setShowPremiumModal(false);
+                            setPremiumNotice(null);
+                          }, 1800);
+                        } catch (err) {
+                          setPremiumNotice({ type: 'error', text: err.message || 'Có lỗi xảy ra.' });
+                        } finally {
+                          setUpgrading(false);
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '14px',
+                        borderRadius: '14px',
+                        border: 'none',
+                        backgroundColor: '#FF5722',
+                        color: '#FFFFFF',
+                        fontSize: '15px',
+                        fontWeight: '800',
+                        cursor: upgrading || isCreatingOrder ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 14px rgba(255, 87, 34, 0.4)',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {upgrading ? (
+                        <>
+                          <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                          Đang xử lý nâng cấp...
+                        </>
+                      ) : (
+                        <>
+                          <Crown size={18} color="#FFD54F" />
+                          Kích hoạt ngay bằng {selectedPlan === 'yearly' ? '800' : '100'} UniCoin
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={upgrading || isCreatingOrder}
+                      onClick={handleStartOrderPayment}
+                      style={{
+                        width: '100%',
+                        padding: '13px',
+                        borderRadius: '14px',
+                        border: '1.5px solid #FF5722',
+                        backgroundColor: '#FFF7ED',
+                        color: '#EA580C',
+                        fontSize: '13.5px',
+                        fontWeight: '800',
+                        cursor: upgrading || isCreatingOrder ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(234, 88, 12, 0.1)',
+                      }}
+                    >
+                      {isCreatingOrder ? (
+                        <>
+                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                          Đang tạo mã VietQR...
+                        </>
+                      ) : (
+                        <>
+                          <QrCode size={17} />
+                          Thanh toán VietQR ({selectedPlan === 'yearly' ? '399.000đ' : '49.000đ'})
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: '800', color: '#B45309' }}>
-                  {user?.uniCoin ?? 0} UniCoin
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button
-                  type="button"
-                  disabled={upgrading}
-                  onClick={async () => {
-                    const cost = selectedPlan === 'yearly' ? 800 : 100;
-                    if ((user?.uniCoin || 0) < cost) {
-                      setPremiumNotice({
-                        type: 'error',
-                        text: `Bạn không đủ UniCoin (cần ${cost} Coin, hiện có ${user?.uniCoin || 0} Coin). Bạn có thể đổi điểm hoặc thanh toán trực tiếp.`,
-                      });
-                      return;
-                    }
-                    try {
-                      setUpgrading(true);
-                      setPremiumNotice(null);
-                      const res = await upgradePremium(selectedPlan, 'coin');
-                      setPremiumNotice({
-                        type: 'success',
-                        text: res.message || 'Nâng cấp Premium thành công! Tài khoản đã được cấp tích xanh.',
-                      });
-                      setTimeout(() => {
-                        setShowPremiumModal(false);
-                        setPremiumNotice(null);
-                      }, 1800);
-                    } catch (err) {
-                      setPremiumNotice({ type: 'error', text: err.message || 'Có lỗi xảy ra.' });
-                    } finally {
-                      setUpgrading(false);
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    borderRadius: '14px',
-                    border: 'none',
-                    backgroundColor: '#FF5722',
-                    color: '#FFFFFF',
-                    fontSize: '15px',
-                    fontWeight: '800',
-                    cursor: upgrading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 14px rgba(255, 87, 34, 0.4)',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  {upgrading ? (
-                    <>
-                      <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                      Đang xử lý nâng cấp...
-                    </>
-                  ) : (
-                    <>
-                      <Crown size={18} color="#FFD54F" />
-                      Kích hoạt ngay bằng {selectedPlan === 'yearly' ? '800' : '100'} UniCoin
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  disabled={upgrading}
-                  onClick={async () => {
-                    try {
-                      setUpgrading(true);
-                      setPremiumNotice(null);
-                      const res = await upgradePremium(selectedPlan, 'direct');
-                      setPremiumNotice({
-                        type: 'success',
-                        text: res.message || 'Thanh toán thành công! Tài khoản đã được cấp tích xanh.',
-                      });
-                      setTimeout(() => {
-                        setShowPremiumModal(false);
-                        setPremiumNotice(null);
-                      }, 1800);
-                    } catch (err) {
-                      setPremiumNotice({ type: 'error', text: err.message || 'Có lỗi xảy ra.' });
-                    } finally {
-                      setUpgrading(false);
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '14px',
-                    border: '1.5px solid #E2E8F0',
-                    backgroundColor: '#FFFFFF',
-                    color: '#475569',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: upgrading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  Thanh toán qua Ví điện tử / Thẻ ({selectedPlan === 'yearly' ? '399.000đ' : '49.000đ'})
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>

@@ -106,6 +106,16 @@ export const venueApi = {
     });
     return res.data;
   },
+  // Lấy ảnh QR check-in của quán (dán tại quán cho sinh viên quét nhận điểm)
+  getCheckinQr: async (venueId) => {
+    const res = await client.get(`/api/venues/${venueId}/checkin-qr`);
+    return res.data;
+  },
+  // Tạo lại mã QR check-in mới (khi ảnh cũ bị lộ)
+  regenerateCheckinQr: async (venueId) => {
+    const res = await client.post(`/api/venues/${venueId}/checkin-qr/regenerate`);
+    return res.data;
+  },
 };
 
 // === VOUCHER API ===
@@ -176,6 +186,22 @@ export const voucherApi = {
       return res.data;
     }
     const res = await client.post('/api/vouchers/partner/import', payload);
+    return res.data;
+  },
+  // Nạp danh sách mã riêng (JSON { codes: [...] } hoặc file Excel/CSV qua FormData)
+  addVoucherCodes: async (voucherId, payload) => {
+    if (payload instanceof FormData) {
+      const res = await client.post(`/api/vouchers/${voucherId}/codes`, payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    }
+    const res = await client.post(`/api/vouchers/${voucherId}/codes`, payload);
+    return res.data;
+  },
+  // Xem tình trạng từng mã riêng của voucher (available / assigned / used)
+  getVoucherCodes: async (voucherId) => {
+    const res = await client.get(`/api/vouchers/${voucherId}/codes`);
     return res.data;
   },
 };
@@ -285,6 +311,13 @@ export const userApi = {
     const res = await client.patch(`/api/users/${userId}/premium`, { isPremium, plan });
     return res.data;
   },
+  // Admin xuất file Excel danh sách người dùng
+  exportUsersAdmin: async (role = '') => {
+    const res = await client.get(`/api/users/admin/export${role ? `?role=${role}` : ''}`, {
+      responseType: 'blob',
+    });
+    return res.data;
+  },
 };
 
 // === UNICOIN API ===
@@ -297,8 +330,56 @@ export const coinApi = {
     const res = await client.post('/api/coins/daily-checkin');
     return res.data;
   },
-  venueCheckin: async (venueId, venueName) => {
-    const res = await client.post('/api/coins/venue-checkin', { venueId, venueName });
+  // Check-in quán cafe qua mã QR: { qrContent, lat, lng }
+  venueCheckin: async (paramsOrVenueId, venueName) => {
+    const payload =
+      typeof paramsOrVenueId === 'object' && paramsOrVenueId !== null
+        ? paramsOrVenueId
+        : { qrContent: paramsOrVenueId, venueName };
+    const res = await client.post('/api/coins/venue-checkin', payload);
+    return res.data;
+  },
+};
+
+// === ORDER & PAYMENT API ===
+export const orderApi = {
+  getPlans: async () => {
+    const res = await client.get('/api/orders/plans');
+    return res.data;
+  },
+  createOrder: async (plan = 'monthly') => {
+    const res = await client.post('/api/orders', { plan });
+    return res.data;
+  },
+  getMyOrders: async () => {
+    const res = await client.get('/api/orders/my');
+    return res.data;
+  },
+  getOrder: async (code) => {
+    const res = await client.get(`/api/orders/${encodeURIComponent(code)}`);
+    return res.data;
+  },
+  cancelMyOrder: async (code) => {
+    const res = await client.post(`/api/orders/${encodeURIComponent(code)}/cancel`);
+    return res.data;
+  },
+  // Admin
+  getAllOrdersAdmin: async (params = {}) => {
+    const res = await client.get('/api/orders/admin/all', { params });
+    return res.data;
+  },
+  confirmOrderAdmin: async (code, note = '') => {
+    const res = await client.patch(`/api/orders/admin/${encodeURIComponent(code)}/confirm`, { note });
+    return res.data;
+  },
+  cancelOrderAdmin: async (code, note = '') => {
+    const res = await client.patch(`/api/orders/admin/${encodeURIComponent(code)}/cancel`, { note });
+    return res.data;
+  },
+  exportOrdersAdmin: async (status = 'paid') => {
+    const res = await client.get(`/api/orders/admin/export?status=${encodeURIComponent(status)}`, {
+      responseType: 'blob',
+    });
     return res.data;
   },
 };

@@ -153,17 +153,22 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('unimate_portal_user', JSON.stringify(merged));
   };
 
-  // Nâng cấp tài khoản Premium để nhận tích xanh xác thực
-  const upgradePremium = async (plan = 'monthly', paymentMethod = 'coin') => {
-    const res = await userApi.buyPremium({ plan, paymentMethod });
-    if (res?.data?.user) {
-      updateUser(res.data.user);
+  // Tải lại thông tin người dùng từ máy chủ (để cập nhật isPremium, uniCoin mới nhất)
+  const reloadUser = async () => {
+    try {
+      const res = await authApi.getMe();
+      if (res?.data?.user) {
+        updateUser(res.data.user);
+        return res.data.user;
+      }
+    } catch (err) {
+      console.error('Lỗi tải lại thông tin user:', err);
     }
-    return res;
+    return null;
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, setUser, updateUser, upgradePremium }}>
+    <AuthContext.Provider value={{ user, login, register, logout, setUser, updateUser, upgradePremium, reloadUser }}>
       {children}
     </AuthContext.Provider>
   );
