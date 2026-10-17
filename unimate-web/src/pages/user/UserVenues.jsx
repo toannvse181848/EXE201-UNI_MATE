@@ -17,6 +17,7 @@ import {
   Sparkles,
   Phone,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { venueApi, voucherApi } from '../../services/api';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
 
@@ -116,6 +117,16 @@ export default function UserVenues() {
   useEffect(() => {
     fetchVenues();
   }, [fetchVenues]);
+
+  // Mở sẵn chi tiết quán khi vào từ link ?venue=<id> (vd: thẻ gợi ý quán trong chat)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const venueId = searchParams.get('venue');
+    if (!venueId || venues.length === 0) return;
+    const target = venues.find((v) => String(v.id) === venueId);
+    if (target) setSelectedVenueModal(target);
+    setSearchParams({}, { replace: true });
+  }, [venues, searchParams, setSearchParams]);
 
   const handleClaimVoucher = async (venue) => {
     if (!venue?.voucherId || claimedCodes[venue.id] || claimingVenueId) return;

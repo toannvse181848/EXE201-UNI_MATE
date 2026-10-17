@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import logoIcon from '../assets/logo-icon.png';
 import { useAuth } from '../context/AuthContext';
-import { chatApi, voucherApi } from '../services/api';
+import { chatApi, groupChatApi, voucherApi } from '../services/api';
 import { getAvatarUrl } from '../constants/avatar';
+import { UNREAD_CHANGED_EVENT } from '../constants/events';
 import {
   Compass,
   Coffee,
@@ -35,17 +36,16 @@ export default function UserLayout() {
   const closeSidebar = () => setSidebarOpen(false);
 
   const fetchNotificationCounts = useCallback(async () => {
-    try {
-      const convRes = await chatApi.getConversations();
-      if (convRes?.data && Array.isArray(convRes.data)) {
-        const totalUnread = convRes.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-        setUnreadMessagesCount(totalUnread);
-      } else {
-        setUnreadMessagesCount(0);
-      }
-    } catch {
-      setUnreadMessagesCount(0);
-    }
+    // Tổng tin chưa đọc = chat 1-1 + chat nhóm
+    const [convRes, groupRes] = await Promise.allSettled([
+      chatApi.getConversations(),
+      groupChatApi.getMyGroups(),
+    ]);
+    const sumUnread = (result) =>
+      result.status === 'fulfilled' && Array.isArray(result.value?.data)
+        ? result.value.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0)
+        : 0;
+    setUnreadMessagesCount(sumUnread(convRes) + sumUnread(groupRes));
 
     try {
       const lastViewed = parseInt(localStorage.getItem('unimate_vouchers_last_viewed') || '0', 10);
@@ -79,8 +79,31 @@ export default function UserLayout() {
 
   useEffect(() => {
     const timer = setInterval(fetchNotificationCounts, 25000);
-    return () => clearInterval(timer);
+    // Trang tin nhắn báo khi vừa đọc hội thoại → cập nhật badge ngay, không chờ 25s
+    window.addEventListener(UNREAD_CHANGED_EVENT, fetchNotificationCounts);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(UNREAD_CHANGED_EVENT, fetchNotificationCounts);
+    };
   }, [fetchNotificationCounts]);
+
+  // Hiện số tin nhắn chưa đọc trên tiêu đề tab trình duyệt, vd "(3) Tin nhắn mới · UNI-MATE"
+  useEffect(() => {
+    const originalTitle = document.title;
+    return () => {
+      document.title = originalTitle;
+    };
+  }, []);
+
+  useEffect(() => {
+    const baseTitle = document.title.replace(/^\(\d+\+?\) Tin nhắn mới · /, '');
+    if (unreadMessagesCount > 0) {
+      const countLabel = unreadMessagesCount > 99 ? '99+' : unreadMessagesCount;
+      document.title = `(${countLabel}) Tin nhắn mới · ${baseTitle}`;
+    } else {
+      document.title = baseTitle;
+    }
+  }, [unreadMessagesCount]);
 
   const navItems = [
     { to: '/user/discover', label: 'Khám phá Bạn học & Cafe', icon: Compass },

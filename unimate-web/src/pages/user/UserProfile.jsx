@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { userApi, authApi, orderApi } from '../../services/api';
 import { getAvatarUrl } from '../../constants/avatar';
@@ -36,6 +37,7 @@ import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/acade
 
 export default function UserProfile() {
   const { user, setUser, updateUser, upgradePremium, reloadUser } = useAuth();
+  const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
   const [bio, setBio] = useState(user?.bio || '');

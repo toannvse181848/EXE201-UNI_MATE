@@ -262,6 +262,7 @@ export const chatApi = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: UPLOAD_TIMEOUT,
     });
     return res.data;
   },

@@ -39,11 +39,20 @@ const errorHandler = (err, req, res, next) => {
   if (err.name === 'MulterError') {
     statusCode = 400;
     const multerMessages = {
-      LIMIT_FILE_SIZE: 'Ảnh quá lớn, dung lượng tối đa 10MB',
+      LIMIT_FILE_SIZE: 'File quá lớn so với dung lượng cho phép',
       LIMIT_FILE_COUNT: 'Chỉ được tải tối đa 10 ảnh mỗi lần',
       LIMIT_UNEXPECTED_FILE: 'Tên trường file không đúng hoặc quá nhiều file',
     };
     message = multerMessages[err.code] || err.message;
+  }
+
+  // Lỗi từ Cloudinary khi upload (vd: gói free giới hạn ảnh/tài liệu 10MB, video 100MB)
+  if (err.http_code && !err.statusCode) {
+    console.error('CLOUDINARY ERROR:', err.message);
+    statusCode = err.http_code >= 500 ? 502 : 400;
+    message = /file size too large/i.test(err.message || '')
+      ? 'File quá lớn: ảnh và tài liệu tối đa 10MB, video tối đa 100MB'
+      : `Không thể lưu file: ${err.message}`;
   }
 
   // Token hỏng / hết hạn

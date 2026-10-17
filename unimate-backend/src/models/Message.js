@@ -23,8 +23,15 @@ const messageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'video', 'file'],
+      enum: ['text', 'image', 'video', 'file', 'venue'],
       default: 'text',
+    },
+    // Thẻ gợi ý quán (type = 'venue'): lưu bản chụp thông tin quán lúc gửi
+    venue: {
+      venueId: { type: mongoose.Schema.Types.ObjectId, ref: 'Venue' },
+      name: { type: String },
+      address: { type: String },
+      image: { type: String },
     },
     fileUrl: {
       type: String,

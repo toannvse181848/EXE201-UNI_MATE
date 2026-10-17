@@ -1,5 +1,6 @@
 const Message = require('../models/Message');
 const Match = require('../models/Match');
+const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
@@ -168,8 +169,24 @@ const getMessages = catchAsync(async (req, res) => {
  */
 const sendMessage = catchAsync(async (req, res) => {
   const { matchId } = req.params;
-  const { text, type = 'text', fileUrl, fileName, fileSize, fileMimeType } = req.body;
+  const { type = 'text', fileUrl, fileName, fileSize, fileMimeType, venueId } = req.body;
+  let { text } = req.body;
   const senderId = req.user._id;
+
+  // Gợi ý quán: lấy thông tin quán từ DB (không tin dữ liệu client gửi lên)
+  let venueSnapshot = null;
+  if (type === 'venue') {
+    const venue = venueId ? await Venue.findOne({ _id: venueId, status: 'approved' }) : null;
+    if (!venue) throw new ApiError(404, 'Không tìm thấy quán');
+    venueSnapshot = {
+      venueId: venue._id,
+      name: venue.name,
+      address: venue.address,
+      image: venue.images?.[0] || venue.image || null,
+    };
+    // Chữ dự phòng cho bản xem trước hội thoại & app mobile chưa hiển thị được thẻ quán
+    if (!text?.trim()) text = `📍 Gợi ý quán: ${venue.name} - ${venue.address}`;
+  }
 
   const hasText = Boolean(text?.trim());
   const hasFile = Boolean(fileUrl);
@@ -201,6 +218,7 @@ const sendMessage = catchAsync(async (req, res) => {
     fileName: fileName || null,
     fileSize: fileSize || null,
     fileMimeType: fileMimeType || null,
+    ...(venueSnapshot && { venue: venueSnapshot }),
   });
 
   const populated = await message.populate('sender', 'fullName avatar');
@@ -270,30 +288,47 @@ const downloadChatFile = catchAsync(async (req, res) => {
     safeFileName = rawFileName;
   }
 
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch (e) {
+    throw new ApiError(400, 'Đường dẫn file không hợp lệ');
+  }
+
+  // Route này không yêu cầu đăng nhập (thẻ <a> không gửi được token),
+  // nên chỉ cho tải file chat của chính hệ thống: Cloudinary hoặc thư mục uploads/chat.
+  const isCloudinaryFile =
+    parsedUrl.protocol === 'https:' && parsedUrl.hostname === 'res.cloudinary.com';
+  const isLocalChatFile = parsedUrl.pathname.startsWith('/uploads/chat/');
+  if (!isCloudinaryFile && !isLocalChatFile) {
+    throw new ApiError(400, 'Đường dẫn file không hợp lệ');
+  }
+
+  // 1. File local trong uploads/chat/ — chỉ lấy tên file, chặn path traversal (../)
+  if (isLocalChatFile) {
+    const filename = path.basename(decodeURIComponent(parsedUrl.pathname));
+    const filePath = path.join(__dirname, '../../uploads/chat', filename);
+    if (!fs.existsSync(filePath)) {
+      throw new ApiError(404, 'Không tìm thấy file');
+    }
+    return res.download(filePath, safeFileName);
+  }
+
+  // 2. File trên Cloudinary
   // Chuẩn hóa tên file theo chuẩn RFC 5987 để hỗ trợ tiếng Việt có dấu
   const encodedName = encodeURIComponent(safeFileName);
-  // ASCII fallback name
-  const asciiFallback = safeFileName.replace(/[^\x20-\x7E]/g, '_');
+  // ASCII fallback name (bỏ cả dấu " và \ để không phá header)
+  const asciiFallback = safeFileName.replace(/[^\x20-\x7E]|["\\]/g, '_');
 
   res.setHeader(
     'Content-Disposition',
     `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`
   );
 
-  // 1. Nếu là file local trong uploads/chat/
-  if (url.includes('/uploads/chat/')) {
-    const filename = url.split('/uploads/chat/').pop();
-    const filePath = path.join(__dirname, '../../uploads/chat', filename);
-    if (fs.existsSync(filePath)) {
-      return res.download(filePath, safeFileName);
-    }
-  }
-
-  // 2. Nếu là link Cloudinary hoặc internet
   try {
-    const fetchRes = await fetch(url);
+    const fetchRes = await fetch(parsedUrl.href);
     if (!fetchRes.ok) {
-      return res.redirect(url);
+      return res.redirect(parsedUrl.href);
     }
     const contentType = fetchRes.headers.get('content-type') || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
@@ -302,7 +337,7 @@ const downloadChatFile = catchAsync(async (req, res) => {
     return res.send(Buffer.from(arrayBuffer));
   } catch (err) {
     console.error('Lỗi khi stream download file:', err.message);
-    return res.redirect(url);
+    return res.redirect(parsedUrl.href);
   }
 });
 
