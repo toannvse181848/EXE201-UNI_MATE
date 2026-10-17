@@ -314,7 +314,7 @@ export default function Onboarding() {
           <>
             <div style={S.stepLabel}>Bước 1 / 3</div>
             <h1 style={S.title}>Bạn muốn kết nối vì điều gì? 🎯</h1>
-            <p style={S.subtitle}>Chọn 1 hoặc nhiều mục tiêu. Thuật toán sẽ ưu tiên ghép đôi bạn với người có cùng định hướng.</p>
+            <p style={S.subtitle}>Chọn 1 hoặc nhiều mục tiêu. Thuật toán sẽ ưu tiên kết bạn bạn với người có cùng định hướng.</p>
 
             <div style={S.grid2}>
               {OBJECTIVES.map((obj) => {

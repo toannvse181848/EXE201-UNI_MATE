@@ -121,8 +121,8 @@ export default function ChatScreen() {
       const { isMatch } = res.data || {};
 
       Alert.alert(
-        '🎉 Ghép đôi thành công!',
-        `Bạn và ${item.buddy?.fullName} đã được ghép đôi. Hãy bắt đầu trò chuyện ngay!`,
+        '🎉 Kết bạn thành công!',
+        `Bạn và ${item.buddy?.fullName} đã được kết bạn. Hãy bắt đầu trò chuyện ngay!`,
         [
           {
             text: 'Nhắn tin ngay',
@@ -144,7 +144,7 @@ export default function ChatScreen() {
         ]
       );
     } catch (err) {
-      Alert.alert('Lỗi', 'Không thể hoàn tất ghép đôi. Vui lòng thử lại.');
+      Alert.alert('Lỗi', 'Không thể hoàn tất kết bạn. Vui lòng thử lại.');
     } finally {
       setActionLoadingId(null);
     }
@@ -296,7 +296,7 @@ export default function ChatScreen() {
     );
   };
 
-  // Render từng hội thoại đã ghép đôi
+  // Render từng hội thoại đã kết bạn
   const renderConversation = ({ item }) => {
     const hasUnread = item.unreadCount > 0;
     const lastMsg = item.lastMessage;
@@ -332,7 +332,7 @@ export default function ChatScreen() {
             >
               {lastMsg
                 ? (lastMsg.isFromMe ? 'Bạn: ' : '') + lastMsg.text
-                : '🎉 Ghép đôi thành công! Bắt đầu trò chuyện'}
+                : '🎉 Kết bạn thành công! Bắt đầu trò chuyện'}
             </Text>
             {hasUnread && (
               <View style={styles.unreadBadge}>
@@ -374,7 +374,7 @@ export default function ChatScreen() {
     </View>
   );
 
-  // Render người đã thích mình (chờ mình thích lại để ghép đôi)
+  // Render người đã thích mình (chờ mình thích lại để kết bạn)
   const renderReceivedLike = ({ item }) => (
     <View style={styles.pendingCard}>
       <Avatar name={item.buddy?.fullName || '?'} uri={item.buddy?.avatar} size={54} />
@@ -395,7 +395,7 @@ export default function ChatScreen() {
       >
         <Ionicons name="heart" size={14} color={COLORS.white} />
         <Text style={styles.matchNowBtnText}>
-          {actionLoadingId === item.matchId ? '...' : 'Ghép đôi'}
+          {actionLoadingId === item.matchId ? '...' : 'Kết bạn'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -492,7 +492,7 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       ) : activeTab === 'conversations' ? (
-        // TAB 1: DANH SÁCH HỘI THOẠI ĐÃ GHÉP ĐÔI
+        // TAB 1: DANH SÁCH HỘI THOẠI ĐÃ KẾT BẠN
         conversations.length === 0 ? (
           <View style={styles.center}>
             <Ionicons name="chatbubbles-outline" size={64} color={COLORS.textMuted} />
@@ -656,7 +656,7 @@ export default function ChatScreen() {
               <View style={[styles.tabNoticeBox, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
                 <Ionicons name="checkmark-circle" size={16} color="#10B981" />
                 <Text style={[styles.tabNoticeText, { color: '#065F46' }]}>
-                  Các bạn học dưới đây đã thả tim bạn! Bấm "Ghép đôi" để mở phòng chat ngay lập tức.
+                  Các bạn học dưới đây đã thả tim bạn! Bấm "Kết bạn" để mở phòng chat ngay lập tức.
                 </Text>
               </View>
             }
@@ -698,7 +698,7 @@ export default function ChatScreen() {
               ) : createGroupFriends.length === 0 ? (
                 <View style={styles.emptyFriendsBox}>
                   <Text style={{ fontSize: 13, color: COLORS.textMuted, textAlign: 'center' }}>
-                    Chưa có bạn bè để mời. Hãy ghép đôi với ai đó trước nhé!
+                    Chưa có bạn bè để mời. Hãy kết bạn với ai đó trước nhé!
                   </Text>
                 </View>
               ) : (

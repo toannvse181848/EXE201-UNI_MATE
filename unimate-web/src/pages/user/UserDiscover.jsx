@@ -137,9 +137,9 @@ export default function UserDiscover() {
       setLikedMap((prev) => ({ ...prev, [student.id]: true }));
 
       if (res.isMatch) {
-        alert(`🎉 TUYỆT VỜI! Bạn và ${student.name} đều đã thích nhau! Hai bạn đã được ghép đôi thành công, hãy vào mục Tin nhắn để trò chuyện và hẹn cafe nhé! ☕`);
+        alert(`🎉 TUYỆT VỜI! Bạn và ${student.name} đều đã thích nhau! Hai bạn đã được kết bạn thành công, hãy vào mục Tin nhắn để trò chuyện và hẹn cafe nhé! ☕`);
       } else {
-        alert(`💖 Đã gửi lượt thích đến ${student.name}! Khi bạn ấy thích lại, cả hai sẽ được ghép đôi.`);
+        alert(`💖 Đã gửi lượt thích đến ${student.name}! Khi bạn ấy thích lại, cả hai sẽ được kết bạn.`);
       }
     } catch (err) {
       alert(`Đã gửi lời kết bạn thành công đến ${student.name}!`);
@@ -196,7 +196,7 @@ export default function UserDiscover() {
             }}
           >
             <Sparkles size={14} color="#FFB74D" />
-            <span>Ghép đôi học tập & Cafe thông minh</span>
+            <span>Kết bạn học tập & Cafe thông minh</span>
           </div>
           <h1
             style={{

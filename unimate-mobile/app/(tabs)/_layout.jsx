@@ -52,7 +52,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="discover"
         options={{
-          title: 'Ghép đôi',
+          title: 'Kết bạn',
           tabBarIcon: ({ focused }) => (
             <TabIcon name="flame-outline" focused={focused} />
           ),

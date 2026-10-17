@@ -23,7 +23,7 @@ import { getAvatarUrl, DEFAULT_AVATAR } from '../../src/constants/avatar';
 const QUICK_ACTIONS = [
   {
     icon: 'flame',
-    label: 'Ghép đôi',
+    label: 'Kết bạn',
     sub: 'Tìm bạn học & cafe',
     color: '#FF5722',
     route: '/(tabs)/discover',
@@ -150,7 +150,7 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.heroTitle}>Tìm bạn cùng học bài & đi cafe ngay hôm nay!</Text>
               <View style={styles.heroCta}>
-                <Text style={styles.heroCtaText}>Bắt đầu ghép đôi</Text>
+                <Text style={styles.heroCtaText}>Bắt đầu kết bạn</Text>
                 <Ionicons name="arrow-forward" size={15} color={COLORS.primary} />
               </View>
             </View>

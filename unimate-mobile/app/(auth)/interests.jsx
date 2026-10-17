@@ -71,7 +71,7 @@ export default function InterestsScreen() {
 
   const handleFinish = async () => {
     if (selectedTags.length < 3) {
-      Alert.alert('Gợi ý', 'Vui lòng chọn tối thiểu 3 sở thích để thuật toán ghép đôi hiệu quả nhất nhé!');
+      Alert.alert('Gợi ý', 'Vui lòng chọn tối thiểu 3 sở thích để thuật toán kết bạn hiệu quả nhất nhé!');
       return;
     }
 
@@ -211,11 +211,11 @@ export default function InterestsScreen() {
             />
           </View>
           <View style={styles.locationInfo}>
-            <Text style={styles.locationTitle}>Vị trí & Bán kính ghép đôi</Text>
+            <Text style={styles.locationTitle}>Vị trí & Bán kính kết bạn</Text>
             <Text style={styles.locationDesc}>
               {locationGranted
                 ? 'Đã bật: Tìm bạn và quán cafe trong bán kính 5km'
-                : 'Bật định vị để ghép đôi với sinh viên ở trường/khu vực gần bạn'}
+                : 'Bật định vị để kết bạn với sinh viên ở trường/khu vực gần bạn'}
             </Text>
           </View>
           <TouchableOpacity

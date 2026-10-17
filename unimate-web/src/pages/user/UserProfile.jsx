@@ -1230,7 +1230,7 @@ export default function UserProfile() {
                         <Zap size={14} color="#D97706" />
                       </div>
                       <div>
-                        <strong>Ưu tiên gợi ý ghép đôi:</strong> Hồ sơ xuất hiện hàng đầu trong trang Khám phá.
+                        <strong>Ưu tiên gợi ý kết bạn:</strong> Hồ sơ xuất hiện hàng đầu trong trang Khám phá.
                       </div>
                     </div>
 

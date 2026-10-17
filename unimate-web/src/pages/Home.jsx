@@ -904,7 +904,7 @@ export default function Home() {
               <Users size={28} />
             </div>
             <h3 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', marginBottom: '12px' }}>
-              1. Ghép Đôi Bạn Học Thông Minh (Study Match)
+              1. Kết Bạn Bạn Học Thông Minh (Study Match)
             </h3>
             <p style={{ fontSize: '15px', color: '#64748B', lineHeight: 1.6, marginBottom: '20px' }}>
               Thuật toán thông minh tự động tìm kiếm và gợi ý các bạn sinh viên cùng trường (FPT, BK, UEH, UIT...), cùng chuyên ngành, cùng môn học đang chuẩn bị thi hoặc làm đồ án tốt nghiệp.
@@ -913,7 +913,7 @@ export default function Home() {
               {[
                 'Lọc theo trường đại học, ngành học và năm học',
                 'Tính % độ hợp gu học tập (yên tĩnh, thảo luận, cày đêm)',
-                'Gửi lời mời ghép đôi học cafe an toàn và văn minh',
+                'Gửi lời mời kết bạn học cafe an toàn và văn minh',
               ].map((text, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#334155' }}>
                   <CheckCircle2 size={16} color="#FF5722" />
@@ -1093,7 +1093,7 @@ export default function Home() {
                 step: '02',
                 title: 'Ghép Bạn Học & Chọn Quán Cafe',
                 desc: 'Khám phá danh sách bạn học đang tìm người học chung hoặc chọn quán cafe gần trường có không gian và ưu đãi phù hợp.',
-                linkText: 'Xem giao diện ghép đôi →',
+                linkText: 'Xem giao diện kết bạn →',
                 linkUrl: '/login',
               },
               {
@@ -1325,7 +1325,7 @@ export default function Home() {
                 name: 'Lê Hoàng Nam',
                 school: 'ĐH Bách Khoa TP.HCM (HCMUT)',
                 avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-                review: 'Tính năng ghép đôi theo chuyên ngành rất xịn. Mình tìm được bạn cùng cày đồ án môn Mạng máy tính ở quán cafe đối diện trường, vừa có bạn học cùng vừa được giảm 30% trà đào.',
+                review: 'Tính năng kết bạn theo chuyên ngành rất xịn. Mình tìm được bạn cùng cày đồ án môn Mạng máy tính ở quán cafe đối diện trường, vừa có bạn học cùng vừa được giảm 30% trà đào.',
               },
               {
                 name: 'Nguyễn Thảo My',
@@ -1483,7 +1483,7 @@ export default function Home() {
             </h5>
             <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px' }}>
               <li><a href="#features" style={{ color: '#94A3B8', textDecoration: 'none' }}>Tính năng nền tảng</a></li>
-              <li><a href="#study-match" style={{ color: '#94A3B8', textDecoration: 'none' }}>Ghép đôi bạn học</a></li>
+              <li><a href="#study-match" style={{ color: '#94A3B8', textDecoration: 'none' }}>Kết bạn bạn học</a></li>
               <li><a href="#cafes" style={{ color: '#94A3B8', textDecoration: 'none' }}>Bản đồ quán cafe</a></li>
               <li><a href="#vouchers" style={{ color: '#94A3B8', textDecoration: 'none' }}>Ví Voucher sinh viên</a></li>
             </ul>
@@ -1683,7 +1683,7 @@ export default function Home() {
                   1. Mục đích thu thập & Phạm vi sử dụng
                 </h4>
                 <p>
-                  UNI-MATE chỉ thu thập các thông tin tối thiểu cần thiết để vận hành tính năng ghép đôi bạn học và kích hoạt ví voucher ưu đãi cafe: Họ tên, trường Đại học, chuyên ngành và mã số sinh viên (MSSV) để xác thực người dùng thật.
+                  UNI-MATE chỉ thu thập các thông tin tối thiểu cần thiết để vận hành tính năng kết bạn bạn học và kích hoạt ví voucher ưu đãi cafe: Họ tên, trường Đại học, chuyên ngành và mã số sinh viên (MSSV) để xác thực người dùng thật.
                 </p>
               </div>
 

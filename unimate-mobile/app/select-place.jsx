@@ -40,7 +40,7 @@ export default function SelectPlaceScreen() {
       : venues.filter((v) => v.category === activeFilter);
 
   const handleSelectVenue = async (venue) => {
-    // Lưu quán được đề xuất vào cặp ghép đôi (nếu mở từ phòng chat)
+    // Lưu quán được đề xuất vào cặp kết bạn (nếu mở từ phòng chat)
     if (matchId) {
       try {
         await matchApi.proposeVenue(matchId, venue.id);

@@ -377,7 +377,7 @@ export default function ChatRoomScreen() {
                   <Ionicons name="sparkles" size={20} color="#FF5722" />
                 </View>
                 <Text style={styles.matchIntroTitle}>
-                  Bạn và {buddyName} đã ghép đôi! 🎉
+                  Bạn và {buddyName} đã kết bạn! 🎉
                 </Text>
                 <Text style={styles.matchIntroDesc}>
                   Hãy gửi lời chào đầu tiên hoặc rủ nhau qua một quán cafe yên tĩnh để học bài và cày deadline nhé.
