@@ -2561,7 +2561,7 @@ export default function UserMessages() {
                         )}
                         {/* File */}
                         {msg.fileUrl && msg.type === 'file' && (
-                          <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" download={repairMojibake(msg.fileName || 'tai-lieu')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '10px', backgroundColor: isMe ? 'rgba(255,255,255,0.2)' : '#F8FAFC', color: isMe ? '#FFF' : '#0F172A', textDecoration: 'none', border: isMe ? '1px solid rgba(255,255,255,0.3)' : '1px solid #E2E8F0', marginBottom: msg.text ? '8px' : '0' }}>
+                          <a href={getDownloadUrl(msg.fileUrl, msg.fileName)} target="_blank" rel="noopener noreferrer" download={repairMojibake(msg.fileName || 'tai-lieu')} onClick={(e) => handleDownloadFile(e, msg.fileUrl, msg.fileName)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '10px', backgroundColor: isMe ? 'rgba(255,255,255,0.2)' : '#F8FAFC', color: isMe ? '#FFF' : '#0F172A', textDecoration: 'none', border: isMe ? '1px solid rgba(255,255,255,0.3)' : '1px solid #E2E8F0', marginBottom: msg.text ? '8px' : '0' }}>
                             <FileText size={18} />
                             <div>
                               <div style={{ fontSize: '12px', fontWeight: '700', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{repairMojibake(msg.fileName || 'Tài liệu')}</div>

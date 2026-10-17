@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { getConversations, getMessages, sendMessage, uploadMedia } = require('../controllers/chatController');
+const { getConversations, getMessages, sendMessage, uploadMedia, downloadChatFile } = require('../controllers/chatController');
 const { uploadChatMedia } = require('../config/cloudinary');
 const { protect, authorize } = require('../middlewares/auth');
+
+// Tải file đính kèm với đúng tên gốc (hỗ trợ trình duyệt download)
+router.get('/download', downloadChatFile);
 
 // Tất cả chat routes yêu cầu đăng nhập sinh viên
 router.use(protect);

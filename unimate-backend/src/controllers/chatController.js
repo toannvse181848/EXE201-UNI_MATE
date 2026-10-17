@@ -3,6 +3,8 @@ const Match = require('../models/Match');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
+const path = require('path');
+const fs = require('fs');
 
 /**
  * Lấy danh sách hội thoại của user hiện tại.
@@ -250,4 +252,58 @@ const uploadMedia = catchAsync(async (req, res) => {
   });
 });
 
-module.exports = { getConversations, getMessages, sendMessage, uploadMedia };
+/**
+ * Tải file đính kèm với đúng tên gốc và header Content-Disposition
+ * GET /api/chat/download?url=...&name=...
+ */
+const downloadChatFile = catchAsync(async (req, res) => {
+  const { url, name } = req.query;
+  if (!url) {
+    throw new ApiError(400, 'Thiếu đường dẫn URL của file');
+  }
+
+  const rawFileName = name || 'tai-lieu';
+  let safeFileName = rawFileName;
+  try {
+    safeFileName = decodeURIComponent(rawFileName);
+  } catch (e) {
+    safeFileName = rawFileName;
+  }
+
+  // Chuẩn hóa tên file theo chuẩn RFC 5987 để hỗ trợ tiếng Việt có dấu
+  const encodedName = encodeURIComponent(safeFileName);
+  // ASCII fallback name
+  const asciiFallback = safeFileName.replace(/[^\x20-\x7E]/g, '_');
+
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`
+  );
+
+  // 1. Nếu là file local trong uploads/chat/
+  if (url.includes('/uploads/chat/')) {
+    const filename = url.split('/uploads/chat/').pop();
+    const filePath = path.join(__dirname, '../../uploads/chat', filename);
+    if (fs.existsSync(filePath)) {
+      return res.download(filePath, safeFileName);
+    }
+  }
+
+  // 2. Nếu là link Cloudinary hoặc internet
+  try {
+    const fetchRes = await fetch(url);
+    if (!fetchRes.ok) {
+      return res.redirect(url);
+    }
+    const contentType = fetchRes.headers.get('content-type') || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+
+    const arrayBuffer = await fetchRes.arrayBuffer();
+    return res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error('Lỗi khi stream download file:', err.message);
+    return res.redirect(url);
+  }
+});
+
+module.exports = { getConversations, getMessages, sendMessage, uploadMedia, downloadChatFile };

@@ -86,9 +86,22 @@ const uploadChatMedia = multer({
   storage: isCloudinaryConfigured
     ? new CloudinaryStorage({
         cloudinary,
-        params: {
-          folder: 'unimate/chat',
-          resource_type: 'auto',
+        params: async (req, file) => {
+          let originalName = file.originalname || 'file';
+          try {
+            originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+          } catch (e) {}
+
+          const ext = path.extname(originalName) || '';
+          const baseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, '_') || 'file';
+          const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e4)}`;
+          const isRaw = !file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/');
+
+          return {
+            folder: 'unimate/chat',
+            resource_type: isRaw ? 'raw' : 'auto',
+            public_id: `${baseName}_${uniqueSuffix}${ext}`,
+          };
         },
       })
     : (() => {
