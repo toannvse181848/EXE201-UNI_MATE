@@ -4,6 +4,7 @@ const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
+const { parseMessagePaging, trimExtraMessage } = require('../utils/messagePagination');
 const path = require('path');
 const fs = require('fs');
 const { Readable } = require('stream');
@@ -103,7 +104,7 @@ const getConversations = catchAsync(async (req, res) => {
  */
 const getMessages = catchAsync(async (req, res) => {
   const { matchId } = req.params;
-  const { page = 1, limit = 50 } = req.query;
+  const { limit, skip, createdAtFilter } = parseMessagePaging(req.query);
   const currentUserId = req.user._id;
 
   // Kiểm tra user thuộc match này không và lấy thông tin buddy
@@ -126,13 +127,12 @@ const getMessages = catchAsync(async (req, res) => {
     ? Date.now() - new Date(buddy.lastActiveAt).getTime() < 3 * 60 * 1000
     : false;
 
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const messages = await Message.find({ matchId })
+  const messages = await Message.find({ matchId, ...createdAtFilter })
     .populate('sender', 'fullName avatar')
     .sort({ createdAt: -1 }) // mới nhất trước
     .skip(skip)
-    .limit(Number(limit));
+    .limit(limit + 1);
+  const hasMore = trimExtraMessage(messages, limit);
 
   // Đánh dấu đã đọc tất cả tin nhắn gửi đến mình
   await Message.updateMany(
@@ -152,6 +152,7 @@ const getMessages = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: messages.length,
+    hasMore, // còn tin cũ hơn để tải thêm
     data: messages.reverse(), // trả về từ cũ → mới
     buddy: {
       id: buddy?._id,

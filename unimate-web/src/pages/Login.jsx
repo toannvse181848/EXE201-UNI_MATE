@@ -6,10 +6,19 @@ import { GraduationCap, Coffee, ShieldCheck, ArrowRight, ArrowLeft, Lock, Mail, 
 import { authApi } from '../services/api';
 
 
-export default function Login() {
+// Trang chủ của từng vai trò sau khi đăng nhập
+const PORTAL_HOME = {
+  user: '/user/discover',
+  partner: '/partner/dashboard',
+  admin: '/admin/dashboard',
+};
+
+// adminPortal = true: trang đăng nhập riêng cho quản trị viên (/admin/login),
+// không hiện trên trang đăng nhập công khai
+export default function Login({ adminPortal = false }) {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const [role, setRole] = useState('user'); // 'user' | 'partner' | 'admin'
+  const { login, logout } = useAuth();
+  const [role, setRole] = useState(adminPortal ? 'admin' : 'user'); // 'user' | 'partner' | 'admin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,8 +82,14 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password, role);
-      navigate(currentConfig.path);
+      const loggedInUser = await login(email, password, role);
+      if (adminPortal && loggedInUser.role !== 'admin') {
+        logout();
+        alert('Tài khoản này không có quyền quản trị.');
+        return;
+      }
+      // Chuyển theo vai trò thật của tài khoản (không theo tab đang chọn)
+      navigate(PORTAL_HOME[loggedInUser.role] || currentConfig.path);
     } catch (err) {
       alert('Đăng nhập thất bại: ' + err.message);
     } finally {
@@ -214,7 +229,8 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Auth Mode Toggle: Login vs Register */}
+        {/* Auth Mode Toggle: Login vs Register (trang admin không có đăng ký) */}
+        {!adminPortal && (
         <div
           style={{
             display: 'grid',
@@ -261,8 +277,10 @@ export default function Login() {
             <span>Đăng ký mới</span>
           </Link>
         </div>
+        )}
 
-        {/* 3 Role Selection Tabs */}
+        {/* Chọn vai trò: Sinh viên / Đối tác (quản trị viên dùng trang /admin/login riêng) */}
+        {!adminPortal && (
         <div style={{ marginBottom: '24px' }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Chọn vai trò đăng nhập
@@ -270,7 +288,7 @@ export default function Login() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: 'repeat(2, 1fr)',
               backgroundColor: '#F1F5F9',
               borderRadius: '14px',
               padding: '4px',
@@ -323,31 +341,9 @@ export default function Login() {
               <Coffee size={18} />
               <span>Đối tác Quán</span>
             </button>
-
-            {/* Tab 3: Admin */}
-            <button
-              type="button"
-              onClick={() => handleRoleChange('admin')}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '10px 6px',
-                borderRadius: '10px',
-                fontSize: '12px',
-                fontWeight: '700',
-                backgroundColor: role === 'admin' ? '#FFFFFF' : 'transparent',
-                color: role === 'admin' ? 'var(--indigo)' : 'var(--text-secondary)',
-                boxShadow: role === 'admin' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <ShieldCheck size={18} />
-              <span>Quản trị viên</span>
-            </button>
           </div>
         </div>
+        )}
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -451,6 +447,7 @@ export default function Login() {
         </form>
 
         {/* Register Link Prompt */}
+        {!adminPortal && (
         <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '14px', color: 'var(--text-secondary)' }}>
           Chưa có tài khoản?{' '}
           <Link
@@ -464,6 +461,7 @@ export default function Login() {
             Đăng ký tài khoản mới ngay
           </Link>
         </div>
+        )}
 
 
       </div>

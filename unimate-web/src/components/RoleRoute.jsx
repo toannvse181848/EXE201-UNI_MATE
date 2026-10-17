@@ -6,9 +6,10 @@ import { ShieldAlert, ArrowRight, LogOut } from 'lucide-react';
 export default function RoleRoute({ allowedRole, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const loginPath = allowedRole === 'admin' ? '/admin/login' : '/login';
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
   // If role matches, allow rendering
@@ -31,7 +32,7 @@ export default function RoleRoute({ allowedRole, children }) {
 
   const handleLogoutAndLogin = () => {
     logout();
-    navigate('/login');
+    navigate(loginPath);
   };
 
   return (

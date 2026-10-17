@@ -31,12 +31,17 @@ import {
   UserPlus,
   LogOut,
   Crown,
+  ChevronDown,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { chatApi, matchApi, groupChatApi, venueApi, API_BASE_URL } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarUrl } from '../../constants/avatar';
 import { UNREAD_CHANGED_EVENT } from '../../constants/events';
+import useChatScroll, { mergeLatestMessages, prependOlderMessages } from '../../hooks/useChatScroll';
+
+// Số tin cũ tải thêm mỗi lần kéo lên đầu khung chat
+const OLDER_MESSAGES_PAGE_SIZE = 30;
 
 // Helper format thời gian tin nhắn
 const formatTime = (dateStr) => {
@@ -130,6 +135,41 @@ const useCloseOnClickOutside = (isOpen, setOpen, refs) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, setOpen]);
 };
+
+// Đầu khung chat: đang tải tin cũ / nút xem tin cũ hơn (kéo lên đầu cũng tự tải)
+function OlderMessagesBar({ hasMore, loading, onLoad, color }) {
+  if (!hasMore && !loading) return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0' }}>
+      {loading ? (
+        <Loader2 size={18} className="spinner" color={color} />
+      ) : (
+        <button
+          type="button"
+          onClick={onLoad}
+          style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '999px', padding: '5px 14px', fontSize: '12px', fontWeight: '700', color, cursor: 'pointer' }}
+        >
+          Xem tin nhắn cũ hơn
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Nút nổi ở đáy khung chat khi đang kéo lên xem tin cũ
+function JumpToLatestButton({ chatScroll, color }) {
+  if (!chatScroll.showJumpButton) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => chatScroll.scrollToBottom()}
+      style={{ position: 'sticky', bottom: '0', alignSelf: 'center', zIndex: 5, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '999px', border: 'none', backgroundColor: color, color: '#FFFFFF', fontSize: '12.5px', fontWeight: '800', boxShadow: '0 6px 16px rgba(15,23,42,0.25)', cursor: 'pointer' }}
+    >
+      <ChevronDown size={16} />
+      {chatScroll.unseenCount > 0 ? `${chatScroll.unseenCount} tin nhắn mới` : 'Về tin nhắn mới nhất'}
+    </button>
+  );
+}
 
 // Badge đỏ báo tin nhắn chưa đọc trên tab Hội thoại / Nhóm
 const UNREAD_TAB_BADGE_STYLE = {
@@ -232,7 +272,6 @@ const getPresenceInfo = (buddy) => {
 
 export default function UserMessages() {
   const { user } = useAuth();
-  const messagesEndRef = useRef(null);
 
   // Tabs: 'conversations' | 'received' | 'sent' | 'groups'
   const [activeTab, setActiveTab] = useState('conversations');
@@ -244,8 +283,13 @@ export default function UserMessages() {
 
   // Active chat (1-1)
   const [selectedMatchId, setSelectedMatchId] = useState(null);
+  const selectedMatchIdRef = useRef(null);
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const loadingOlderMessagesRef = useRef(false);
+  const lastPolledMessageIdRef = useRef(null);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -266,7 +310,12 @@ export default function UserMessages() {
   // ─── GROUP CHAT STATES ───────────────────────────────────────────────────
   const [groups, setGroups] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const selectedGroupIdRef = useRef(null);
   const [groupMessages, setGroupMessages] = useState([]);
+  const [hasOlderGroupMessages, setHasOlderGroupMessages] = useState(false);
+  const [loadingOlderGroupMessages, setLoadingOlderGroupMessages] = useState(false);
+  const loadingOlderGroupMessagesRef = useRef(false);
+  const lastPolledGroupMessageIdRef = useRef(null);
   const [groupInfo, setGroupInfo] = useState(null);
   const [loadingGroupMessages, setLoadingGroupMessages] = useState(false);
   const [groupInputText, setGroupInputText] = useState('');
@@ -278,7 +327,6 @@ export default function UserMessages() {
   const groupImageInputRef = useRef(null);
   const groupVideoInputRef = useRef(null);
   const groupFileInputRef = useRef(null);
-  const groupMessagesEndRef = useRef(null);
 
   // Modal tạo nhóm
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -384,8 +432,18 @@ export default function UserMessages() {
       try {
         if (!isPolling) setLoadingMessages(true);
         const res = await chatApi.getMessages(matchId);
+        // Đã chuyển sang hội thoại khác trong lúc chờ → bỏ kết quả cũ
+        if (matchId !== selectedMatchIdRef.current) return;
         const list = res.data || [];
-        setMessages(list);
+        // Polling chỉ cập nhật phần tin mới nhất, giữ lại tin cũ đã kéo lên xem
+        setMessages((prev) => (isPolling ? mergeLatestMessages(prev, list) : list));
+        if (!isPolling) setHasOlderMessages(Boolean(res.hasMore));
+        // Polling vừa nhận (và server vừa đánh dấu đã đọc) tin mới → cập nhật badge/tiêu đề tab ngay
+        const newestId = list[list.length - 1]?._id;
+        if (isPolling && newestId && newestId !== lastPolledMessageIdRef.current) {
+          window.dispatchEvent(new Event(UNREAD_CHANGED_EVENT));
+        }
+        lastPolledMessageIdRef.current = newestId;
 
         // Server đã đánh dấu đã đọc khi tải tin → xoá số chưa đọc của hội thoại này,
         // đồng thời cập nhật trạng thái buddy (lastActiveAt, isOnline) nếu backend trả về
@@ -411,24 +469,52 @@ export default function UserMessages() {
   );
 
   useEffect(() => {
+    selectedMatchIdRef.current = selectedMatchId;
     if (selectedMatchId) {
       loadMessages(selectedMatchId);
     }
   }, [selectedMatchId, loadMessages]);
 
-  // 3. Polling tin nhắn mới mỗi 3.5s khi đang mở chat
+  // 3. Polling tin nhắn mới mỗi 3.5s khi đang mở chat.
+  // Tab đang ẩn thì không tải: vừa đỡ tốn request, vừa không tự đánh dấu "đã đọc"
+  // khi người dùng chưa xem → tiêu đề tab vẫn báo được "(N) Tin nhắn mới".
   useEffect(() => {
     if (!selectedMatchId || selectedMatchId.startsWith('demo_')) return;
     const timer = setInterval(() => {
+      if (document.hidden) return;
       loadMessages(selectedMatchId, true);
     }, 3500);
     return () => clearInterval(timer);
   }, [selectedMatchId, loadMessages]);
 
-  // Tự động cuộn xuống cuối khi có tin nhắn mới
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Kéo lên đầu khung chat → tải thêm tin cũ hơn
+  const loadOlderMessages = async () => {
+    const matchId = selectedMatchId;
+    const oldest = messages.find((m) => !String(m._id).startsWith('temp_'));
+    if (!matchId || !hasOlderMessages || !oldest || loadingOlderMessagesRef.current) return;
+    loadingOlderMessagesRef.current = true;
+    setLoadingOlderMessages(true);
+    try {
+      const res = await chatApi.getMessages(matchId, { before: oldest.createdAt, limit: OLDER_MESSAGES_PAGE_SIZE });
+      if (matchId !== selectedMatchIdRef.current) return;
+      chatScroll.markPrepend();
+      setMessages((prev) => prependOlderMessages(prev, res.data || []));
+      setHasOlderMessages(Boolean(res.hasMore));
+    } catch (err) {
+      console.log('Lỗi tải tin nhắn cũ:', err.message);
+    } finally {
+      loadingOlderMessagesRef.current = false;
+      setLoadingOlderMessages(false);
+    }
+  };
+
+  // Chỉ tự cuộn khi có tin mới và đang ở cuối; kéo lên đầu thì tải tin cũ
+  const chatScroll = useChatScroll({
+    messages,
+    resetKey: selectedMatchId,
+    currentUserId,
+    onReachTop: () => loadOlderMessages(),
+  });
 
   // 4. Tìm kiếm cuộc trò chuyện
   const activeConversation =
@@ -668,7 +754,17 @@ export default function UserMessages() {
     try {
       if (!isPolling) setLoadingGroupMessages(true);
       const res = await groupChatApi.getGroupMessages(groupId);
-      setGroupMessages(res.data || []);
+      // Đã chuyển sang nhóm khác trong lúc chờ → bỏ kết quả cũ
+      if (groupId !== selectedGroupIdRef.current) return;
+      const list = res.data || [];
+      // Polling chỉ cập nhật phần tin mới nhất, giữ lại tin cũ đã kéo lên xem
+      setGroupMessages((prev) => (isPolling ? mergeLatestMessages(prev, list) : list));
+      if (!isPolling) setHasOlderGroupMessages(Boolean(res.hasMore));
+      const newestId = list[list.length - 1]?._id;
+      if (isPolling && newestId && newestId !== lastPolledGroupMessageIdRef.current) {
+        window.dispatchEvent(new Event(UNREAD_CHANGED_EVENT));
+      }
+      lastPolledGroupMessageIdRef.current = newestId;
       if (res.group) setGroupInfo(res.group);
       // Server đã đánh dấu đã đọc khi tải tin → xoá số chưa đọc của nhóm này
       setGroups((prev) =>
@@ -683,24 +779,49 @@ export default function UserMessages() {
   }, []);
 
   useEffect(() => {
+    selectedGroupIdRef.current = selectedGroupId;
     if (selectedGroupId) {
       loadGroupMessages(selectedGroupId);
     }
   }, [selectedGroupId, loadGroupMessages]);
 
-  // Polling tin nhắn nhóm mỗi 4s
+  // Polling tin nhắn nhóm mỗi 4s (bỏ qua khi tab đang ẩn, như chat 1-1)
   useEffect(() => {
     if (!selectedGroupId) return;
     const timer = setInterval(() => {
+      if (document.hidden) return;
       loadGroupMessages(selectedGroupId, true);
     }, 4000);
     return () => clearInterval(timer);
   }, [selectedGroupId, loadGroupMessages]);
 
-  // Scroll xuống cuối khi có tin nhắn nhóm mới
-  useEffect(() => {
-    groupMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [groupMessages]);
+  // Kéo lên đầu khung chat nhóm → tải thêm tin cũ hơn
+  const loadOlderGroupMessages = async () => {
+    const groupId = selectedGroupId;
+    const oldest = groupMessages.find((m) => !String(m._id).startsWith('temp_'));
+    if (!groupId || !hasOlderGroupMessages || !oldest || loadingOlderGroupMessagesRef.current) return;
+    loadingOlderGroupMessagesRef.current = true;
+    setLoadingOlderGroupMessages(true);
+    try {
+      const res = await groupChatApi.getGroupMessages(groupId, { before: oldest.createdAt, limit: OLDER_MESSAGES_PAGE_SIZE });
+      if (groupId !== selectedGroupIdRef.current) return;
+      groupChatScroll.markPrepend();
+      setGroupMessages((prev) => prependOlderMessages(prev, res.data || []));
+      setHasOlderGroupMessages(Boolean(res.hasMore));
+    } catch (err) {
+      console.log('Lỗi tải tin nhắn nhóm cũ:', err.message);
+    } finally {
+      loadingOlderGroupMessagesRef.current = false;
+      setLoadingOlderGroupMessages(false);
+    }
+  };
+
+  const groupChatScroll = useChatScroll({
+    messages: groupMessages,
+    resetKey: selectedGroupId,
+    currentUserId,
+    onReachTop: () => loadOlderGroupMessages(),
+  });
 
   // Cập nhật danh sách hội thoại + nhóm mỗi 10s để hiện số tin chưa đọc mới.
   // Hội thoại/nhóm đang mở được coi là đã đọc (polling tin nhắn sẽ đánh dấu trên server).
@@ -721,7 +842,9 @@ export default function UserMessages() {
         );
       }
     };
-    const timer = setInterval(refreshUnread, 10000);
+    const timer = setInterval(() => {
+      if (!document.hidden) refreshUnread();
+    }, 10000);
     return () => clearInterval(timer);
   }, [selectedMatchId, selectedGroupId]);
 
@@ -1993,6 +2116,8 @@ export default function UserMessages() {
 
           {/* Message Stream */}
           <div
+            ref={chatScroll.containerRef}
+            onScroll={chatScroll.handleScroll}
             style={{
               flex: 1,
               overflowY: 'auto',
@@ -2003,6 +2128,12 @@ export default function UserMessages() {
               backgroundColor: '#F8FAFC',
             }}
           >
+            <OlderMessagesBar
+              hasMore={hasOlderMessages}
+              loading={loadingOlderMessages}
+              onLoad={loadOlderMessages}
+              color="#FF5722"
+            />
             {loadingMessages && messages.length === 0 ? (
               <div
                 style={{
@@ -2236,7 +2367,7 @@ export default function UserMessages() {
                 );
               })
             )}
-            <div ref={messagesEndRef} />
+            <JumpToLatestButton chatScroll={chatScroll} color="#FF5722" />
           </div>
 
           {/* Form Nhập Tin Nhắn & Đa Phương Tiện */}
@@ -2626,7 +2757,17 @@ export default function UserMessages() {
           </div>
 
           {/* Group Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div
+            ref={groupChatScroll.containerRef}
+            onScroll={groupChatScroll.handleScroll}
+            style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '8px' }}
+          >
+            <OlderMessagesBar
+              hasMore={hasOlderGroupMessages}
+              loading={loadingOlderGroupMessages}
+              onLoad={loadOlderGroupMessages}
+              color="#7C3AED"
+            />
             {loadingGroupMessages ? (
               <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                 <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', color: '#7C3AED' }} />
@@ -2713,7 +2854,7 @@ export default function UserMessages() {
                 );
               })
             )}
-            <div ref={groupMessagesEndRef} />
+            <JumpToLatestButton chatScroll={groupChatScroll} color="#7C3AED" />
           </div>
 
           {/* Group attachment preview */}

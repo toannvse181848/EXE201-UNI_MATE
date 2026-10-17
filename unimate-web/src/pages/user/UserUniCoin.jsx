@@ -23,6 +23,7 @@ import {
 import { coinApi, venueApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import QRCheckinModal from '../../components/user/QRCheckinModal';
+import PremiumOffersCard from '../../components/user/PremiumOffersCard';
 
 export default function UserUniCoin() {
   const navigate = useNavigate();
@@ -337,6 +338,9 @@ export default function UserUniCoin() {
           </div>
         </div>
       </div>
+
+      {/* ƯU ĐÃI & GÓI PREMIUM: xem gói, nâng cấp / gia hạn / đổi gói (mở modal thanh toán ở trang Hồ sơ) */}
+      <PremiumOffersCard user={user} onChoosePlan={(planKey) => navigate(`/user/profile?upgrade=${planKey}`)} />
 
       {/* 2 MAIN CARDS: ĐIỂM DANH HÀNG NGÀY & QUÉT QR CHECK-IN */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: '24px', marginBottom: '32px' }}>

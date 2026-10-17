@@ -62,6 +62,8 @@ export default function App() {
         <Routes>
           {/* Public Authentication */}
           <Route path="/login" element={<Login />} />
+          {/* Đăng nhập quản trị viên: đường riêng, không hiện trên trang đăng nhập công khai */}
+          <Route path="/admin/login" element={<Login adminPortal />} />
           <Route path="/register" element={<Register />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/reset-password" element={<ResetPassword />} />

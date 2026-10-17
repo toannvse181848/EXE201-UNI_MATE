@@ -153,14 +153,19 @@ const updateAvatar = catchAsync(async (req, res) => {
 
 // PUT /api/users/me — cập nhật hồ sơ của chính mình
 const PROFILE_FIELDS = ['studentId', 'university', 'major', 'year', 'gender', 'bio', 'interests', 'objectives'];
+const FULL_NAME_MAX_LENGTH = 60;
 
 const updateMe = catchAsync(async (req, res) => {
   const user = req.user;
   const { fullName, phone, businessName } = req.body;
 
   if (fullName !== undefined) {
-    if (!String(fullName).trim()) throw new ApiError(400, 'Họ tên không được để trống');
-    user.fullName = String(fullName).trim();
+    const trimmedName = String(fullName).trim().replace(/\s+/g, ' ');
+    if (!trimmedName) throw new ApiError(400, 'Họ tên không được để trống');
+    if (trimmedName.length > FULL_NAME_MAX_LENGTH) {
+      throw new ApiError(400, `Họ tên tối đa ${FULL_NAME_MAX_LENGTH} ký tự`);
+    }
+    user.fullName = trimmedName;
   }
   if (phone !== undefined) user.phone = phone || null;
 

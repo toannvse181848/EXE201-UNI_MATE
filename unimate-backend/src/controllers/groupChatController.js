@@ -4,6 +4,7 @@ const Match = require('../models/Match');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
+const { parseMessagePaging, trimExtraMessage } = require('../utils/messagePagination');
 
 /**
  * Helper: Lấy danh sách bạn bè (đã match) của user
@@ -200,7 +201,7 @@ const createGroup = catchAsync(async (req, res) => {
  */
 const getGroupMessages = catchAsync(async (req, res) => {
   const { groupId } = req.params;
-  const { page = 1, limit = 50 } = req.query;
+  const { limit, skip, createdAtFilter } = parseMessagePaging(req.query);
   const currentUserId = req.user._id;
 
   const group = await GroupChat.findById(groupId).populate(
@@ -215,13 +216,12 @@ const getGroupMessages = catchAsync(async (req, res) => {
   );
   if (!isMember) throw new ApiError(403, 'Bạn không phải thành viên nhóm này');
 
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const messages = await GroupMessage.find({ groupId })
+  const messages = await GroupMessage.find({ groupId, ...createdAtFilter })
     .populate('sender', 'fullName avatar')
     .sort({ createdAt: -1 })
     .skip(skip)
-    .limit(Number(limit));
+    .limit(limit + 1);
+  const hasMore = trimExtraMessage(messages, limit);
 
   // Đánh dấu đã đọc
   await GroupMessage.updateMany(
@@ -244,6 +244,7 @@ const getGroupMessages = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: messages.length,
+    hasMore, // còn tin cũ hơn để tải thêm
     data: messages.reverse(),
     group: {
       id: group._id,

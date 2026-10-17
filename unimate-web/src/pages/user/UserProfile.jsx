@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { userApi, authApi, orderApi } from '../../services/api';
+import usePremiumPlans, { PREMIUM_PLAN_LABEL, formatVnd } from '../../hooks/usePremiumPlans';
 import { getAvatarUrl } from '../../constants/avatar';
 import {
   GraduationCap,
@@ -35,11 +36,34 @@ import {
 
 import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
 
+// Khớp giới hạn độ dài họ tên ở backend (userController)
+const FULL_NAME_MAX_LENGTH = 60;
+
+// Nhãn trên thẻ gói Premium mà người dùng đang dùng
+const CurrentPlanTag = () => (
+  <span
+    style={{
+      position: 'absolute',
+      top: '-10px',
+      left: '10px',
+      backgroundColor: '#0284C7',
+      color: '#FFFFFF',
+      fontSize: '10px',
+      fontWeight: '800',
+      padding: '2px 8px',
+      borderRadius: '10px',
+    }}
+  >
+    GÓI HIỆN TẠI
+  </span>
+);
+
 export default function UserProfile() {
   const { user, setUser, updateUser, upgradePremium, reloadUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [fullName, setFullName] = useState(user?.name || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [major, setMajor] = useState(user?.major || '');
   const [year, setYear] = useState(user?.year || '');
@@ -52,6 +76,21 @@ export default function UserProfile() {
   const [selectedPlan, setSelectedPlan] = useState('monthly');
   const [upgrading, setUpgrading] = useState(false);
   const [premiumNotice, setPremiumNotice] = useState(null);
+  const premiumPlans = usePremiumPlans(showPremiumModal);
+  const selectedPlanInfo = premiumPlans[selectedPlan] || premiumPlans.monthly;
+  const premiumExpiresText = user?.premiumExpiresAt
+    ? new Date(user.premiumExpiresAt).toLocaleDateString('vi-VN')
+    : null;
+
+  // Mở sẵn modal Premium khi vào từ link /user/profile?upgrade=monthly|yearly (vd: trang UniCoin)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const planFromLink = searchParams.get('upgrade');
+    if (!planFromLink) return;
+    if (planFromLink === 'monthly' || planFromLink === 'yearly') setSelectedPlan(planFromLink);
+    setShowPremiumModal(true);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // === Order & VietQR State ===
   const [currentOrder, setCurrentOrder] = useState(null); // { order, payment }
@@ -213,11 +252,23 @@ export default function UserProfile() {
     e.preventDefault();
     if (isSavingProfile) return;
 
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      alert('Họ và tên không được để trống');
+      return;
+    }
+
     setIsSavingProfile(true);
     try {
-      const res = await userApi.updateMe({ bio, major, year });
-      const saved = res?.data?.user || { bio, major, year };
-      const updated = { ...user, bio: saved.bio, major: saved.major, year: saved.year };
+      const res = await userApi.updateMe({ fullName: trimmedName, bio, major, year });
+      const saved = res?.data?.user || { fullName: trimmedName, bio, major, year };
+      const updated = {
+        ...user,
+        name: saved.fullName || trimmedName,
+        bio: saved.bio ?? saved.studentProfile?.bio ?? bio,
+        major: saved.major ?? saved.studentProfile?.major ?? major,
+        year: saved.year ?? saved.studentProfile?.year ?? year,
+      };
       if (updateUser) {
         updateUser(updated);
       } else {
@@ -327,22 +378,47 @@ export default function UserProfile() {
               </div>
 
               {user?.isVerifiedStudent ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: '#0284C7',
-                    padding: '5px 12px',
-                    borderRadius: '20px',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    color: '#FFFFFF',
-                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
-                  }}
-                >
-                  <CheckCircle2 size={13} color="#FFFFFF" />
-                  <span>PREMIUM • TÍCH XANH XÁC THỰC</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      backgroundColor: '#0284C7',
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      color: '#FFFFFF',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
+                    }}
+                  >
+                    <CheckCircle2 size={13} color="#FFFFFF" />
+                    <span>PREMIUM • TÍCH XANH XÁC THỰC</span>
+                  </div>
+                  {user?.isPremium && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPremiumModal(true)}
+                      title={premiumExpiresText ? `Hết hạn ${premiumExpiresText}` : undefined}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(255,255,255,0.18)',
+                        border: '1px solid rgba(255,255,255,0.4)',
+                        borderRadius: '20px',
+                        padding: '3px 10px',
+                        fontSize: '10.5px',
+                        fontWeight: '700',
+                        color: '#FFFFFF',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Crown size={11} color="#FFD54F" />
+                      Gia hạn / Đổi gói
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button
@@ -573,7 +649,10 @@ export default function UserProfile() {
                 Thông tin & Giới thiệu
               </h3>
               <button
-                onClick={() => setIsEditing(!isEditing)}
+                onClick={() => {
+                  if (!isEditing) setFullName(user?.name || '');
+                  setIsEditing(!isEditing);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -591,6 +670,31 @@ export default function UserProfile() {
 
             {isEditing ? (
               <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    Họ và tên:
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    maxLength={FULL_NAME_MAX_LENGTH}
+                    placeholder="Nhập họ và tên đầy đủ"
+                    required
+                    style={{
+                      width: '100%',
+                      marginTop: '6px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid var(--border-color)',
+                      fontSize: '13px',
+                      outline: 'none',
+                      backgroundColor: '#FFFFFF',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
                     Chuyên ngành:
@@ -983,10 +1087,12 @@ export default function UserProfile() {
               </div>
 
               <h3 style={{ fontSize: '22px', fontWeight: '900', margin: '0 0 6px', color: '#FFFFFF' }}>
-                Nâng Cấp Premium & Nhận Tích Xanh
+                {user?.isPremium ? 'Gia Hạn hoặc Đổi Gói Premium' : 'Nâng Cấp Premium & Nhận Tích Xanh'}
               </h3>
               <p style={{ margin: 0, fontSize: '13px', color: '#FFE0B2', lineHeight: '1.4' }}>
-                Xác thực danh tính chính chủ và mở khoá trải nghiệm kết nối bạn học không giới hạn.
+                {user?.isPremium
+                  ? `Bạn đang dùng ${PREMIUM_PLAN_LABEL[user.premiumPlan] || 'Premium'}${premiumExpiresText ? `, hết hạn ${premiumExpiresText}` : ''}. Mua thêm gói nào thì thời hạn được cộng dồn vào hạn hiện tại.`
+                  : 'Xác thực danh tính chính chủ và mở khoá trải nghiệm kết nối bạn học không giới hạn.'}
               </p>
             </div>
 
@@ -1261,14 +1367,17 @@ export default function UserProfile() {
                         position: 'relative',
                       }}
                     >
+                      {user?.isPremium && user?.premiumPlan === 'monthly' && <CurrentPlanTag />}
                       <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'monthly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
-                        GÓI THÁNG (30 NGÀY)
+                        GÓI THÁNG ({premiumPlans.monthly.durationDays} NGÀY)
                       </div>
                       <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
-                        100 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
+                        {formatVnd(premiumPlans.monthly.amount)}
                       </div>
                       <div style={{ fontSize: '11px', color: '#94A3B8' }}>
-                        Hoặc 49.000 VNĐ
+                        {premiumPlans.monthly.coinPrice != null
+                          ? `Hoặc đổi ${premiumPlans.monthly.coinPrice} UniCoin`
+                          : 'Chỉ thanh toán VietQR'}
                       </div>
                     </div>
 
@@ -1300,14 +1409,17 @@ export default function UserProfile() {
                       >
                         TIẾT KIỆM 30%
                       </span>
+                      {user?.isPremium && user?.premiumPlan === 'yearly' && <CurrentPlanTag />}
                       <div style={{ fontSize: '12px', fontWeight: '700', color: selectedPlan === 'yearly' ? '#EA580C' : '#64748B', marginBottom: '4px' }}>
-                        GÓI NĂM (365 NGÀY)
+                        GÓI NĂM ({premiumPlans.yearly.durationDays} NGÀY)
                       </div>
                       <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', marginBottom: '2px' }}>
-                        800 <span style={{ fontSize: '13px', fontWeight: '700', color: '#FF7043' }}>Coin</span>
+                        {formatVnd(premiumPlans.yearly.amount)}
                       </div>
                       <div style={{ fontSize: '11px', color: '#94A3B8' }}>
-                        Hoặc 399.000 VNĐ
+                        {premiumPlans.yearly.coinPrice != null
+                          ? `Hoặc đổi ${premiumPlans.yearly.coinPrice} UniCoin`
+                          : 'Chỉ thanh toán VietQR'}
                       </div>
                     </div>
                   </div>
@@ -1338,9 +1450,10 @@ export default function UserProfile() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <button
                       type="button"
-                      disabled={upgrading || isCreatingOrder}
+                      disabled={upgrading || isCreatingOrder || selectedPlanInfo.coinPrice == null}
                       onClick={async () => {
-                        const cost = selectedPlan === 'yearly' ? 800 : 100;
+                        const cost = selectedPlanInfo.coinPrice;
+                        if (cost == null) return;
                         if ((user?.uniCoin || 0) < cost) {
                           setPremiumNotice({
                             type: 'error',
@@ -1371,11 +1484,11 @@ export default function UserProfile() {
                         padding: '14px',
                         borderRadius: '14px',
                         border: 'none',
-                        backgroundColor: '#FF5722',
+                        backgroundColor: selectedPlanInfo.coinPrice == null ? '#CBD5E1' : '#FF5722',
                         color: '#FFFFFF',
                         fontSize: '15px',
                         fontWeight: '800',
-                        cursor: upgrading || isCreatingOrder ? 'not-allowed' : 'pointer',
+                        cursor: upgrading || isCreatingOrder || selectedPlanInfo.coinPrice == null ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1392,7 +1505,9 @@ export default function UserProfile() {
                       ) : (
                         <>
                           <Crown size={18} color="#FFD54F" />
-                          Kích hoạt ngay bằng {selectedPlan === 'yearly' ? '800' : '100'} UniCoin
+                          {selectedPlanInfo.coinPrice == null
+                            ? `${selectedPlanInfo.label} chỉ thanh toán qua VietQR`
+                            : `${user?.isPremium ? 'Gia hạn' : 'Kích hoạt ngay'} bằng ${selectedPlanInfo.coinPrice} UniCoin`}
                         </>
                       )}
                     </button>
@@ -1426,7 +1541,7 @@ export default function UserProfile() {
                       ) : (
                         <>
                           <QrCode size={17} />
-                          Thanh toán VietQR ({selectedPlan === 'yearly' ? '399.000đ' : '49.000đ'})
+                          Thanh toán VietQR ({formatVnd(selectedPlanInfo.amount)})
                         </>
                       )}
                     </button>

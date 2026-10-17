@@ -16,10 +16,22 @@ import {
   X,
   Sparkles,
   Phone,
+  Map as MapIcon,
+  Navigation,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { venueApi, voucherApi } from '../../services/api';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
+import { getGoogleMapsUrl, getGoogleMapsEmbedUrl } from '../../utils/mapLinks';
+
+// priceRange trong DB là chuỗi ("35.000 - 65.000 VNĐ"); dữ liệu cũ có thể là { min, max }
+const formatPriceRange = (priceRange) => {
+  if (typeof priceRange === 'string' && priceRange.trim()) return priceRange;
+  if (priceRange?.min != null && priceRange?.max != null) {
+    return `${priceRange.min.toLocaleString('vi-VN')}đ - ${priceRange.max.toLocaleString('vi-VN')}đ`;
+  }
+  return 'Đang cập nhật giá';
+};
 
 export default function UserVenues() {
   const [venues, setVenues] = useState([]);
@@ -29,6 +41,7 @@ export default function UserVenues() {
   const [claimedCodes, setClaimedCodes] = useState({});
   const [claimingVenueId, setClaimingVenueId] = useState(null);
   const [selectedVenueModal, setSelectedVenueModal] = useState(null);
+  const [mapVenueId, setMapVenueId] = useState(null); // quán đang mở bản đồ nhúng trong modal
 
   const fetchVenues = useCallback(async () => {
     try {
@@ -86,9 +99,7 @@ export default function UserVenues() {
             images: venueImages,
             rating: v.rating || 4.8,
             reviews: v.reviewCount || 120 + idx * 25,
-            priceRange: v.priceRange
-              ? `${v.priceRange.min?.toLocaleString('vi-VN')}đ - ${v.priceRange.max?.toLocaleString('vi-VN')}đ`
-              : '35.000đ - 55.000đ',
+            priceRange: formatPriceRange(v.priceRange),
             tags: v.tags?.length > 0 ? v.tags : ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
             hours: v.openingHours || v.openHours || '07:00 - 23:00',
             voucher: voucherByVenue[v._id]?.title || null,
@@ -546,10 +557,19 @@ export default function UserVenues() {
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '12px', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  <MapPin size={16} color="var(--primary)" />
-                  <span>{selectedVenueModal.address}</span>
-                </div>
+                <a
+                  href={getGoogleMapsUrl(selectedVenueModal)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Mở vị trí quán trên Google Maps"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)', textDecoration: 'none' }}
+                >
+                  <MapPin size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
+                  <span style={{ textDecoration: 'underline', textDecorationColor: '#CBD5E1', textUnderlineOffset: '3px' }}>
+                    {selectedVenueModal.address}
+                  </span>
+                  <ExternalLink size={13} color="#1A73E8" style={{ flexShrink: 0 }} />
+                </a>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                   <Clock size={16} color="#10B981" />
                   <span>{selectedVenueModal.hours}</span>
@@ -563,6 +583,36 @@ export default function UserVenues() {
                   <span>{selectedVenueModal.priceRange}</span>
                 </div>
               </div>
+
+              {/* Bản đồ Google Maps: xem nhanh trong modal hoặc mở Google Maps để chỉ đường */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setMapVenueId(mapVenueId === selectedVenueModal.id ? null : selectedVenueModal.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: 'var(--text-primary)', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  <MapIcon size={15} color="#1A73E8" />
+                  {mapVenueId === selectedVenueModal.id ? 'Ẩn bản đồ' : 'Xem bản đồ'}
+                </button>
+                <a
+                  href={getGoogleMapsUrl(selectedVenueModal)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '10px', backgroundColor: '#1A73E8', color: '#FFFFFF', fontSize: '13px', fontWeight: '700', textDecoration: 'none' }}
+                >
+                  <Navigation size={15} />
+                  Chỉ đường bằng Google Maps
+                </a>
+              </div>
+              {mapVenueId === selectedVenueModal.id && (
+                <iframe
+                  title={`Bản đồ ${selectedVenueModal.name}`}
+                  src={getGoogleMapsEmbedUrl(selectedVenueModal)}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  style={{ width: '100%', height: '260px', border: '1px solid #E2E8F0', borderRadius: '14px', marginBottom: '8px' }}
+                />
+              )}
 
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '16px' }}>
                 {selectedVenueModal.voucherId ? (

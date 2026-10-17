@@ -10,6 +10,7 @@ import {
   Share,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +19,14 @@ import { COLORS } from '../src/constants/colors';
 import { venueApi } from '../src/api/venueApi';
 import { voucherApi } from '../src/api/voucherApi';
 import { toVenueCard, formatDaysLeft } from '../src/utils/venueMapper';
+
+// Mở Google Maps (app nếu có, không thì trình duyệt) tìm theo "tên quán, địa chỉ" — không cần API key
+const openGoogleMaps = (venue) => {
+  const query = [venue?.name, venue?.address].filter(Boolean).join(', ');
+  Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`).catch(() =>
+    Alert.alert('Lỗi', 'Không mở được Google Maps')
+  );
+};
 
 
 const { width } = Dimensions.get('window');
@@ -215,11 +224,17 @@ export default function PlaceDetailScreen() {
             </View>
           </View>
 
-          {/* Address & Meta */}
-          <View style={styles.metaRow}>
+          {/* Address & Meta — bấm địa chỉ để mở Google Maps */}
+          <TouchableOpacity style={styles.metaRow} activeOpacity={0.7} onPress={() => openGoogleMaps(venue)}>
             <Ionicons name="location" size={16} color={COLORS.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.metaText}>{venue.address}</Text>
-          </View>
+            <Text style={[styles.metaText, styles.addressLink]}>{venue.address}</Text>
+            <Ionicons name="open-outline" size={15} color="#1A73E8" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.mapsButton} activeOpacity={0.85} onPress={() => openGoogleMaps(venue)}>
+            <Ionicons name="navigate" size={16} color="#FFFFFF" />
+            <Text style={styles.mapsButtonText}>Chỉ đường bằng Google Maps</Text>
+          </TouchableOpacity>
 
           <View style={styles.metaRow}>
             <Ionicons name="time-outline" size={16} color="#10B981" style={{ marginRight: 8 }} />
@@ -454,6 +469,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
     flex: 1,
+  },
+  addressLink: {
+    textDecorationLine: 'underline',
+    textDecorationColor: '#CBD5E1',
+  },
+  mapsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#1A73E8',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  mapsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   tagsContainer: {
     flexDirection: 'row',

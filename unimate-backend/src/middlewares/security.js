@@ -1,4 +1,5 @@
-const { rateLimit } = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 /**
  * 1. Chống tấn công NoSQL Injection:
@@ -40,10 +41,37 @@ const escapeRegex = (str = '') => {
  * 3. Rate Limiters chống Brute-Force & Denial of Service (DoS)
  */
 
-// Giới hạn chung cho toàn bộ API (300 requests / 15 phút)
+// Giới hạn chung cho toàn bộ API (mỗi 15 phút):
+// - Đã đăng nhập: 1500 request / tài khoản. Web có polling tin nhắn nên mở trang chat
+//   ~15 phút đã tốn ~550 request; giới hạn theo tài khoản để sinh viên dùng chung WiFi
+//   trường (cùng IP) không bị chặn lây nhau.
+// - Chưa đăng nhập: 300 request / IP.
+const API_LIMIT_PER_USER = 1500;
+const API_LIMIT_PER_IP = 300;
+
+// Lấy id tài khoản từ JWT hợp lệ (token giả/hết hạn → null, tính theo IP). Nhớ trên req để chỉ verify 1 lần.
+const getRateLimitUserId = (req) => {
+  if (req.rateLimitUserId !== undefined) return req.rateLimitUserId;
+  const header = req.headers.authorization;
+  let userId = null;
+  if (header && header.startsWith('Bearer ')) {
+    try {
+      userId = jwt.verify(header.slice(7), process.env.JWT_SECRET).id || null;
+    } catch {
+      userId = null;
+    }
+  }
+  req.rateLimitUserId = userId;
+  return userId;
+};
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  limit: (req) => (getRateLimitUserId(req) ? API_LIMIT_PER_USER : API_LIMIT_PER_IP),
+  keyGenerator: (req) => {
+    const userId = getRateLimitUserId(req);
+    return userId ? `user:${userId}` : ipKeyGenerator(req.ip);
+  },
   standardHeaders: true,
   legacyHeaders: false,
   message: {
