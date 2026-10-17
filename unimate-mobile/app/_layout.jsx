@@ -18,6 +18,8 @@ export default function RootLayout() {
           <Stack.Screen name="group-chat-room" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="place-detail" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="voucher-detail" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="my-vouchers" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="unicoin" options={{ animation: 'slide_from_right' }} />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>

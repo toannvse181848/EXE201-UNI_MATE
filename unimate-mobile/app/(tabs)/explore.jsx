@@ -58,9 +58,10 @@ export default function ExploreScreen() {
         </View>
         <TouchableOpacity
           style={styles.notificationBtn}
-          onPress={() => setActiveTab('vouchers')}
+          onPress={() => router.push('/my-vouchers')}
+          accessibilityLabel="Mở ví voucher"
         >
-          <Ionicons name="qr-code-outline" size={20} color={COLORS.text} />
+          <Ionicons name="qr-code-outline" size={20} color={COLORS.primary} />
         </TouchableOpacity>
       </View>
 
@@ -239,6 +240,21 @@ export default function ExploreScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          <TouchableOpacity
+            style={styles.openWalletBanner}
+            onPress={() => router.push('/my-vouchers')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.openWalletIcon}>
+              <Ionicons name="wallet-outline" size={22} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.openWalletTitle}>Xem Ví Voucher của tôi</Text>
+              <Text style={styles.openWalletSubtitle}>Mã QR phóng to đưa thu ngân quét trực tiếp</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+          </TouchableOpacity>
+
           <Text style={styles.voucherTabHint}>
             Đưa mã QR voucher cho nhân viên thu ngân tại quán để được giảm giá trực tiếp!
           </Text>
@@ -644,5 +660,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     marginLeft: 8,
+  },
+  openWalletBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  openWalletIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  openWalletTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  openWalletSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
 });

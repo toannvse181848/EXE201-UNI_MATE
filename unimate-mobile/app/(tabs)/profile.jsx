@@ -291,9 +291,13 @@ export default function ProfileScreen() {
           )}
 
           {user?.uniCoin !== undefined && (
-            <View style={styles.goldPill}>
-              <Text style={styles.goldText}>💎 {user.uniCoin} UniCoin</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.goldPill}
+              onPress={() => router.push('/unicoin')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.goldText}>💎 {user.uniCoin} UniCoin • Điểm danh</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -304,10 +308,14 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Trust Score</Text>
           </View>
           <View style={styles.statDivider} />
-          <View style={styles.statItem}>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => router.push('/unicoin')}
+            activeOpacity={0.8}
+          >
             <Text style={styles.statNumber}>{user?.uniCoin ?? 0}</Text>
             <Text style={styles.statLabel}>UniCoin</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{user?.isVerifiedStudent ? 'SV' : '---'}</Text>
@@ -352,10 +360,17 @@ export default function ProfileScreen() {
           />
           <View style={styles.menuDivider} />
           <MenuItem
+            icon="gift-outline"
+            label="Trung tâm UniCoin & Điểm danh"
+            sublabel="Điểm danh nhận xu hàng ngày & Check-in quán cafe"
+            onPress={() => router.push('/unicoin')}
+          />
+          <View style={styles.menuDivider} />
+          <MenuItem
             icon="ticket-outline"
-            label="Voucher của tôi"
-            sublabel="Xem và quét mã QR tại quán"
-            onPress={() => router.push('/(tabs)/explore')}
+            label="Ví Voucher của tôi"
+            sublabel="Xem mã QR và đưa nhân viên thu ngân quét"
+            onPress={() => router.push('/my-vouchers')}
           />
           <View style={styles.menuDivider} />
           <MenuItem

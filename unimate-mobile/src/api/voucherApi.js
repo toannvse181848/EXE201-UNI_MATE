@@ -22,6 +22,9 @@ export const voucherApi = {
   /** Đối soát & trừ lượt sử dụng voucher (Partner) */
   redeemVoucher: (payload) => client.post('/api/vouchers/redeem', payload),
 
+  /** Tạo voucher mới (Partner) */
+  createVoucher: (data) => client.post('/api/vouchers', data),
+
   /** Bật/tắt trạng thái voucher */
   toggleVoucherStatus: (id) => client.patch(`/api/vouchers/${id}/toggle`),
 };
