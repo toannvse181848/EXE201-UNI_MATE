@@ -100,7 +100,9 @@ const uploadChatMedia = multer({
           return {
             folder: 'unimate/chat',
             resource_type: isRaw ? 'raw' : 'auto',
-            public_id: `${baseName}_${uniqueSuffix}${ext}`,
+            // File raw cần giữ đuôi trong public_id; ảnh/video Cloudinary tự gắn đuôi
+            // (nếu thêm nữa sẽ thành abc.png.png)
+            public_id: isRaw ? `${baseName}_${uniqueSuffix}${ext}` : `${baseName}_${uniqueSuffix}`,
           };
         },
       })

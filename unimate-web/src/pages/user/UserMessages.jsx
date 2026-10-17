@@ -116,6 +116,21 @@ const getPastedFile = (e) => {
   return null;
 };
 
+// Đóng popover khi bấm ra ngoài; bỏ qua các phần tử trong `refs` (popover và nút mở nó,
+// để bấm lại nút vẫn tắt được thay vì bị đóng rồi mở lại ngay)
+const useCloseOnClickOutside = (isOpen, setOpen, refs) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMouseDown = (e) => {
+      if (refs.every((ref) => !ref.current?.contains(e.target))) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+    // refs là useRef nên không đổi giữa các lần render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, setOpen]);
+};
+
 // Badge đỏ báo tin nhắn chưa đọc trên tab Hội thoại / Nhóm
 const UNREAD_TAB_BADGE_STYLE = {
   backgroundColor: '#EF4444',
@@ -246,6 +261,7 @@ export default function UserMessages() {
   const videoInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
 
   // ─── GROUP CHAT STATES ───────────────────────────────────────────────────
   const [groups, setGroups] = useState([]);
@@ -258,6 +274,7 @@ export default function UserMessages() {
   const [groupAttachment, setGroupAttachment] = useState(null);
   const [groupEmojiPicker, setGroupEmojiPicker] = useState(false);
   const groupEmojiPickerRef = useRef(null);
+  const groupEmojiButtonRef = useRef(null);
   const groupImageInputRef = useRef(null);
   const groupVideoInputRef = useRef(null);
   const groupFileInputRef = useRef(null);
@@ -286,20 +303,9 @@ export default function UserMessages() {
   const [venueSearch, setVenueSearch] = useState('');
   const [sendingVenueId, setSendingVenueId] = useState(null);
 
-  // Đóng emoji picker khi click ra ngoài
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
-        setShowEmojiPicker(false);
-      }
-    };
-    if (showEmojiPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showEmojiPicker]);
+  // Đóng emoji picker (1-1 và nhóm) khi click ra ngoài
+  useCloseOnClickOutside(showEmojiPicker, setShowEmojiPicker, [emojiPickerRef, emojiButtonRef]);
+  useCloseOnClickOutside(groupEmojiPicker, setGroupEmojiPicker, [groupEmojiPickerRef, groupEmojiButtonRef]);
 
   const handleSelectEmoji = (emoji) => {
     setInputText((prev) => prev + emoji);
@@ -2479,6 +2485,7 @@ export default function UserMessages() {
                 </button>
 
                 <button
+                  ref={emojiButtonRef}
                   type="button"
                   onClick={() => setShowEmojiPicker((prev) => !prev)}
                   title="Chọn biểu tượng / icon"
@@ -2768,7 +2775,7 @@ export default function UserMessages() {
               <button type="button" onClick={() => groupFileInputRef.current?.click()} title="Gửi tài liệu" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <Paperclip size={16} />
               </button>
-              <button type="button" onClick={() => setGroupEmojiPicker((p) => !p)} title="Emoji" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: groupEmojiPicker ? '#F5F0FF' : '#FFFFFF', color: groupEmojiPicker ? '#7C3AED' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <button ref={groupEmojiButtonRef} type="button" onClick={() => setGroupEmojiPicker((p) => !p)} title="Emoji" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: groupEmojiPicker ? '#F5F0FF' : '#FFFFFF', color: groupEmojiPicker ? '#7C3AED' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <Smile size={16} />
               </button>
             </div>

@@ -6,6 +6,7 @@ const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 
 /**
  * Lấy danh sách hội thoại của user hiện tại.
@@ -325,20 +326,29 @@ const downloadChatFile = catchAsync(async (req, res) => {
     `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`
   );
 
+  let fetchRes;
   try {
-    const fetchRes = await fetch(parsedUrl.href);
-    if (!fetchRes.ok) {
-      return res.redirect(parsedUrl.href);
-    }
-    const contentType = fetchRes.headers.get('content-type') || 'application/octet-stream';
-    res.setHeader('Content-Type', contentType);
-
-    const arrayBuffer = await fetchRes.arrayBuffer();
-    return res.send(Buffer.from(arrayBuffer));
+    // Không đi theo redirect để không bị dẫn sang host ngoài Cloudinary
+    fetchRes = await fetch(parsedUrl.href, { redirect: 'error' });
   } catch (err) {
-    console.error('Lỗi khi stream download file:', err.message);
+    console.error('Lỗi khi tải file từ Cloudinary:', err.message);
     return res.redirect(parsedUrl.href);
   }
+  if (!fetchRes.ok || !fetchRes.body) {
+    return res.redirect(parsedUrl.href);
+  }
+
+  res.setHeader('Content-Type', fetchRes.headers.get('content-type') || 'application/octet-stream');
+  const contentLength = fetchRes.headers.get('content-length');
+  if (contentLength) res.setHeader('Content-Length', contentLength);
+
+  // Stream thẳng về trình duyệt, không giữ cả file (tối đa 50MB) trong RAM server
+  Readable.fromWeb(fetchRes.body)
+    .on('error', (err) => {
+      console.error('Lỗi khi stream download file:', err.message);
+      res.destroy(err);
+    })
+    .pipe(res);
 });
 
 module.exports = { getConversations, getMessages, sendMessage, uploadMedia, downloadChatFile };

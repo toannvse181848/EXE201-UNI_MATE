@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../src/constants/colors';
 import { Avatar } from '../src/components/Avatar';
+import { MessageAttachment, isVenueMessage } from '../src/components/MessageAttachment';
 import { chatApi } from '../src/api/chatApi';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -277,8 +278,11 @@ export default function ChatRoomScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Hiển thị văn bản nếu có */}
-          {Boolean(item.text) && (
+          {/* Video, tài liệu, thẻ gợi ý quán */}
+          <MessageAttachment item={item} isMe={isMe} />
+
+          {/* Hiển thị văn bản nếu có (thẻ quán đã đủ thông tin nên ẩn chữ dự phòng) */}
+          {Boolean(item.text) && !isVenueMessage(item) && (
             <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextOther]}>
               {item.text}
             </Text>

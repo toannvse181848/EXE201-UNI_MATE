@@ -21,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../src/constants/colors';
 import { Avatar } from '../src/components/Avatar';
+import { MessageAttachment } from '../src/components/MessageAttachment';
 import { groupChatApi } from '../src/api/groupChatApi';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -345,6 +346,9 @@ export default function GroupChatRoomScreen() {
                 />
               </TouchableOpacity>
             )}
+
+            {/* Video, tài liệu */}
+            <MessageAttachment item={item} isMe={isMe} />
 
             {/* Văn bản */}
             {Boolean(item.text) && (

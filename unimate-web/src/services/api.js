@@ -29,9 +29,30 @@ client.interceptors.response.use(
   (error) => {
     const message =
       error.response?.data?.message || error.message || 'Lỗi kết nối máy chủ';
-    return Promise.reject(new Error(message));
+    const wrapped = new Error(message);
+    // Không có response = lỗi mạng hoặc timeout (vd: server Render free đang khởi động)
+    wrapped.isNetworkError = !error.response;
+    return Promise.reject(wrapped);
   }
 );
+
+// Upload file chat; tự thử lại 1 lần nếu lỗi mạng/timeout
+const uploadChatFile = async (url, file) => {
+  const send = () => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return client.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: UPLOAD_TIMEOUT,
+    });
+  };
+  try {
+    return (await send()).data;
+  } catch (err) {
+    if (!err.isNetworkError) throw err;
+    return (await send()).data;
+  }
+};
 
 // === AUTH API ===
 export const authApi = {
@@ -255,17 +276,7 @@ export const chatApi = {
     const res = await client.post(`/api/chat/${matchId}/messages`, body);
     return res.data;
   },
-  uploadMedia: async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await client.post('/api/chat/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      timeout: UPLOAD_TIMEOUT,
-    });
-    return res.data;
-  },
+  uploadMedia: (file) => uploadChatFile('/api/chat/upload', file),
 };
 
 // === GROUP CHAT API ===
@@ -312,15 +323,7 @@ export const groupChatApi = {
     return res.data;
   },
   // Upload file cho nhóm (dùng chung upload endpoint)
-  uploadMedia: async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await client.post('/api/group-chat/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: UPLOAD_TIMEOUT,
-    });
-    return res.data;
-  },
+  uploadMedia: (file) => uploadChatFile('/api/group-chat/upload', file),
 };
 
 // === REPORT API ===
