@@ -5,6 +5,7 @@ const { getUploadedFileUrl } = require('../config/cloudinary');
 const { extractDistrict } = require('../utils/addressUtils');
 const { escapeRegex } = require('../middlewares/security');
 const { generateSecret, buildQrContent } = require('../utils/venueCheckin');
+const { isPartnerPlanActive } = require('../utils/subscription');
 
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
@@ -51,13 +52,21 @@ const getVenues = catchAsync(async (req, res) => {
 
 
   const venues = await Venue.find(filter)
-    .populate('partnerId', 'fullName email phone')
+    .populate('partnerId', 'fullName email phone partnerProfile.planExpiresAt')
     .sort({ rating: -1, createdAt: -1 });
+
+  const data = sanitizeVenueDistricts(venues).map((venue) => {
+    const isFeatured = isPartnerPlanActive(venue.partnerId?.partnerProfile);
+    if (venue.partnerId) delete venue.partnerId.partnerProfile;
+    return { ...venue, isFeatured };
+  });
+  // Quyền lợi Gói Đối tác: quán đang trả phí đứng đầu danh sách (sort ổn định, giữ thứ tự rating)
+  data.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
 
   res.status(200).json({
     success: true,
-    count: venues.length,
-    data: sanitizeVenueDistricts(venues),
+    count: data.length,
+    data,
   });
 });
 

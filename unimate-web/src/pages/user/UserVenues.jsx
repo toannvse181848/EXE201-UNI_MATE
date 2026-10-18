@@ -106,6 +106,8 @@ export default function UserVenues() {
             voucher: voucherByVenue[v._id]?.title || null,
             voucherId: voucherByVenue[v._id]?._id || null,
             voucherCode: voucherByVenue[v._id]?.code || null,
+            // Quán đang có Gói Đối tác — backend đã xếp lên đầu danh sách
+            isFeatured: Boolean(v.isFeatured),
           };
         });
         setVenues(formatted);
@@ -370,6 +372,30 @@ export default function UserVenues() {
                       <Clock size={12} color="#FFB74D" />
                       <span>{venue.hours}</span>
                     </div>
+
+                    {venue.isFeatured && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '12px',
+                          right: '12px',
+                          background: 'linear-gradient(135deg, #FF5722, #F59E0B)',
+                          padding: '4px 10px',
+                          borderRadius: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '11.5px',
+                          fontWeight: '800',
+                          color: '#FFFFFF',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                          zIndex: 4,
+                        }}
+                      >
+                        <Sparkles size={12} />
+                        <span>Đối tác nổi bật</span>
+                      </div>
+                    )}
                   </>
                 }
               />

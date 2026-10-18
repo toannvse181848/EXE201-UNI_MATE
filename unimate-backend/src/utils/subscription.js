@@ -52,4 +52,8 @@ const canBuyPlan = (user, plan) => {
   return planInfo.role === 'partner' ? user.role === 'partner' : isStudent;
 };
 
-module.exports = { activatePlan, canBuyPlan };
+/** Đối tác còn hạn Gói Đối tác → quán được hiển thị nổi bật cho sinh viên */
+const isPartnerPlanActive = (partnerProfile) =>
+  Boolean(partnerProfile?.planExpiresAt && new Date(partnerProfile.planExpiresAt).getTime() > Date.now());
+
+module.exports = { activatePlan, canBuyPlan, isPartnerPlanActive };

@@ -18,11 +18,25 @@ import {
   Star,
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import PartnerPlanModal from '../../components/partner/PartnerPlanModal';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user, reloadUser } = useAuth();
   const [boostActive, setBoostActive] = useState(false);
   const [partnerVouchers, setPartnerVouchers] = useState([]);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+
+  // Lấy hạn Gói Đối tác mới nhất (thông tin lúc đăng nhập không có partnerProfile).
+  // Chỉ gọi 1 lần: reloadUser được tạo lại mỗi lần AuthProvider render nên không đưa vào deps
+  useEffect(() => {
+    reloadUser?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const planExpiresAt = user?.partnerProfile?.planExpiresAt;
+  const isPlanActive = Boolean(planExpiresAt && new Date(planExpiresAt) > new Date());
 
   useEffect(() => {
     voucherApi
@@ -50,6 +64,8 @@ export default function Dashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+      <PartnerPlanModal isOpen={showPlanModal} onClose={() => setShowPlanModal(false)} onPaid={reloadUser} />
+
       {/* Top Title & Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -215,19 +231,22 @@ export default function Dashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <Crown size={18} color="var(--indigo)" />
                 <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--indigo-dark)' }}>
-                  Partner Pro
+                  Gói Đối tác
                 </span>
-                <span className="badge badge-info">PREMIUM</span>
+                <span className="badge badge-info">{isPlanActive ? 'ĐANG HOẠT ĐỘNG' : 'PREMIUM'}</span>
               </div>
               <p style={{ fontSize: '12px', color: '#4338CA', lineHeight: '18px', marginBottom: '16px' }}>
-                Mở khóa analytics chuyên sâu theo giờ, độ tuổi sinh viên và huy hiệu Verified Partner.
+                {isPlanActive
+                  ? `Quán đang được ưu tiên hiển thị đến ${new Date(planExpiresAt).toLocaleDateString('vi-VN')}.`
+                  : 'Đưa quán lên đầu danh sách sinh viên xem và gắn huy hiệu "Đối tác nổi bật".'}
               </p>
             </div>
             <button
               className="btn btn-indigo"
+              onClick={() => setShowPlanModal(true)}
               style={{ width: '100%', padding: '8px', fontSize: '13px' }}
             >
-              Nâng cấp Pro
+              {isPlanActive ? 'Gia hạn gói' : 'Nâng cấp ngay'}
             </button>
           </div>
         </div>
