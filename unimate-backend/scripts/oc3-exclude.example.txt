@@ -1,0 +1,6 @@
+# Copy file này thành oc3-exclude.txt rồi điền email cần loại khỏi số liệu OC3, mỗi dòng 1 email.
+# Gồm: tài khoản của thành viên nhóm, tài khoản test, tài khoản trùng lặp.
+# File oc3-exclude.txt không được đưa lên git vì chứa email thật.
+ten.thanhvien@fpt.edu.vn
+test123@gmail.com
+

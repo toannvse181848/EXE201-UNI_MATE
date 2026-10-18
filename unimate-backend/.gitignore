@@ -144,3 +144,7 @@ vite.config.ts.timestamp-*
 
 # Ảnh upload lưu local khi chưa cấu hình Cloudinary
 uploads/
+
+# Kết quả thống kê OC3 và danh sách email loại trừ (dữ liệu người dùng)
+oc3-output/
+scripts/oc3-exclude.txt
