@@ -11,6 +11,7 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Crown,
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
 import { trackEvent } from '../../utils/analytics';
@@ -18,6 +19,9 @@ import { trackEvent } from '../../utils/analytics';
 export default function UserVouchers() {
   const navigate = useNavigate();
   const { user, reloadUser } = useAuth();
+  const hasActivePremium = Boolean(
+    user?.isPremium && (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > new Date())
+  );
   const [activeTab, setActiveTab] = useState('my_vouchers');
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -375,6 +379,8 @@ export default function UserVouchers() {
             {publicVouchers.map((raw) => {
               const vch = normalizeVoucher(raw);
               const alreadyClaimed = myVouchers.some((mv) => (mv.voucherId?._id || mv.voucherId) === raw._id);
+              // Voucher độc quyền Premium: sinh viên thường thấy nhưng phải nâng cấp mới lưu được
+              const lockedForPremium = Boolean(raw.premiumOnly) && !hasActivePremium && !alreadyClaimed;
               return (
                 <div key={vch.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', padding: '22px', border: '1.5px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
@@ -399,11 +405,24 @@ export default function UserVouchers() {
                         Không giới hạn
                       </span>
                     )}
+                    {raw.premiumOnly && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', background: 'linear-gradient(135deg, #FF6F00, #FF3D00)', color: '#FFFFFF' }}>
+                        <Crown size={12} /> Độc quyền Premium
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: '700', color: '#E64A19', marginBottom: '4px' }}>{vch.brand}</div>
                   <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '6px' }}>{vch.title}</h4>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.5', flex: 1 }}>{vch.description}</p>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px' }}>Điều kiện: {vch.minOrder} · HSD: {vch.expiry}</div>
+                  {lockedForPremium ? (
+                    <button
+                      onClick={() => navigate('/user/profile?upgrade=monthly')}
+                      style={{ padding: '10px', borderRadius: '10px', background: 'linear-gradient(135deg, #FF6F00, #FF3D00)', color: '#FFFFFF', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <Crown size={14} /> Nâng cấp Premium để nhận
+                    </button>
+                  ) : (
                   <button
                     onClick={() => !alreadyClaimed && handleClaimVoucher(vch.id)}
                     disabled={alreadyClaimed || claimingId === vch.id}
@@ -412,6 +431,7 @@ export default function UserVouchers() {
                     {claimingId === vch.id ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : alreadyClaimed ? <CheckCircle2 size={14} /> : null}
                     {alreadyClaimed ? 'Đã có trong ví' : claimingId === vch.id ? 'Đang nhận...' : vch.coinCost > 0 ? `Đổi (${vch.coinCost} UniCoin)` : 'Nhận Voucher'}
                   </button>
+                  )}
                 </div>
               );
             })}

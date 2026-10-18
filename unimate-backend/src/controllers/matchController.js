@@ -2,7 +2,10 @@ const Match = require('../models/Match');
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
-const { computeMatchScore, commonInterests } = require('../utils/matchingAlgorithm');
+const { computeMatchScore, commonInterests, sortByRank } = require('../utils/matchingAlgorithm');
+const { isPremiumActive } = require('../utils/subscription');
+
+const DECK_SIZE = 30;
 
 // Sinh viên: Lấy danh sách bạn học để quẹt thẻ khám phá
 const getDiscoveryDeck = catchAsync(async (req, res) => {
@@ -38,7 +41,7 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
     status: 'active',
   })
     .select('fullName avatar studentProfile')
-    .limit(30);
+    .limit(100); // lấy rộng rồi xếp hạng, để người dùng Premium không bị bỏ sót trước khi xếp
 
   const scoredCandidates = candidates.map((them) => {
     const themObj = them.toObject ? them.toObject() : them;
@@ -49,20 +52,26 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
           them.studentProfile?.interests || []
         )
       : [];
+    // Premium hết hạn thì mất tích xanh và mất ưu tiên xếp hạng
+    const isPremium = isPremiumActive(themObj.studentProfile);
+    const isVerifiedStudent = Boolean(isPremium || themObj.studentProfile?.isVerifiedStudent);
 
     return {
       ...themObj,
+      studentProfile: { ...themObj.studentProfile, isPremium, isVerifiedStudent },
+      isPremium,
+      isVerifiedStudent,
       matchPercentage,
       commonTags,
     };
   });
 
-  scoredCandidates.sort((a, b) => b.matchPercentage - a.matchPercentage);
+  const deck = sortByRank(scoredCandidates).slice(0, DECK_SIZE);
 
   res.status(200).json({
     success: true,
-    count: scoredCandidates.length,
-    data: scoredCandidates,
+    count: deck.length,
+    data: deck,
   });
 });
 

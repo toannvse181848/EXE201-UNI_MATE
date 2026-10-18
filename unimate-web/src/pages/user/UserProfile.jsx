@@ -1360,7 +1360,7 @@ export default function UserProfile() {
                         <CheckCircle2 size={15} color="#0284C7" />
                       </div>
                       <div>
-                        <strong>Tích xanh xác thực chính chủ:</strong> Tăng uy tín và 3x tỷ lệ phản hồi kết nối.
+                        <strong>Tích xanh xác thực chính chủ:</strong> Hồ sơ có tích xanh, bạn học yên tâm hơn khi kết bạn.
                       </div>
                     </div>
 
@@ -1369,7 +1369,7 @@ export default function UserProfile() {
                         <Zap size={14} color="#D97706" />
                       </div>
                       <div>
-                        <strong>Ưu tiên gợi ý kết bạn:</strong> Hồ sơ xuất hiện hàng đầu trong trang Khám phá.
+                        <strong>Ưu tiên gợi ý kết bạn:</strong> Hồ sơ được xếp sớm hơn trong trang Khám phá của sinh viên khác.
                       </div>
                     </div>
 
@@ -1378,7 +1378,7 @@ export default function UserProfile() {
                         <Coffee size={14} color="#15803D" />
                       </div>
                       <div>
-                        <strong>Ưu đãi Cafe đối tác:</strong> Nhận voucher giảm giá độc quyền đến 50%.
+                        <strong>Voucher cafe độc quyền:</strong> Mở khoá các voucher quán đối tác chỉ dành cho thành viên Premium.
                       </div>
                     </div>
                   </div>

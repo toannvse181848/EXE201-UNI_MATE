@@ -69,6 +69,11 @@ const voucherSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Voucher độc quyền: chỉ sinh viên đang có Premium còn hạn mới lưu được (quyền lợi gói Premium)
+    premiumOnly: {
+      type: Boolean,
+      default: false,
+    },
     usedCount: {
       type: Number,
       default: 0,

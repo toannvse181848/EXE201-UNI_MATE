@@ -104,9 +104,23 @@ const commonInterests = (a = [], b = []) => {
   return a.filter((x) => setB.has(String(x).toLowerCase().trim()));
 };
 
+// Quyền lợi Premium: được cộng điểm khi xếp thứ tự gợi ý, nên hồ sơ xuất hiện sớm hơn trong
+// trang Khám phá của người khác. % hợp nhau hiển thị cho người dùng không bị thay đổi.
+const PREMIUM_RANK_BOOST = 10;
+
+/** Sắp xếp ứng viên { matchPercentage, isPremium } theo điểm xếp hạng giảm dần */
+const sortByRank = (candidates) =>
+  candidates.sort(
+    (a, b) =>
+      b.matchPercentage + (b.isPremium ? PREMIUM_RANK_BOOST : 0) -
+      (a.matchPercentage + (a.isPremium ? PREMIUM_RANK_BOOST : 0))
+  );
+
 module.exports = {
   computeMatchScore,
   commonInterests,
+  sortByRank,
+  PREMIUM_RANK_BOOST,
   jaccardSimilarity,
   objectiveScore,
   academicScore,

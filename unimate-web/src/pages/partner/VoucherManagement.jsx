@@ -38,6 +38,7 @@ export default function VoucherManagement() {
     code: '',
     codeType: 'shared', // 'shared' | 'unique'
     isUnlimited: false,
+    premiumOnly: false,
     coinCost: 0,
     type: 'Phần trăm (%)',
     value: '',
@@ -76,6 +77,7 @@ export default function VoucherManagement() {
         code: v.code,
         codeType: v.codeType || 'shared',
         isUnlimited: Boolean(v.isUnlimited),
+        premiumOnly: Boolean(v.premiumOnly),
         coinCost: Number(v.coinCost) || 0,
         type: v.discountPercent ? 'Phần trăm (%)' : (v.discountAmount ? 'Tiền mặt (VNĐ)' : 'Quà tặng'),
         value: v.discountPercent ? `${v.discountPercent}%` : (v.discountAmount ? `${v.discountAmount.toLocaleString()}đ` : v.title),
@@ -143,6 +145,7 @@ export default function VoucherManagement() {
         code: newVoucher.code.toUpperCase().trim(),
         codeType: newVoucher.codeType,
         isUnlimited: Boolean(newVoucher.isUnlimited),
+        premiumOnly: Boolean(newVoucher.premiumOnly),
         coinCost: Number(newVoucher.coinCost) || 0,
         quantity: newVoucher.isUnlimited ? null : (Number(newVoucher.total) || 500),
         validUntil: parsedDate.toISOString(),
@@ -157,6 +160,7 @@ export default function VoucherManagement() {
         code: '',
         codeType: 'shared',
         isUnlimited: false,
+        premiumOnly: false,
         coinCost: 0,
         type: 'Phần trăm (%)',
         value: '',
@@ -395,6 +399,21 @@ export default function VoucherManagement() {
                     >
                       {item.codeType === 'unique' ? 'Mã riêng' : 'Mã chung'}
                     </span>
+                    {item.premiumOnly && (
+                      <span
+                        style={{
+                          marginLeft: '6px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          backgroundColor: '#FEF3C7',
+                          color: '#B45309',
+                        }}
+                      >
+                        Premium
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '16px 16px', fontWeight: '700', color: 'var(--text-primary)' }}>
                     {item.value}
@@ -679,6 +698,34 @@ export default function VoucherManagement() {
                   )}
                 </div>
               </div>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #FDE68A',
+                  backgroundColor: '#FFFBEB',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={newVoucher.premiumOnly}
+                  onChange={(e) => setNewVoucher({ ...newVoucher, premiumOnly: e.target.checked })}
+                  style={{ marginTop: '2px' }}
+                />
+                <span>
+                  <strong>Chỉ dành cho sinh viên Premium</strong>
+                  <br />
+                  <span style={{ fontSize: '12px', color: '#92400E' }}>
+                    Dùng cho ưu đãi lớn: sinh viên thường thấy voucher nhưng phải nâng cấp Premium mới lưu được.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>

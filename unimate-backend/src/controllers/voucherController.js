@@ -19,6 +19,7 @@ const {
   parseDateValue,
 } = require('../utils/voucherSpreadsheetParser');
 const { extractDistrict } = require('../utils/addressUtils');
+const { isPremiumActive } = require('../utils/subscription');
 
 
 // ─── PUBLIC / STUDENT ────────────────────────────────────────────────────────
@@ -57,6 +58,9 @@ const claimVoucher = catchAsync(async (req, res) => {
   if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn');
   if (voucher.codeType === 'shared' && !voucher.isUnlimited && voucher.usedCount >= voucher.quantity) {
     throw new ApiError(400, 'Voucher đã hết số lượng');
+  }
+  if (voucher.premiumOnly && !isPremiumActive(req.user.studentProfile)) {
+    throw new ApiError(403, 'Voucher này chỉ dành cho thành viên Premium. Nâng cấp Premium để nhận nhé!');
   }
 
   // Kiểm tra đã claim chưa
@@ -477,6 +481,7 @@ const createVoucher = catchAsync(async (req, res) => {
     usedCount: 0,
     codeType: isUnique ? 'unique' : 'shared',
     isUnlimited: !isUnique && Boolean(req.body.isUnlimited),
+    premiumOnly: Boolean(req.body.premiumOnly),
     // Mã riêng: số lượng tự tính khi nạp danh sách mã (POST /api/vouchers/:id/codes)
     ...(isUnique ? { quantity: 0 } : {}),
   });

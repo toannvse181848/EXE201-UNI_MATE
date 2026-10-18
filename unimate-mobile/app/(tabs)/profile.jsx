@@ -146,7 +146,7 @@ export default function ProfileScreen() {
   const handleUpgradePremium = () => {
     Alert.alert(
       'Nâng cấp Premium nhận Tích Xanh',
-      'Đặc quyền thành viên:\n✓ Tích xanh xác thực uy tín bên cạnh tên\n✓ Ưu tiên hiển thị top khi tìm bạn học\n✓ Voucher cafe đối tác độc quyền tới 50%\n\nChọn gói nâng cấp:',
+      'Đặc quyền thành viên:\n✓ Tích xanh xác thực uy tín bên cạnh tên\n✓ Được xếp sớm hơn khi sinh viên khác tìm bạn học\n✓ Mở khoá voucher cafe chỉ dành cho Premium\n\nChọn gói nâng cấp:',
       [
         {
           text: 'Gói 1 Tháng (100 Coin)',
