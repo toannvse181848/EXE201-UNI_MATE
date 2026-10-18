@@ -34,7 +34,25 @@ export default function PartnerPlanModal({ isOpen, onClose, onPaid }) {
       .catch(() => {});
   }, [isOpen]);
 
-  // Tự kiểm tra đơn đến khi admin xác nhận đã nhận tiền
+  // Mở lại modal (vd: sau khi tắt tab) thì hiện tiếp đơn Gói Đối tác đang chờ, không bắt tạo lại
+  useEffect(() => {
+    if (!isOpen || checkout) return undefined;
+    let active = true;
+    orderApi
+      .getMyOrders()
+      .then(async (res) => {
+        const pending = res?.data?.find((o) => o.status === 'pending' && o.plan === PARTNER_PLAN_ID);
+        if (!pending || !active) return;
+        const detail = await orderApi.getOrder(pending.code);
+        if (active && detail?.data?.payment) setCheckout(detail.data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isOpen, checkout]);
+
+  // Tự kiểm tra đơn đến khi được xác nhận đã nhận tiền
   useEffect(() => {
     if (!isOpen || checkout?.order?.status !== 'pending') return undefined;
     const timer = setInterval(async () => {

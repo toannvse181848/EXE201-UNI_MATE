@@ -110,6 +110,24 @@ export default function UserProfile() {
   const [pwdLoading, setPwdLoading] = useState(false);
   const [pwdNotice, setPwdNotice] = useState(null); // { type: 'success'|'error', text }
 
+  // Mở lại modal (vd: sau khi tắt tab) thì hiện tiếp đơn đang chờ thanh toán, không bắt tạo lại
+  useEffect(() => {
+    if (!showPremiumModal || currentOrder) return undefined;
+    let active = true;
+    orderApi
+      .getMyOrders()
+      .then(async (res) => {
+        const pending = res?.data?.find((o) => o.status === 'pending');
+        if (!pending || !active) return;
+        const detail = await orderApi.getOrder(pending.code);
+        if (active && detail?.data?.payment) setCurrentOrder(detail.data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [showPremiumModal, currentOrder]);
+
   // Tự động kiểm tra trạng thái đơn hàng khi đang mở màn hình thanh toán VietQR
   useEffect(() => {
     let timer = null;
