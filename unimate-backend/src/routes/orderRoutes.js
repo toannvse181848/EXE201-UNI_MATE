@@ -8,6 +8,7 @@ const {
   cancelMyOrder,
   getAllOrders,
   confirmOrder,
+  sepayWebhook,
   adminCancelOrder,
   exportOrders,
 } = require('../controllers/orderController');
@@ -15,6 +16,9 @@ const { protect, authorize } = require('../middlewares/auth');
 
 // GET /api/orders/plans — bảng giá (công khai)
 router.get('/plans', getPlans);
+
+// POST /api/orders/webhook/sepay — SePay báo tiền về (xác thực bằng API key, không dùng JWT)
+router.post('/webhook/sepay', sepayWebhook);
 
 router.use(protect);
 
