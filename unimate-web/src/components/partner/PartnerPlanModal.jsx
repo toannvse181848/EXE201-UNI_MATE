@@ -3,6 +3,7 @@ import { X, Crown, Sparkles, TrendingUp, CalendarCheck, Copy, CheckCircle, Loade
 import { orderApi } from '../../services/api';
 import { formatVnd } from '../../hooks/usePremiumPlans';
 import { trackEvent, getAnalyticsClientId } from '../../utils/analytics';
+import PaymentSuccess from '../PaymentSuccess';
 
 const PARTNER_PLAN_ID = 'partner_monthly';
 // Giá mặc định khớp unimate-backend/src/config/plans.js, ghi đè bằng giá thật từ API
@@ -16,7 +17,7 @@ const BENEFITS = [
 ];
 
 /** Mua Gói Đối tác: tạo đơn → chuyển khoản VietQR → admin xác nhận → gói được kích hoạt */
-export default function PartnerPlanModal({ isOpen, onClose, onPaid }) {
+export default function PartnerPlanModal({ isOpen, onClose, onPaid, planExpiresAt }) {
   const [plan, setPlan] = useState(DEFAULT_PARTNER_PLAN);
   const [checkout, setCheckout] = useState(null); // { order, payment }
   const [creating, setCreating] = useState(false);
@@ -61,7 +62,7 @@ export default function PartnerPlanModal({ isOpen, onClose, onPaid }) {
         const status = res?.data?.order?.status;
         if (status === 'paid') {
           setCheckout((prev) => ({ ...prev, order: res.data.order }));
-          setNotice({ type: 'success', text: 'Đã nhận thanh toán! Gói Đối tác đã được kích hoạt 🎉' });
+          setNotice(null);
           onPaid?.();
         } else if (status === 'cancelled') {
           setCheckout(null);
@@ -75,6 +76,13 @@ export default function PartnerPlanModal({ isOpen, onClose, onPaid }) {
   }, [isOpen, checkout?.order?.status, checkout?.order?.code, onPaid]);
 
   if (!isOpen) return null;
+
+  // Đóng sau khi đã thanh toán thì lần mở sau bắt đầu lại từ màn hình chọn gói
+  const handleClose = () => {
+    if (checkout?.order?.status === 'paid') setCheckout(null);
+    setNotice(null);
+    onClose();
+  };
 
   const handleCreateOrder = async () => {
     setCreating(true);
@@ -154,7 +162,7 @@ export default function PartnerPlanModal({ isOpen, onClose, onPaid }) {
         padding: '20px',
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleClose();
       }}
     >
       <div
@@ -170,7 +178,7 @@ export default function PartnerPlanModal({ isOpen, onClose, onPaid }) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
             title="Đóng"
           >
@@ -290,14 +298,7 @@ export default function PartnerPlanModal({ isOpen, onClose, onPaid }) {
         )}
 
         {isPaid && (
-          <button
-            type="button"
-            className="btn btn-indigo"
-            onClick={onClose}
-            style={{ width: '100%', padding: '12px', fontSize: '14px' }}
-          >
-            Hoàn tất
-          </button>
+          <PaymentSuccess order={order} expiresAt={planExpiresAt} onDone={handleClose} accentColor="var(--indigo)" />
         )}
       </div>
     </div>

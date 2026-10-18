@@ -20,6 +20,7 @@ import {
 import { voucherApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import PartnerPlanModal from '../../components/partner/PartnerPlanModal';
+import OrderHistory from '../../components/OrderHistory';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -64,7 +65,12 @@ export default function Dashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      <PartnerPlanModal isOpen={showPlanModal} onClose={() => setShowPlanModal(false)} onPaid={reloadUser} />
+      <PartnerPlanModal
+        isOpen={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
+        onPaid={reloadUser}
+        planExpiresAt={planExpiresAt}
+      />
 
       {/* Top Title & Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
@@ -251,6 +257,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Lịch sử mua Gói Đối tác (ẩn khi chưa có đơn) */}
+      <OrderHistory onResume={() => setShowPlanModal(true)} refreshKey={showPlanModal} />
 
       {/* Two Column: Foot-Traffic Chart + Recent Activities */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
