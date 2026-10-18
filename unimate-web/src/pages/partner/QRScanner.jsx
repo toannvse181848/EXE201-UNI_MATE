@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
+import { trackEvent } from '../../utils/analytics';
 import { getAvatarUrl } from '../../constants/avatar';
 
 export default function QRScanner() {
@@ -88,6 +89,8 @@ export default function QRScanner() {
     setRedeeming(true);
     try {
       await voucherApi.redeemVoucher(scanResult.payload);
+      // Quán quét QR áp voucher = sinh viên thực sự ra quán
+      trackEvent('voucher_redeem');
       setConfirmed(true);
       loadHistory();
     } catch (err) {

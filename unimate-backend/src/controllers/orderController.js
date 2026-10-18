@@ -5,6 +5,7 @@ const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { PLANS, getPlan, resolvePlanId } = require('../config/plans');
 const { activatePlan, canBuyPlan } = require('../utils/subscription');
+const { isValidGaClientId, trackPurchase } = require('../utils/analytics');
 const {
   maskEmail,
   maskName,
@@ -113,6 +114,7 @@ const createOrder = catchAsync(async (req, res) => {
     planName: plan.name,
     amount: plan.amount,
     durationDays: plan.durationDays,
+    gaClientId: isValidGaClientId(req.body.gaClientId) ? req.body.gaClientId : null,
   });
 
   res.status(201).json({
@@ -203,6 +205,8 @@ const confirmOrder = catchAsync(async (req, res) => {
   if (!buyer) throw new ApiError(404, 'Người mua không còn tồn tại');
   const expiresAt = activatePlan(buyer, order.plan, order.durationDays);
   await buyer.save({ validateBeforeSave: false });
+  // Không chờ GA4 trả lời để admin không phải đợi
+  trackPurchase(order);
 
   res.status(200).json({
     success: true,

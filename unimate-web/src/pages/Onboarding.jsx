@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { onboardingApi } from '../services/api';
+import { trackEvent } from '../utils/analytics';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const OBJECTIVES = [
@@ -287,6 +288,7 @@ export default function Onboarding() {
       });
       // Update AuthContext with new data
       if (typeof updateUser === 'function') updateUser(result.data);
+      trackEvent('onboarding_complete', { interests_count: interests.length });
       setStep(4); // success screen
     } catch (err) {
       alert('Lưu thất bại: ' + err.message);

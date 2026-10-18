@@ -16,6 +16,7 @@ import {
   Users,
 } from 'lucide-react';
 import { userApi, matchApi, onboardingApi } from '../../services/api';
+import { trackEvent } from '../../utils/analytics';
 import { formatStudentYear } from '../../constants/academic';
 import { getAvatarUrl, DEFAULT_AVATAR } from '../../constants/avatar';
 
@@ -135,6 +136,8 @@ export default function UserDiscover() {
       setActionLoading(student.id);
       const res = await matchApi.swipe(student.id, 'like');
       setLikedMap((prev) => ({ ...prev, [student.id]: true }));
+      trackEvent('friend_request_send');
+      if (res.isMatch) trackEvent('friend_match', { source: 'discover' });
 
       if (res.isMatch) {
         alert(`🎉 TUYỆT VỜI! Bạn và ${student.name} đều đã thích nhau! Hai bạn đã được kết bạn thành công, hãy vào mục Tin nhắn để trò chuyện và hẹn cafe nhé! ☕`);

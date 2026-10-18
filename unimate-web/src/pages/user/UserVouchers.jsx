@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
+import { trackEvent } from '../../utils/analytics';
 
 export default function UserVouchers() {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ export default function UserVouchers() {
     setClaimingId(voucherId);
     try {
       const res = await voucherApi.claimVoucher(voucherId);
+      trackEvent('voucher_claim', { voucher_id: String(voucherId), source: 'voucher_list' });
       if (reloadUser) await reloadUser();
       await fetchData(); // refresh wallet
       alert(res?.message || 'Đã nhận voucher thành công!');

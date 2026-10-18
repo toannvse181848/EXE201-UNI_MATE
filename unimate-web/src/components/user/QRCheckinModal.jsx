@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { coinApi } from '../../services/api';
+import { trackEvent } from '../../utils/analytics';
 
 export default function QRCheckinModal({ isOpen, onClose, onSuccess }) {
   const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'file' | 'manual'
@@ -159,6 +160,7 @@ export default function QRCheckinModal({ isOpen, onClose, onSuccess }) {
 
       const res = await coinApi.venueCheckin(payload);
       if (res?.success) {
+        trackEvent('venue_checkin');
         setSuccessResult(res);
         stopScanner();
         if (onSuccess) {

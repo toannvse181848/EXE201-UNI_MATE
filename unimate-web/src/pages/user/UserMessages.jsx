@@ -38,6 +38,7 @@ import { chatApi, matchApi, groupChatApi, venueApi, API_BASE_URL } from '../../s
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarUrl } from '../../constants/avatar';
 import { UNREAD_CHANGED_EVENT } from '../../constants/events';
+import { trackEvent } from '../../utils/analytics';
 import useChatScroll, { mergeLatestMessages, prependOlderMessages } from '../../hooks/useChatScroll';
 
 // Số tin cũ tải thêm mỗi lần kéo lên đầu khung chat
@@ -639,6 +640,7 @@ export default function UserMessages() {
 
     try {
       const res = await chatApi.sendMessage(selectedMatchId, payload);
+      trackEvent('message_send', { message_type: payload.type });
       const savedMsg = res.data;
       if (savedMsg) {
         setMessages((prev) =>
@@ -661,6 +663,7 @@ export default function UserMessages() {
       setActionLoadingId(item.matchId);
       const res = await matchApi.swipe(buddyId, 'like');
       const isMatch = res?.isMatch ?? true;
+      if (isMatch) trackEvent('friend_match', { source: 'accept_like' });
 
       alert(
         `🎉 Kết bạn thành công!\nBạn và ${item.buddy?.fullName} đã thích nhau. Hãy bắt đầu trò chuyện ngay nhé! ☕`
@@ -707,6 +710,7 @@ export default function UserMessages() {
     setSendingVenueId(venue._id);
     try {
       const res = await chatApi.sendMessage(selectedMatchId, { type: 'venue', venueId: venue._id });
+      trackEvent('message_send', { message_type: 'venue' });
       const savedMsg = res.data;
       if (savedMsg) {
         setMessages((prev) => [...prev, savedMsg]);

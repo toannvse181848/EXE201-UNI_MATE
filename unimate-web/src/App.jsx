@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import RoleRoute from './components/RoleRoute';
+import AnalyticsTracker from './components/AnalyticsTracker';
 
 // Layouts
 import UserLayout from './components/UserLayout';
@@ -59,6 +60,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <AnalyticsTracker />
         <Routes>
           {/* Public Authentication */}
           <Route path="/login" element={<Login />} />

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { authApi, userApi } from '../services/api';
 import { getAvatarUrl } from '../constants/avatar';
+import { setAnalyticsUser, trackEvent } from '../utils/analytics';
 
 const AuthContext = createContext();
 
@@ -86,6 +87,8 @@ export const AuthProvider = ({ children }) => {
 
     setUser(authenticatedUser);
     localStorage.setItem('unimate_portal_user', JSON.stringify(authenticatedUser));
+    setAnalyticsUser(authenticatedUser);
+    trackEvent('login', { method: 'email', account_role: normalizedRole });
     return authenticatedUser;
   };
 
@@ -134,6 +137,8 @@ export const AuthProvider = ({ children }) => {
 
     setUser(registeredUser);
     localStorage.setItem('unimate_portal_user', JSON.stringify(registeredUser));
+    setAnalyticsUser(registeredUser);
+    trackEvent('sign_up', { method: 'email', account_role: normalizedRole });
     return registeredUser;
   };
 

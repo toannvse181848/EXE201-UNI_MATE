@@ -417,8 +417,8 @@ export const orderApi = {
     const res = await client.get('/api/orders/plans');
     return res.data;
   },
-  createOrder: async (plan = 'monthly') => {
-    const res = await client.post('/api/orders', { plan });
+  createOrder: async (plan = 'monthly', gaClientId = null) => {
+    const res = await client.post('/api/orders', { plan, gaClientId });
     return res.data;
   },
   getMyOrders: async () => {

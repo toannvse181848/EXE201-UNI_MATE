@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { userApi, authApi, orderApi } from '../../services/api';
+import { trackEvent, getAnalyticsClientId } from '../../utils/analytics';
 import usePremiumPlans, { PREMIUM_PLAN_LABEL, formatVnd } from '../../hooks/usePremiumPlans';
 import { getAvatarUrl } from '../../constants/avatar';
 import {
@@ -147,7 +148,17 @@ export default function UserProfile() {
     try {
       setIsCreatingOrder(true);
       setPremiumNotice(null);
-      const res = await orderApi.createOrder(selectedPlan);
+      // Gửi kèm client_id để backend báo purchase về GA4 khi admin xác nhận đã nhận tiền
+      const gaClientId = await getAnalyticsClientId();
+      const res = await orderApi.createOrder(selectedPlan, gaClientId);
+      const order = res.data?.order;
+      if (order) {
+        trackEvent('begin_checkout', {
+          currency: 'VND',
+          value: order.amount,
+          items: [{ item_id: order.plan, item_name: order.planName, price: order.amount, quantity: 1 }],
+        });
+      }
       setCurrentOrder(res.data);
     } catch (err) {
       setPremiumNotice({ type: 'error', text: err.message || 'Không thể tạo đơn hàng' });

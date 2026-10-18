@@ -39,6 +39,8 @@ const orderSchema = new mongoose.Schema(
     cancelledAt: { type: Date, default: null },
     // Ghi chú của admin, VD: mã giao dịch ngân hàng
     note: { type: String, trim: true, default: '' },
+    // client_id GA4 của trình duyệt lúc tạo đơn, để báo purchase về đúng người mua
+    gaClientId: { type: String, default: null },
   },
   { timestamps: true }
 );

@@ -23,6 +23,7 @@ import { useSearchParams } from 'react-router-dom';
 import { venueApi, voucherApi } from '../../services/api';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
 import { getGoogleMapsUrl, getGoogleMapsEmbedUrl } from '../../utils/mapLinks';
+import { trackEvent } from '../../utils/analytics';
 
 // priceRange trong DB là chuỗi ("35.000 - 65.000 VNĐ"); dữ liệu cũ có thể là { min, max }
 const formatPriceRange = (priceRange) => {
@@ -139,11 +140,20 @@ export default function UserVenues() {
     setSearchParams({}, { replace: true });
   }, [venues, searchParams, setSearchParams]);
 
+  // Mở chi tiết quán = "xem sản phẩm" trong phễu chuyển đổi
+  useEffect(() => {
+    if (!selectedVenueModal) return;
+    trackEvent('view_item', {
+      items: [{ item_id: String(selectedVenueModal.id), item_name: selectedVenueModal.name, item_category: 'venue' }],
+    });
+  }, [selectedVenueModal]);
+
   const handleClaimVoucher = async (venue) => {
     if (!venue?.voucherId || claimedCodes[venue.id] || claimingVenueId) return;
     setClaimingVenueId(venue.id);
     try {
       await voucherApi.claimVoucher(venue.voucherId);
+      trackEvent('voucher_claim', { voucher_id: String(venue.voucherId), source: 'venue' });
       setClaimedCodes((prev) => ({ ...prev, [venue.id]: true }));
       alert(`🎉 Đã lưu voucher [${venue.voucherCode}] vào ví voucher của bạn! Bạn có thể xem mã QR ở mục "Ví Voucher của tôi".`);
     } catch (err) {
