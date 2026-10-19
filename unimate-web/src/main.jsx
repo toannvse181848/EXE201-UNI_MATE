@@ -4,8 +4,10 @@ import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { initAnalytics } from './utils/analytics'
+import { captureAttribution } from './utils/attribution'
 
 initAnalytics()
+captureAttribution()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

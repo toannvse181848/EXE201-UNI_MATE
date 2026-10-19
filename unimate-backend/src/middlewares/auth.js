@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { recordActivity } = require('../utils/activityTracker');
 
 const protect = catchAsync(async (req, res, next) => {
   const header = req.headers.authorization;
@@ -22,6 +23,8 @@ const protect = catchAsync(async (req, res, next) => {
     user.lastActiveAt = new Date(now);
     User.findByIdAndUpdate(user._id, { lastActiveAt: new Date(now) }).exec().catch(() => {});
   }
+  // Nhật ký ngày hoạt động (web + mobile) cho số liệu quay lại / hoạt động hằng tuần
+  recordActivity(user._id, req.headers['user-agent']);
 
   req.user = user;
   next();

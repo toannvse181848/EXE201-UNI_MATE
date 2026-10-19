@@ -17,6 +17,7 @@ import { COLORS } from '../../src/constants/colors';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { useAuth } from '../../src/context/AuthContext';
+import { HeardFromPicker } from '../../src/components/HeardFromPicker';
 
 export default function RegisterPartner() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function RegisterPartner() {
     password: '',
     phone: '',
     businessName: '',
+    heardFrom: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -122,6 +124,8 @@ export default function RegisterPartner() {
               <Text style={[styles.section, { marginTop: 8 }]}>Thông tin doanh nghiệp</Text>
               <Input label="Tên doanh nghiệp *" value={form.businessName} onChangeText={set('businessName')}
                 placeholder="VD: Công ty ABC" autoCapitalize="words" icon="business-outline" error={errors.businessName} />
+
+              <HeardFromPicker value={form.heardFrom} onChange={set('heardFrom')} />
             </View>
 
             <Button

@@ -104,6 +104,17 @@ const userSchema = new mongoose.Schema(
 
     lastActiveAt: { type: Date, default: Date.now },
 
+    // Nguồn biết đến UNI-MATE lúc đăng ký, để so sánh hiệu quả kênh (xem config/acquisition.js)
+    acquisition: {
+      heardFrom: { type: String, default: null }, // người dùng tự chọn
+      utmSource: { type: String, default: null },
+      utmMedium: { type: String, default: null },
+      utmCampaign: { type: String, default: null },
+      utmContent: { type: String, default: null },
+      referrer: { type: String, default: null },
+      landingPath: { type: String, default: null },
+    },
+
     // Reset password
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },

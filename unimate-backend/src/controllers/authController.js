@@ -4,6 +4,8 @@ const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const crypto = require('crypto');
 const { sendPasswordResetEmail } = require('../utils/email');
+const { parseAcquisition } = require('../config/acquisition');
+const { recordActivity } = require('../utils/activityTracker');
 
 
 // POST /api/auth/register/student
@@ -49,7 +51,9 @@ exports.registerStudent = catchAsync(async (req, res) => {
       isVerifiedStudent: false,
       isPremium: false,
     },
+    acquisition: parseAcquisition(req.body),
   });
+  recordActivity(user._id, req.headers['user-agent']);
 
   res.status(201).json({
     success: true,
@@ -78,7 +82,9 @@ exports.registerPartner = catchAsync(async (req, res) => {
     role: 'partner',
     status: 'pending',
     partnerProfile: { businessName },
+    acquisition: parseAcquisition(req.body),
   });
+  recordActivity(user._id, req.headers['user-agent']);
 
   res.status(201).json({
     success: true,
@@ -114,6 +120,7 @@ exports.login = catchAsync(async (req, res) => {
 
   user.lastActiveAt = Date.now();
   await user.save({ validateBeforeSave: false });
+  recordActivity(user._id, req.headers['user-agent']);
 
   res.status(200).json({
     success: true,

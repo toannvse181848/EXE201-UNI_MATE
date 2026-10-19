@@ -25,6 +25,7 @@ import {
   MAJORS,
   ACADEMIC_YEARS,
 } from '../constants/academic';
+import { HEARD_FROM_OPTIONS } from '../constants/acquisition';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -32,6 +33,8 @@ export default function Register() {
   const [role, setRole] = useState('user'); // 'user' | 'partner'
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  // Không bắt buộc: dùng so sánh hiệu quả kênh truyền thông
+  const [heardFrom, setHeardFrom] = useState('');
 
   // Student form state - Khớp 100% với Thẻ Uni-Card Profile
   const [studentForm, setStudentForm] = useState({
@@ -108,12 +111,14 @@ export default function Register() {
         await register({
           ...studentForm,
           role: 'user',
+          heardFrom,
         });
         navigate('/onboarding');
       } else {
         await register({
           ...partnerForm,
           role: 'partner',
+          heardFrom,
         });
         navigate('/partner/dashboard');
       }
@@ -549,6 +554,28 @@ export default function Register() {
               </div>
             </>
           )}
+
+          {/* Nguồn biết đến UNI-MATE (không bắt buộc) */}
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' }}>
+              Bạn biết UNI-MATE qua đâu?
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #E7E5E4', borderRadius: '12px', padding: '10px 12px' }}>
+              <Sparkles size={18} color="#A8A29E" style={{ marginRight: '8px' }} />
+              <select
+                value={heardFrom}
+                onChange={(e) => setHeardFrom(e.target.value)}
+                style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: heardFrom ? '#1C1917' : '#A8A29E', backgroundColor: 'transparent' }}
+              >
+                <option value="">Chọn nguồn (không bắt buộc)</option>
+                {HEARD_FROM_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           {/* Password fields */}
           <div className="grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>

@@ -18,6 +18,7 @@ import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { useAuth } from '../../src/context/AuthContext';
 import { MAJORS, ACADEMIC_YEARS, UNIVERSITIES } from '../../src/constants/academic';
+import { HeardFromPicker } from '../../src/components/HeardFromPicker';
 
 const GENDER_OPTIONS = [
   { label: 'Nam', value: 'male', icon: 'male-outline' },
@@ -39,6 +40,7 @@ export default function RegisterStudent() {
     major: MAJORS[0],
     year: ACADEMIC_YEARS[2], // Sinh viên năm 3
     phone: '',
+    heardFrom: '',
   });
   const [errors, setErrors] = useState({});
   const [showMajorPicker, setShowMajorPicker] = useState(false);
@@ -198,6 +200,8 @@ export default function RegisterStudent() {
                   ))}
                 </View>
               )}
+
+              <HeardFromPicker value={form.heardFrom} onChange={set('heardFrom')} />
             </View>
 
             <Button

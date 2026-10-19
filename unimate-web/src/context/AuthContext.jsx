@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { authApi, userApi } from '../services/api';
 import { getAvatarUrl } from '../constants/avatar';
 import { setAnalyticsUser, trackEvent } from '../utils/analytics';
+import { getAttribution } from '../utils/attribution';
 
 const AuthContext = createContext();
 
@@ -104,6 +105,8 @@ export const AuthProvider = ({ children }) => {
       major: userData.major,
       studentId: userData.studentId,
       businessName: userData.businessName,
+      // Nguồn biết đến UNI-MATE: mã UTM của link đã mở + người dùng tự chọn
+      acquisition: { ...getAttribution(), heardFrom: userData.heardFrom || null },
     });
 
     if (!res?.data?.token || !res?.data?.user) {
@@ -138,7 +141,7 @@ export const AuthProvider = ({ children }) => {
     setUser(registeredUser);
     localStorage.setItem('unimate_portal_user', JSON.stringify(registeredUser));
     setAnalyticsUser(registeredUser);
-    trackEvent('sign_up', { method: 'email', account_role: normalizedRole });
+    trackEvent('sign_up', { method: 'email', account_role: normalizedRole, heard_from: userData.heardFrom || 'not_set' });
     return registeredUser;
   };
 
