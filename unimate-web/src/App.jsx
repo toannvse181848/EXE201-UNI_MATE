@@ -40,6 +40,7 @@ import VenueModeration from './pages/admin/VenueModeration';
 import VoucherOversight from './pages/admin/VoucherOversight';
 import ReportQueue from './pages/admin/ReportQueue';
 import OrderManagement from './pages/admin/OrderManagement';
+import Oc3Dashboard from './pages/admin/Oc3Dashboard';
 
 // Smart Home / Default Redirect based on current role
 function RootRedirect() {
@@ -122,6 +123,7 @@ export default function App() {
             <Route path="venues" element={<VenueModeration />} />
             <Route path="vouchers" element={<VoucherOversight />} />
             <Route path="orders" element={<OrderManagement />} />
+            <Route path="oc3" element={<Oc3Dashboard />} />
             <Route path="reports" element={<ReportQueue />} />
           </Route>
 

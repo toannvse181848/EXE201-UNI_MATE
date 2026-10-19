@@ -5,7 +5,15 @@ const UserVoucher = require('../models/UserVoucher');
 const Redemption = require('../models/Redemption');
 const Match = require('../models/Match');
 const Report = require('../models/Report');
+const Setting = require('../models/Setting');
+const mongoose = require('mongoose');
 const catchAsync = require('../utils/catchAsync');
+const { computeOc3Metrics, parseEmailList } = require('../utils/oc3Metrics');
+const { buildOc3Tables, tablesToXlsx } = require('../utils/oc3Report');
+const { sendXlsx, datedFilename } = require('../utils/excelExport');
+const { CHANNELS } = require('../config/acquisition');
+
+const OC3_SETTING_KEY = 'oc3';
 
 // GET /api/admin/stats — số liệu tổng quan cho dashboard admin
 const getStats = catchAsync(async (req, res) => {
@@ -83,4 +91,65 @@ const getStats = catchAsync(async (req, res) => {
   });
 });
 
-module.exports = { getStats };
+// ─── SỐ LIỆU BÁO CÁO OC3 ─────────────────────────────────────────────────────
+
+/**
+ * Email thành viên nhóm / tài khoản test cần loại khỏi số liệu lấy từ biến môi trường
+ * OC3_EXCLUDE_EMAILS (cách nhau bởi dấu phẩy) để không lưu email thật trong code.
+ */
+const loadOc3Metrics = async () => {
+  const setting = await Setting.findOne({ key: OC3_SETTING_KEY }).lean();
+  return computeOc3Metrics(mongoose.connection.db, {
+    excludedEmails: parseEmailList(process.env.OC3_EXCLUDE_EMAILS),
+    inputs: setting?.value || {},
+  });
+};
+
+// GET /api/admin/oc3 — bảng số liệu tổng hợp (không kèm danh sách từng người dùng / đơn hàng)
+const getOc3Dashboard = catchAsync(async (req, res) => {
+  const metrics = await loadOc3Metrics();
+  delete metrics.users;
+  delete metrics.orders;
+  res.status(200).json({
+    success: true,
+    data: { ...metrics, excludeListConfigured: parseEmailList(process.env.OC3_EXCLUDE_EMAILS).length > 0 },
+  });
+});
+
+// GET /api/admin/oc3/export — file Excel nhiều sheet (email đã che) làm minh chứng OC3
+const exportOc3Dashboard = catchAsync(async (req, res) => {
+  const metrics = await loadOc3Metrics();
+  sendXlsx(res, tablesToXlsx(buildOc3Tables(metrics)), datedFilename('unimate_so_lieu_oc3'));
+});
+
+// GET /api/admin/oc3/settings — chi phí, lượt tiếp cận, lượt nhấp từng kênh (nhập tay từ Insights)
+const getOc3Settings = catchAsync(async (req, res) => {
+  const setting = await Setting.findOne({ key: OC3_SETTING_KEY }).lean();
+  res.status(200).json({
+    success: true,
+    data: {
+      channels: Object.entries(CHANNELS).map(([key, label]) => ({ key, label, ...setting?.value?.channels?.[key] })),
+      otherCost: setting?.value?.otherCost || 0,
+      updatedAt: setting?.updatedAt || null,
+    },
+  });
+});
+
+// PUT /api/admin/oc3/settings { channels: { facebook: { cost, reach, clicks } }, otherCost }
+const updateOc3Settings = catchAsync(async (req, res) => {
+  const toNumber = (value) => Math.max(0, Math.round(Number(value) || 0));
+  const channels = {};
+  for (const key of Object.keys(CHANNELS)) {
+    const input = req.body?.channels?.[key] || {};
+    channels[key] = { cost: toNumber(input.cost), reach: toNumber(input.reach), clicks: toNumber(input.clicks) };
+  }
+  const value = { channels, otherCost: toNumber(req.body?.otherCost) };
+  await Setting.findOneAndUpdate(
+    { key: OC3_SETTING_KEY },
+    { value, updatedBy: req.user._id },
+    { upsert: true, returnDocument: 'after' }
+  );
+  res.status(200).json({ success: true, message: 'Đã lưu số liệu theo kênh', data: value });
+});
+
+module.exports = { getStats, getOc3Dashboard, exportOc3Dashboard, getOc3Settings, updateOc3Settings };

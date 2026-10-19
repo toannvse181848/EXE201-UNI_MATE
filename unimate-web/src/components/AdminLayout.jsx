@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   CreditCard,
+  BarChart3,
 } from 'lucide-react';
 import { getAvatarUrl } from '../constants/avatar';
 
@@ -32,6 +33,7 @@ export default function AdminLayout() {
 
   const navItems = [
     { to: '/admin/dashboard', label: 'Tổng quan Admin', icon: LayoutDashboard },
+    { to: '/admin/oc3', label: 'Số liệu OC3', icon: BarChart3 },
     { to: '/admin/orders', label: 'Quản lý Đơn hàng', icon: CreditCard },
     { to: '/admin/users', label: 'Quản trị Người dùng', icon: Users },
     { to: '/admin/venues', label: 'Quản lý Địa điểm', icon: Store },
