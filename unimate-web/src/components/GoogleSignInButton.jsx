@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 
 // Client ID của ứng dụng OAuth trên Google Cloud (thông tin công khai, không phải bí mật)
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '1059018981557-qqhc9sdg1m9bqugesvu185u38b7s2m6e.apps.googleusercontent.com';
 const SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 
 let scriptPromise = null;
