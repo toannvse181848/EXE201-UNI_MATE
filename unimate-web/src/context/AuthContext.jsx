@@ -44,15 +44,8 @@ export const AuthProvider = ({ children }) => {
     return null;
   });
 
-  const login = async (email, password, role = 'user') => {
-    // Chỉ cho phép đăng nhập qua backend API thật
-    const res = await authApi.login(email, password);
-
-    if (!res?.data?.token || !res?.data?.user) {
-      throw new Error('Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
-    }
-
-    const { token, user: dbUser } = res.data;
+  // Lưu phiên đăng nhập (token + thông tin người dùng) — dùng chung cho đăng nhập email và Google
+  const startSession = (token, dbUser) => {
     localStorage.setItem('unimate_token', token);
     localStorage.setItem('unimate_login_time', Date.now().toString());
 
@@ -84,13 +77,45 @@ export const AuthProvider = ({ children }) => {
       trustScore: dbUser.trustScore || 0,
       interests: dbUser.studentProfile?.interests || [],
       bio: dbUser.studentProfile?.bio || '',
+      isProfileCompleted: Boolean(dbUser.isProfileCompleted),
     };
 
     setUser(authenticatedUser);
     localStorage.setItem('unimate_portal_user', JSON.stringify(authenticatedUser));
     setAnalyticsUser(authenticatedUser);
-    trackEvent('login', { method: 'email', account_role: normalizedRole });
     return authenticatedUser;
+  };
+
+  const login = async (email, password) => {
+    // Chỉ cho phép đăng nhập qua backend API thật
+    const res = await authApi.login(email, password);
+
+    if (!res?.data?.token || !res?.data?.user) {
+      throw new Error('Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
+    }
+
+    const authenticatedUser = startSession(res.data.token, res.data.user);
+    trackEvent('login', { method: 'email', account_role: authenticatedUser.role });
+    return authenticatedUser;
+  };
+
+  // credential: ID token từ nút "Đăng nhập bằng Google"; heardFrom: câu trả lời ở trang Đăng ký (nếu có)
+  const loginWithGoogle = async (credential, heardFrom = null) => {
+    const res = await authApi.googleLogin({
+      credential,
+      acquisition: { ...getAttribution(), heardFrom },
+    });
+    if (!res?.data?.token || !res?.data?.user) {
+      throw new Error('Đăng nhập Google thất bại. Vui lòng thử lại.');
+    }
+
+    const authenticatedUser = startSession(res.data.token, res.data.user);
+    trackEvent(res.data.isNewUser ? 'sign_up' : 'login', {
+      method: 'google',
+      account_role: authenticatedUser.role,
+      ...(res.data.isNewUser ? { heard_from: heardFrom || 'not_set' } : {}),
+    });
+    return { user: authenticatedUser, isNewUser: Boolean(res.data.isNewUser) };
   };
 
   const register = async (userData) => {
@@ -185,7 +210,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, setUser, updateUser, upgradePremium, reloadUser }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, register, logout, setUser, updateUser, upgradePremium, reloadUser }}>
       {children}
     </AuthContext.Provider>
   );

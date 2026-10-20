@@ -4,6 +4,7 @@ import cover from '../assets/cover.png';
 import { useAuth } from '../context/AuthContext';
 import { GraduationCap, Coffee, ShieldCheck, ArrowRight, ArrowLeft, Lock, Mail, UserPlus, X, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { authApi } from '../services/api';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 
 // Trang chủ của từng vai trò sau khi đăng nhập
@@ -17,7 +18,7 @@ const PORTAL_HOME = {
 // không hiện trên trang đăng nhập công khai
 export default function Login({ adminPortal = false }) {
   const navigate = useNavigate();
-  const { login, logout } = useAuth();
+  const { login, loginWithGoogle, logout } = useAuth();
   const [role, setRole] = useState(adminPortal ? 'admin' : 'user'); // 'user' | 'partner' | 'admin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -92,6 +93,19 @@ export default function Login({ adminPortal = false }) {
       navigate(PORTAL_HOME[loggedInUser.role] || currentConfig.path);
     } catch (err) {
       alert('Đăng nhập thất bại: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleCredential = async (credential) => {
+    setLoading(true);
+    try {
+      const { user: loggedInUser, isNewUser } = await loginWithGoogle(credential);
+      // Tài khoản mới tạo bằng Google: hoàn thiện hồ sơ trước khi khám phá
+      navigate(isNewUser ? '/onboarding' : PORTAL_HOME[loggedInUser.role] || '/');
+    } catch (err) {
+      alert('Đăng nhập Google thất bại: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -445,6 +459,9 @@ export default function Login({ adminPortal = false }) {
             <ArrowRight size={18} />
           </button>
         </form>
+
+        {/* Quản trị viên chỉ đăng nhập bằng mật khẩu */}
+        {!adminPortal && <GoogleSignInButton onCredential={handleGoogleCredential} />}
 
         {/* Register Link Prompt */}
         {!adminPortal && (

@@ -13,6 +13,7 @@ router.post('/register/student', registerLimiter, authController.registerStudent
 router.post('/register/partner', registerLimiter, authController.registerPartner);
 
 router.post('/login', authLimiter, authController.login);
+router.post('/google', authLimiter, authController.googleLogin);
 router.get('/me', protect, authController.getMe);
 router.post('/change-password', protect, authController.changePassword);
 

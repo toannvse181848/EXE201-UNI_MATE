@@ -6,6 +6,9 @@ const crypto = require('crypto');
 const { sendPasswordResetEmail } = require('../utils/email');
 const { parseAcquisition } = require('../config/acquisition');
 const { recordActivity } = require('../utils/activityTracker');
+const { OAuth2Client } = require('google-auth-library');
+
+const googleClient = new OAuth2Client();
 
 
 // POST /api/auth/register/student
@@ -132,6 +135,60 @@ exports.login = catchAsync(async (req, res) => {
   });
 });
 
+
+// POST /api/auth/google { credential, acquisition?, heardFrom? }
+// credential = ID token do nút "Đăng nhập bằng Google" (Google Identity Services) trả về trên web
+exports.googleLogin = catchAsync(async (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) throw new ApiError(503, 'Chưa cấu hình đăng nhập bằng Google');
+  if (typeof req.body.credential !== 'string') throw new ApiError(400, 'Thiếu thông tin đăng nhập Google');
+
+  // Hỏi Google xác minh chữ ký và hạn của token, đúng ứng dụng của UNI-MATE
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken: req.body.credential, audience: clientId });
+    payload = ticket.getPayload();
+  } catch {
+    throw new ApiError(401, 'Đăng nhập Google không hợp lệ hoặc đã hết hạn');
+  }
+  if (!payload?.email || !payload.email_verified) throw new ApiError(401, 'Email Google chưa được xác minh');
+  const email = payload.email.toLowerCase();
+
+  let user = await User.findOne({ $or: [{ googleId: payload.sub }, { email }] });
+  let isNewUser = false;
+
+  if (user) {
+    // Admin chỉ đăng nhập bằng mật khẩu ở trang /admin/login
+    if (user.role === 'admin') throw new ApiError(403, 'Tài khoản quản trị không đăng nhập bằng Google');
+    if (user.status === 'suspended') throw new ApiError(403, 'Tài khoản đã bị khoá do vi phạm tiêu chuẩn cộng đồng');
+    // Tài khoản đăng ký bằng email trước đó: gắn thêm Google để lần sau đăng nhập một chạm
+    if (!user.googleId) user.googleId = payload.sub;
+    if (!user.avatar && payload.picture) user.avatar = payload.picture;
+    user.lastActiveAt = Date.now();
+    await user.save({ validateBeforeSave: false });
+  } else {
+    // Người mới: tạo tài khoản sinh viên, hoàn thiện hồ sơ ở bước onboarding
+    isNewUser = true;
+    user = await User.create({
+      email,
+      fullName: payload.name || email.split('@')[0],
+      avatar: payload.picture || null,
+      googleId: payload.sub,
+      authProvider: 'google',
+      role: 'student',
+      status: 'active',
+      isProfileCompleted: false,
+      studentProfile: { uniCoin: 250, trustScore: 95, isVerifiedStudent: false, isPremium: false },
+      acquisition: parseAcquisition(req.body),
+    });
+  }
+  recordActivity(user._id, req.headers['user-agent']);
+
+  res.status(isNewUser ? 201 : 200).json({
+    success: true,
+    data: { token: generateToken(user), user: user.toPublicJSON(), isNewUser },
+  });
+});
 
 // GET /api/auth/me
 exports.getMe = catchAsync(async (req, res) => {

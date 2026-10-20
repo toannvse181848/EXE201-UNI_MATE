@@ -26,10 +26,11 @@ import {
   ACADEMIC_YEARS,
 } from '../constants/academic';
 import { HEARD_FROM_OPTIONS } from '../constants/acquisition';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const [role, setRole] = useState('user'); // 'user' | 'partner'
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -124,6 +125,20 @@ export default function Register() {
       }
     } catch (err) {
       alert('Đăng ký thất bại: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Đăng ký nhanh bằng Google (chỉ tạo tài khoản sinh viên; quán đối tác dùng form bên trên)
+  const handleGoogleCredential = async (credential) => {
+    setLoading(true);
+    try {
+      const { user: account, isNewUser } = await loginWithGoogle(credential, heardFrom || null);
+      if (isNewUser) navigate('/onboarding');
+      else navigate(account.role === 'partner' ? '/partner/dashboard' : '/user/discover');
+    } catch (err) {
+      alert('Đăng ký Google thất bại: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -659,6 +674,8 @@ export default function Register() {
             <ArrowRight size={18} />
           </button>
         </form>
+
+        {role === 'user' && <GoogleSignInButton onCredential={handleGoogleCredential} text="signup_with" />}
 
         {/* Footer Login Link */}
         <div style={{ marginTop: '22px', textAlign: 'center', fontSize: '14px', color: '#78716C' }}>

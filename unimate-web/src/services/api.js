@@ -64,6 +64,11 @@ export const authApi = {
     const res = await client.post('/api/auth/register', userData);
     return res.data;
   },
+  // { credential, acquisition } — credential là ID token từ nút Google
+  googleLogin: async (data) => {
+    const res = await client.post('/api/auth/google', data);
+    return res.data;
+  },
   getMe: async () => {
     const res = await client.get('/api/auth/me');
     return res.data;
