@@ -225,6 +225,8 @@ export default function PartnerDashboard() {
 
   const businessName =
     user?.partnerProfile?.businessName || user?.fullName || 'Đối tác UNI-MATE';
+  const planExpiresAt = user?.partnerProfile?.planExpiresAt;
+  const planActive = Boolean(planExpiresAt && new Date(planExpiresAt).getTime() > Date.now());
 
   return (
     <SafeAreaView style={styles.container}>
@@ -275,6 +277,20 @@ export default function PartnerDashboard() {
             </View>
             <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
           </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Gói Đối tác: quán lên đầu danh sách sinh viên xem */}
+        <TouchableOpacity style={styles.planCard} onPress={() => router.push('/checkout?plan=partner_monthly')} activeOpacity={0.85}>
+          <Ionicons name="trending-up" size={22} color="#D97706" />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.planTitle}>
+              {planActive ? `Gói Đối tác còn hạn đến ${new Date(planExpiresAt).toLocaleDateString('vi-VN')}` : 'Gói Đối tác 99.000đ/tháng'}
+            </Text>
+            <Text style={styles.planSubtitle}>
+              {planActive ? 'Nhấn để gia hạn, thời hạn được cộng dồn' : 'Quán lên đầu danh sách sinh viên xem, có huy hiệu nổi bật'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
         </TouchableOpacity>
 
         {/* Stats Row */}
@@ -808,6 +824,18 @@ const styles = StyleSheet.create({
     marginTop: 3,
     lineHeight: 16,
   },
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  planTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  planSubtitle: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   statsCard: {
     flexDirection: 'row',
     backgroundColor: COLORS.surface,

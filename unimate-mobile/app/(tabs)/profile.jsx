@@ -146,27 +146,19 @@ export default function ProfileScreen() {
   const handleUpgradePremium = () => {
     Alert.alert(
       'Nâng cấp Premium nhận Tích Xanh',
-      'Đặc quyền thành viên:\n✓ Tích xanh xác thực uy tín bên cạnh tên\n✓ Được xếp sớm hơn khi sinh viên khác tìm bạn học\n✓ Mở khoá voucher cafe chỉ dành cho Premium\n\nChọn gói nâng cấp:',
+      'Đặc quyền thành viên:\n✓ Tích xanh xác thực uy tín bên cạnh tên\n✓ Được xếp sớm hơn khi sinh viên khác tìm bạn học\n✓ Mở khoá voucher cafe chỉ dành cho Premium\n\nGói 1 tháng: 49.000đ hoặc đổi 800 UniCoin.\nGói 1 năm: 399.000đ.',
       [
         {
-          text: 'Gói 1 Tháng (100 Coin)',
+          text: 'Chuyển khoản',
+          onPress: () => router.push('/checkout?plan=premium_monthly'),
+        },
+        {
+          text: 'Đổi 800 Coin',
           onPress: async () => {
             try {
               const res = await userApi.buyPremium({ plan: 'monthly', paymentMethod: 'coin' });
               if (res.data?.data?.user) updateUser(res.data.data.user);
-              Alert.alert('Thành công', 'Chúc mừng bạn đã nâng cấp Premium và nhận tích xanh xác thực!');
-            } catch (err) {
-              Alert.alert('Thông báo', err.response?.data?.message || err.message || 'Không thể nâng cấp');
-            }
-          },
-        },
-        {
-          text: 'Gói 1 Năm (800 Coin)',
-          onPress: async () => {
-            try {
-              const res = await userApi.buyPremium({ plan: 'yearly', paymentMethod: 'coin' });
-              if (res.data?.data?.user) updateUser(res.data.data.user);
-              Alert.alert('Thành công', 'Chúc mừng bạn đã nâng cấp Premium 1 Năm và nhận tích xanh xác thực!');
+              Alert.alert('Thành công', 'Chúc mừng bạn đã nâng cấp Premium 1 tháng và nhận tích xanh xác thực!');
             } catch (err) {
               Alert.alert('Thông báo', err.response?.data?.message || err.message || 'Không thể nâng cấp');
             }
