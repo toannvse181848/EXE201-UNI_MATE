@@ -87,11 +87,14 @@ export default function UserProfile() {
 
   // Mở sẵn modal Premium khi vào từ link /user/profile?upgrade=monthly|yearly (vd: trang UniCoin)
   const [searchParams, setSearchParams] = useSearchParams();
+  // Modal được mở từ trang khác → đóng modal thì quay về trang đó thay vì ở lại trang Hồ sơ
+  const [openedFromOtherPage, setOpenedFromOtherPage] = useState(false);
   useEffect(() => {
     const planFromLink = searchParams.get('upgrade');
     if (!planFromLink) return;
     if (planFromLink === 'monthly' || planFromLink === 'yearly') setSelectedPlan(planFromLink);
     setShowPremiumModal(true);
+    setOpenedFromOtherPage(true);
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
 
@@ -143,6 +146,12 @@ export default function UserProfile() {
     setShowPremiumModal(false);
     setPremiumNotice(null);
     setPaidOrder(null);
+    if (openedFromOtherPage) {
+      setOpenedFromOtherPage(false);
+      // Mở thẳng link trong tab mới thì không có trang trước để quay lại
+      if (window.history.length > 1) navigate(-1);
+      else navigate('/user/discover');
+    }
   };
 
   // Tự động kiểm tra trạng thái đơn hàng khi đang mở màn hình thanh toán VietQR
@@ -1500,10 +1509,7 @@ export default function UserProfile() {
                             type: 'success',
                             text: res.message || 'Nâng cấp Premium thành công! Tài khoản đã được cấp tích xanh.',
                           });
-                          setTimeout(() => {
-                            setShowPremiumModal(false);
-                            setPremiumNotice(null);
-                          }, 1800);
+                          setTimeout(closePremiumModal, 1800);
                         } catch (err) {
                           setPremiumNotice({ type: 'error', text: err.message || 'Có lỗi xảy ra.' });
                         } finally {
