@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { onboardingApi } from '../services/api';
+import { onboardingApi, userApi } from '../services/api';
 import { trackEvent } from '../utils/analytics';
+import { needsStudentInfo } from '../utils/profile';
+import { UNIVERSITIES, MAJORS, ACADEMIC_YEARS } from '../constants/academic';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const OBJECTIVES = [
@@ -198,6 +200,21 @@ const S = {
     gap: '3px',
     boxShadow: selected ? '0 4px 12px rgba(255,87,34,0.2)' : 'none',
   }),
+  // Student info form (tài khoản đăng ký bằng Google)
+  infoGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' },
+  fieldLabel: { display: 'block', fontSize: '13px', fontWeight: '700', color: '#1C1917', marginBottom: '5px' },
+  fieldInput: (hasError) => ({
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '11px 12px',
+    borderRadius: '12px',
+    border: `1.5px solid ${hasError ? '#EF4444' : '#E7E5E4'}`,
+    fontSize: '14px',
+    color: '#1C1917',
+    backgroundColor: '#FFFFFF',
+    outline: 'none',
+  }),
+  fieldError: { color: '#EF4444', fontSize: '11px', marginTop: '3px', display: 'block' },
   // Navigation buttons
   navRow: { display: 'flex', gap: '12px', marginTop: '32px' },
   btnBack: {
@@ -247,8 +264,67 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const { user, updateUser } = useAuth();
 
-  const [step, setStep] = useState(1); // 1 | 2 | 3 | 4 (success)
+  // Đăng ký bằng Google thì chưa có MSSV / trường / ngành → thêm bước 0 "Thông tin sinh viên"
+  const [askInfo] = useState(() => needsStudentInfo(user));
+  const alreadyOnboarded = (user?.interests?.length || 0) >= 3;
+  const offset = askInfo ? 1 : 0;
+  const totalSteps = 3 + offset;
+  const stepText = (n) => `Bước ${n + offset} / ${totalSteps}`;
+
+  const [step, setStep] = useState(askInfo ? 0 : 1); // 0 (thông tin SV) | 1 | 2 | 3 | 4 (success)
   const [loading, setLoading] = useState(false);
+
+  // Step 0 state
+  const [info, setInfo] = useState({
+    fullName: user?.name || '',
+    studentId: user?.studentId || '',
+    phone: user?.phone || '',
+    university: user?.university || UNIVERSITIES[0],
+    major: user?.major || MAJORS[0],
+    year: user?.year || 'Sinh viên năm 3',
+  });
+  const [infoErrors, setInfoErrors] = useState({});
+  const setInfoField = (field, value) => {
+    setInfo((prev) => ({ ...prev, [field]: value }));
+    if (infoErrors[field]) setInfoErrors((prev) => ({ ...prev, [field]: null }));
+  };
+
+  const handleSaveInfo = async () => {
+    const err = {};
+    if (!info.fullName.trim()) err.fullName = 'Vui lòng nhập họ và tên';
+    if (!info.studentId.trim()) err.studentId = 'Vui lòng nhập Mã số sinh viên (MSSV)';
+    if (!info.phone.trim()) err.phone = 'Vui lòng nhập số điện thoại';
+    setInfoErrors(err);
+    if (Object.keys(err).length > 0) return;
+
+    setLoading(true);
+    try {
+      const res = await userApi.updateMe({
+        fullName: info.fullName.trim(),
+        studentId: info.studentId.trim(),
+        phone: info.phone.trim(),
+        university: info.university,
+        major: info.major,
+        year: info.year,
+      });
+      const saved = res?.data?.user || {};
+      updateUser({
+        name: saved.fullName || info.fullName.trim(),
+        studentId: saved.studentId || info.studentId.trim(),
+        phone: saved.phone || info.phone.trim(),
+        university: saved.university || info.university,
+        major: saved.major || info.major,
+        year: saved.year || info.year,
+      });
+      // Tài khoản đã chọn sở thích từ trước thì không bắt làm lại
+      if (alreadyOnboarded) navigate('/user/discover', { replace: true });
+      else setStep(1);
+    } catch (e) {
+      alert('Lưu thông tin thất bại: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Step 1 state
   const [objectives, setObjectives] = useState([]);
@@ -305,16 +381,86 @@ export default function Onboarding() {
         {/* Progress bar */}
         {step < 4 && (
           <div style={S.progressWrap}>
-            {[1, 2, 3].map((s) => (
+            {(askInfo ? [0, 1, 2, 3] : [1, 2, 3]).map((s) => (
               <div key={s} style={S.progressSegment(step === s, isDone(s))} />
             ))}
           </div>
         )}
 
+        {/* ── STEP 0: Thông tin sinh viên (chỉ tài khoản đăng ký bằng Google) ── */}
+        {step === 0 && (
+          <>
+            <div style={S.stepLabel}>{stepText(0)}</div>
+            <h1 style={S.title}>Thông tin sinh viên 🎓</h1>
+            <p style={S.subtitle}>Cho UNI-MATE biết bạn học ở đâu để gợi ý bạn học cùng trường, cùng ngành và cấp Uni-Card cho bạn.</p>
+
+            <div style={S.infoGrid}>
+              <div>
+                <label style={S.fieldLabel} htmlFor="info-fullName">Họ và tên *</label>
+                <input
+                  id="info-fullName"
+                  style={S.fieldInput(infoErrors.fullName)}
+                  value={info.fullName}
+                  onChange={(e) => setInfoField('fullName', e.target.value)}
+                  placeholder="VD: Nguyễn Văn A"
+                />
+                {infoErrors.fullName && <span style={S.fieldError}>{infoErrors.fullName}</span>}
+              </div>
+              <div>
+                <label style={S.fieldLabel} htmlFor="info-studentId">Mã số SV (MSSV) *</label>
+                <input
+                  id="info-studentId"
+                  style={{ ...S.fieldInput(infoErrors.studentId), fontWeight: '700' }}
+                  value={info.studentId}
+                  onChange={(e) => setInfoField('studentId', e.target.value.toUpperCase())}
+                  placeholder="VD: SE123456"
+                />
+                {infoErrors.studentId && <span style={S.fieldError}>{infoErrors.studentId}</span>}
+              </div>
+              <div>
+                <label style={S.fieldLabel} htmlFor="info-phone">Số điện thoại *</label>
+                <input
+                  id="info-phone"
+                  type="tel"
+                  style={S.fieldInput(infoErrors.phone)}
+                  value={info.phone}
+                  onChange={(e) => setInfoField('phone', e.target.value)}
+                  placeholder="VD: 0912345678"
+                />
+                {infoErrors.phone && <span style={S.fieldError}>{infoErrors.phone}</span>}
+              </div>
+              <div>
+                <label style={S.fieldLabel} htmlFor="info-university">Trường Đại học *</label>
+                <select id="info-university" style={S.fieldInput(false)} value={info.university} onChange={(e) => setInfoField('university', e.target.value)}>
+                  {UNIVERSITIES.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={S.fieldLabel} htmlFor="info-major">Chuyên ngành *</label>
+                <select id="info-major" style={S.fieldInput(false)} value={info.major} onChange={(e) => setInfoField('major', e.target.value)}>
+                  {MAJORS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={S.fieldLabel} htmlFor="info-year">Năm học</label>
+                <select id="info-year" style={S.fieldInput(false)} value={info.year} onChange={(e) => setInfoField('year', e.target.value)}>
+                  {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={S.navRow}>
+              <button style={S.btnNext(loading)} disabled={loading} onClick={handleSaveInfo}>
+                {loading ? 'Đang lưu...' : alreadyOnboarded ? 'Lưu và vào UNI-MATE →' : 'Tiếp tục →'}
+              </button>
+            </div>
+          </>
+        )}
+
         {/* ── STEP 1: Mục tiêu kết nối ── */}
         {step === 1 && (
           <>
-            <div style={S.stepLabel}>Bước 1 / 3</div>
+            <div style={S.stepLabel}>{stepText(1)}</div>
             <h1 style={S.title}>Bạn muốn kết nối vì điều gì? 🎯</h1>
             <p style={S.subtitle}>Chọn 1 hoặc nhiều mục tiêu. Thuật toán sẽ ưu tiên kết bạn bạn với người có cùng định hướng.</p>
 
@@ -342,7 +488,7 @@ export default function Onboarding() {
         {/* ── STEP 2: Sở thích & Tags ── */}
         {step === 2 && (
           <>
-            <div style={S.stepLabel}>Bước 2 / 3</div>
+            <div style={S.stepLabel}>{stepText(2)}</div>
             <h1 style={S.title}>Sở thích & Tag cá nhân 🏷️</h1>
             <p style={S.subtitle}>Chọn tối thiểu 3 tags. UNI-MATE dùng AI để tìm người có sở thích trùng khớp cao nhất với bạn.</p>
 
@@ -378,7 +524,7 @@ export default function Onboarding() {
         {/* ── STEP 3: Thói quen học tập ── */}
         {step === 3 && (
           <>
-            <div style={S.stepLabel}>Bước 3 / 3</div>
+            <div style={S.stepLabel}>{stepText(3)}</div>
             <h1 style={S.title}>Thói quen học tập ☕</h1>
             <p style={S.subtitle}>Giúp chúng tôi ghép bạn với người có lịch trình phù hợp để việc hẹn gặp dễ dàng hơn.</p>
 

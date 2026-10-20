@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldAlert, ArrowRight, LogOut } from 'lucide-react';
+import { needsStudentInfo } from '../utils/profile';
 
 export default function RoleRoute({ allowedRole, children }) {
   const { user, logout } = useAuth();
@@ -14,6 +15,7 @@ export default function RoleRoute({ allowedRole, children }) {
 
   // If role matches, allow rendering
   if (user.role === allowedRole) {
+    if (needsStudentInfo(user)) return <Navigate to="/onboarding" replace />;
     return children;
   }
 
