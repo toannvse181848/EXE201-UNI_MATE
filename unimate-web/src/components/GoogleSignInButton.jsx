@@ -72,6 +72,11 @@ export default function GoogleSignInButton({ onCredential, text = 'signin_with' 
         <span style={{ flex: 1, height: '1px', backgroundColor: '#E7E5E4' }} />
       </div>
       <div ref={containerRef} style={{ display: 'flex', justifyContent: 'center', minHeight: '44px' }} />
+      <p style={{ marginTop: '8px', textAlign: 'center', fontSize: '11px', color: '#A8A29E' }}>
+        Khi tiếp tục, bạn đồng ý với{' '}
+        <a href="/terms" target="_blank" rel="noreferrer" style={{ color: '#78716C' }}>Điều khoản</a> và{' '}
+        <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: '#78716C' }}>Chính sách quyền riêng tư</a>
+      </p>
     </div>
   );
 }
