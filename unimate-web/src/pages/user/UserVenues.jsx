@@ -205,7 +205,7 @@ export default function UserVenues() {
           <Search size={18} color="var(--text-muted)" style={{ marginRight: '10px' }} />
           <input
             type="text"
-            placeholder="Tìm theo tên quán, địa chỉ (VD: The Coffee House, Quận 10...)"
+            placeholder="Tìm theo tên quán, địa chỉ (VD: Quận 10, Thủ Đức...)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{

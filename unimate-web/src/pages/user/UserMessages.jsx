@@ -33,7 +33,7 @@ import {
   ChevronDown,
   Flag,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { chatApi, matchApi, groupChatApi, meetupApi, API_BASE_URL } from '../../services/api';
 import MeetupCard from '../../components/user/MeetupCard';
 import MeetupInviteModal from '../../components/user/MeetupInviteModal';
@@ -290,6 +290,9 @@ export default function UserMessages() {
 
   // Active chat (1-1)
   const [selectedMatchId, setSelectedMatchId] = useState(null);
+  // Đi từ trang khác (VD: nút "Rủ đi cafe" ở Tìm bạn) → mở sẵn cuộc trò chuyện đó
+  const [searchParams] = useSearchParams();
+  const linkedMatchId = searchParams.get('matchId');
   const selectedMatchIdRef = useRef(null);
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -415,7 +418,8 @@ export default function UserMessages() {
       setSentLikes(realSent);
       setReceivedLikes(realReceived);
       if (!selectedMatchId && !selectedGroupId && realConvs.length > 0) {
-        setSelectedMatchId(realConvs[0].matchId);
+        const linked = realConvs.find((c) => String(c.matchId) === linkedMatchId);
+        setSelectedMatchId((linked || realConvs[0]).matchId);
       }
     } catch (err) {
       console.log('Lỗi tải dữ liệu chat:', err.message);
@@ -423,7 +427,7 @@ export default function UserMessages() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedMatchId]);
+  }, [selectedMatchId, linkedMatchId]);
 
   useEffect(() => {
     loadAllData();

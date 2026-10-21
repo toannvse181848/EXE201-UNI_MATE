@@ -507,7 +507,7 @@ export default function Register() {
                     required
                     value={partnerForm.businessName}
                     onChange={(e) => handlePartnerChange('businessName', e.target.value)}
-                    placeholder="VD: The Coffee House - Chi nhánh Sư Vạn Hạnh"
+                    placeholder="VD: Cà phê Mây - Chi nhánh Sư Vạn Hạnh"
                     style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', color: '#1C1917' }}
                   />
                 </div>

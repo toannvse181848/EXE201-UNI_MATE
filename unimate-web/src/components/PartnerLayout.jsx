@@ -199,7 +199,7 @@ export default function PartnerLayout() {
               />
               <div style={{ display: 'flex', flexDirection: 'column' }} className="header-user-hide-sm">
                 <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  {user?.name || 'The Coffee House'}
+                  {user?.businessName || user?.name || 'Quán của bạn'}
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                   Đối tác chính thức
