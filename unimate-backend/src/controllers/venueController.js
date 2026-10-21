@@ -52,7 +52,8 @@ const getVenues = catchAsync(async (req, res) => {
 
 
   const venues = await Venue.find(filter)
-    .populate('partnerId', 'fullName email phone partnerProfile.planExpiresAt')
+    // API công khai: không trả email / số điện thoại của chủ tài khoản (admin xem ở /admin/all)
+    .populate('partnerId', 'fullName partnerProfile.planExpiresAt')
     .sort({ rating: -1, createdAt: -1 });
 
   const data = sanitizeVenueDistricts(venues).map((venue) => {
@@ -72,10 +73,7 @@ const getVenues = catchAsync(async (req, res) => {
 
 // Xem chi tiết địa điểm
 const getVenueById = catchAsync(async (req, res) => {
-  const venue = await Venue.findById(req.params.id).populate(
-    'partnerId',
-    'fullName email phone'
-  );
+  const venue = await Venue.findById(req.params.id).populate('partnerId', 'fullName');
   if (!venue) {
     throw new ApiError(404, 'Không tìm thấy địa điểm');
   }
