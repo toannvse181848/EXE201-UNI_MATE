@@ -2,7 +2,7 @@
   "expo": {
     "name": "UNI-MATE",
     "slug": "unimate-mobile",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.unimate.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
