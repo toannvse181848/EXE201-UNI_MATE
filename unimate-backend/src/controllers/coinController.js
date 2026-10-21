@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Venue = require('../models/Venue');
+const { isVenueVisible } = require('../utils/visibility');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const {
@@ -175,7 +176,7 @@ const venueCheckin = catchAsync(async (req, res) => {
   }
 
   const venue = await Venue.findById(parsedQr.venueId).select('+checkinSecret name location status');
-  if (!venue || venue.status !== 'approved') throw new ApiError(404, 'Không tìm thấy quán cafe này');
+  if (!venue || !(await isVenueVisible(venue._id))) throw new ApiError(404, 'Không tìm thấy quán cafe này');
   if (!secretMatches(venue.checkinSecret, parsedQr.secret)) {
     throw new ApiError(400, 'Mã QR đã hết hiệu lực. Vui lòng quét mã QR mới tại quán');
   }

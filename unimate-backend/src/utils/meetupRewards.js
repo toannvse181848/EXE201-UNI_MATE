@@ -3,6 +3,8 @@ const Voucher = require('../models/Voucher');
 const UserVoucher = require('../models/UserVoucher');
 const VoucherCode = require('../models/VoucherCode');
 const { describeVoucherValue } = require('./voucherFormat');
+const Venue = require('../models/Venue');
+const { visibleVenueFilter } = require('./visibility');
 
 /** Voucher còn lượt để phát: mã riêng thì còn mã trống, mã chung thì chưa dùng hết số lượng */
 const hasStock = async (voucher) => {
@@ -18,8 +20,9 @@ const hasStock = async (voucher) => {
  */
 const findMeetupRewards = async (venueIds) => {
   if (!venueIds.length) return new Map();
+  const visibleIds = await Venue.find(await visibleVenueFilter({ _id: { $in: venueIds } })).distinct('_id');
   const vouchers = await Voucher.find({
-    venueId: { $in: venueIds },
+    venueId: { $in: visibleIds },
     meetupReward: true,
     isActive: true,
     validUntil: { $gte: new Date() },

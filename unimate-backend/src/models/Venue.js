@@ -71,11 +71,12 @@ const venueSchema = new mongoose.Schema(
       default: 'study',
     },
     tags: [{ type: String }],
+    // Không đặt giá trị mẫu: trước đây quán nào cũng tự có "Wifi 95 Mbps", "Yên tĩnh 4.9/5"
     amenities: {
-      wifiSpeed: { type: String, default: '95 Mbps' },
-      powerSockets: { type: String, default: 'Mỗi bàn đều có' },
-      quietScore: { type: String, default: '4.9/5.0' },
-      airConditioning: { type: String, default: 'Mát lạnh 24/7' },
+      wifiSpeed: { type: String },
+      powerSockets: { type: String },
+      quietScore: { type: String },
+      airConditioning: { type: String },
     },
     status: {
       type: String,
@@ -86,9 +87,9 @@ const venueSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Điểm đánh giá trung bình; chỉ có ý nghĩa khi reviewsCount > 0 (API công khai trả null nếu chưa có đánh giá)
     rating: {
       type: Number,
-      default: 4.8,
       min: 1,
       max: 5,
     },

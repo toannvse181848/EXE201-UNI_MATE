@@ -86,7 +86,7 @@ const getRecommendations = catchAsync(async (req, res) => {
       university: them.studentProfile?.university,
       major: them.studentProfile?.major,
       year: them.studentProfile?.year,
-      bio: them.studentProfile?.bio,
+      bio: publicBio(them.studentProfile?.bio),
       objectives: them.studentProfile?.objectives || [],
       interests: them.studentProfile?.interests || [],
       studyHabits: them.studentProfile?.studyHabits,

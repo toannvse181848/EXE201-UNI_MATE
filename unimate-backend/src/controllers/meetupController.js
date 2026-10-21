@@ -1,7 +1,7 @@
 const Meetup = require('../models/Meetup');
 const Match = require('../models/Match');
 const Message = require('../models/Message');
-const Venue = require('../models/Venue');
+const { findVisibleVenue } = require('../utils/visibility');
 const User = require('../models/User');
 const UserVoucher = require('../models/UserVoucher');
 const catchAsync = require('../utils/catchAsync');
@@ -58,9 +58,7 @@ const createMeetup = catchAsync(async (req, res) => {
   const me = req.user._id;
   const { match, buddyId } = await findMatchFor(req.body.matchId, me);
 
-  const venue = req.body.venueId
-    ? await Venue.findOne({ _id: req.body.venueId, status: 'approved' }).catch(() => null)
-    : null;
+  const venue = await findVisibleVenue(req.body.venueId);
   if (!venue) throw new ApiError(404, 'Không tìm thấy quán');
 
   let scheduledAt = null;

@@ -7,6 +7,7 @@ const { cloudinary, getUploadedFileUrl } = require('../config/cloudinary');
 const { escapeRegex } = require('../middlewares/security');
 const { getPlan, resolvePlanId } = require('../config/plans');
 const { activatePlan, canBuyPlan } = require('../utils/subscription');
+const { toPublicStudent } = require('../utils/publicProfile');
 const {
   maskEmail,
   maskName,
@@ -33,14 +34,15 @@ const getSuggestedStudents = catchAsync(async (req, res) => {
   }
 
   const students = await User.find(query)
-    .select('fullName email avatar phone studentProfile createdAt')
+    .select('fullName avatar studentProfile createdAt')
     .sort({ createdAt: -1 })
     .limit(limit);
 
+  // Chỉ hồ sơ công khai: trước đây trả cả email, số điện thoại, MSSV của mọi sinh viên
   res.status(200).json({
     success: true,
     count: students.length,
-    data: students,
+    data: students.map(toPublicStudent),
   });
 });
 

@@ -4,6 +4,8 @@ const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { computeMatchScore, commonInterests, sortByRank } = require('../utils/matchingAlgorithm');
 const { isPremiumActive } = require('../utils/subscription');
+const { isVenueVisible } = require('../utils/visibility');
+const { toPublicStudent } = require('../utils/publicProfile');
 
 const DECK_SIZE = 30;
 
@@ -44,7 +46,6 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
     .limit(100); // lấy rộng rồi xếp hạng, để người dùng Premium không bị bỏ sót trước khi xếp
 
   const scoredCandidates = candidates.map((them) => {
-    const themObj = them.toObject ? them.toObject() : them;
     const matchPercentage = me ? computeMatchScore(me, them) : 80;
     const commonTags = me
       ? commonInterests(
@@ -52,18 +53,8 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
           them.studentProfile?.interests || []
         )
       : [];
-    // Premium hết hạn thì mất tích xanh và mất ưu tiên xếp hạng
-    const isPremium = isPremiumActive(themObj.studentProfile);
-    const isVerifiedStudent = Boolean(isPremium || themObj.studentProfile?.isVerifiedStudent);
-
-    return {
-      ...themObj,
-      studentProfile: { ...themObj.studentProfile, isPremium, isVerifiedStudent },
-      isPremium,
-      isVerifiedStudent,
-      matchPercentage,
-      commonTags,
-    };
+    // Chỉ hồ sơ công khai (không MSSV, coin...); Premium hết hạn thì mất tích xanh và mất ưu tiên xếp hạng
+    return { ...toPublicStudent(them), matchPercentage, commonTags };
   });
 
   // Người đã thích mình được xếp lên đầu (không đánh dấu ai) để dễ kết bạn;
@@ -183,7 +174,7 @@ const getMyMatches = catchAsync(async (req, res) => {
         id: partner?._id,
         fullName: partner?.fullName,
         avatar: partner?.avatar,
-        studentProfile: partner?.studentProfile,
+        studentProfile: partner ? toPublicStudent(partner).studentProfile : undefined,
         lastActiveAt: partner?.lastActiveAt || null,
         isOnline,
       },
@@ -211,6 +202,9 @@ const proposeVenue = catchAsync(async (req, res) => {
     throw new ApiError(403, 'Bạn không thuộc cặp ghép đôi này');
   }
 
+  if (!(await isVenueVisible(venueId))) {
+    throw new ApiError(404, 'Không tìm thấy quán');
+  }
   match.proposedVenue = venueId;
   await match.save();
 

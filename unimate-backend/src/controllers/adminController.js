@@ -12,6 +12,7 @@ const { computeOc3Metrics, parseEmailList } = require('../utils/oc3Metrics');
 const { buildOc3Tables, tablesToXlsx } = require('../utils/oc3Report');
 const { sendXlsx, datedFilename } = require('../utils/excelExport');
 const { CHANNELS } = require('../config/acquisition');
+const { annotateVouchers } = require('../utils/voucherStatus');
 
 const OC3_SETTING_KEY = 'oc3';
 
@@ -36,7 +37,7 @@ const getStats = catchAsync(async (req, res) => {
     matchesTotal,
     matchesThisMonth,
     vouchersTotal,
-    vouchersActive,
+    activeCandidates,
     vouchersClaimed,
     redemptionsTotal,
     redemptionsThisMonth,
@@ -55,12 +56,15 @@ const getStats = catchAsync(async (req, res) => {
     Match.countDocuments({ status: 'matched' }),
     Match.countDocuments({ status: 'matched', matchedAt: { $gte: startOfMonth } }),
     Voucher.countDocuments(),
-    Voucher.countDocuments({ isActive: true, validUntil: { $gte: now } }),
+    Voucher.find({ isActive: true, validUntil: { $gte: now } }).populate('venueId', 'status'),
     UserVoucher.countDocuments(),
     Redemption.countDocuments(),
     Redemption.countDocuments({ createdAt: { $gte: startOfMonth } }),
     Report.countDocuments({ status: 'pending' }),
   ]);
+
+  // "Đang chạy" theo đúng luật chung với trang quán và trang sinh viên (quán đã duyệt, không bị khoá, còn lượt)
+  const vouchersActive = (await annotateVouchers(activeCandidates)).filter((v) => v.status === 'active').length;
 
   res.status(200).json({
     success: true,

@@ -49,7 +49,8 @@ const userSchema = new mongoose.Schema(
       major: { type: String, trim: true },
       year: { type: String, trim: true, default: "Sinh viên năm 3" }, // Ví dụ: "Sinh viên năm 1", "Sinh viên năm 2"
       gender: { type: String, enum: ["male", "female", "other"], default: "other" },
-      bio: { type: String, trim: true, default: "Tìm bạn cùng học bài & khám phá quán cafe yên tĩnh 🚀" },
+      // Không đặt câu giới thiệu mẫu: người khác sẽ tưởng là chính người dùng viết
+      bio: { type: String, trim: true },
       interests: [{ type: String }],
       objectives: [{ type: String }], // study_buddy | project | certificate | activities | hangout
       // === Onboarding Matching Preferences ===

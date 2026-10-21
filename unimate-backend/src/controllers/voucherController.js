@@ -21,35 +21,37 @@ const {
 const { isPremiumActive } = require('../utils/subscription');
 const { onMeetupVoucherRedeemed } = require('./meetupController');
 const { DISCOUNT_TYPES, describeVoucherValue, withVoucherLabels } = require('../utils/voucherFormat');
+const { VOUCHER_STATUS_LABEL, annotateVouchers } = require('../utils/voucherStatus');
+const { visibleVenueFilter } = require('../utils/visibility');
 
 
 // ─── PUBLIC / STUDENT ────────────────────────────────────────────────────────
 
-/** Danh sách voucher công khai còn hạn (Sinh viên xem) */
+/** Danh sách voucher sinh viên thấy: chỉ voucher có trạng thái "Đang chạy" (luật chung utils/voucherStatus.js) */
 const getPublicVouchers = catchAsync(async (req, res) => {
   const { venueId, code } = req.query;
+  // Quán đã duyệt + tài khoản quán không bị khoá; ưu đãi hẹn cafe không bày ở đây (chỉ nhận khi chốt hẹn)
+  const visibleVenueIds = await Venue.find(await visibleVenueFilter()).distinct('_id');
   const filter = {
     isActive: true,
     validUntil: { $gte: new Date() },
-    $or: [{ isUnlimited: true }, { quantity: { $gt: 0 } }],
+    meetupReward: { $ne: true },
+    venueId: venueId
+      ? { $in: visibleVenueIds.filter((id) => String(id) === String(venueId)) }
+      : { $in: visibleVenueIds },
   };
-
-  // Chỉ voucher của quán đã được admin duyệt; ưu đãi hẹn cafe không bày ở đây (chỉ nhận khi chốt hẹn)
-  const approvedVenueIds = await Venue.find({ status: 'approved' }).distinct('_id');
-  filter.venueId = venueId
-    ? { $in: approvedVenueIds.filter((id) => String(id) === String(venueId)) }
-    : { $in: approvedVenueIds };
-  filter.meetupReward = { $ne: true };
   if (code) filter.code = String(code).toUpperCase().trim();
 
-  const vouchers = await Voucher.find(filter)
-    .populate('venueId', 'name address image rating category')
+  const candidates = await Voucher.find(filter)
+    .populate('venueId', 'name address image category status')
     .sort({ createdAt: -1 });
+  // Bỏ voucher đã hết lượt / hết mã
+  const vouchers = (await annotateVouchers(candidates)).filter((v) => v.status === 'active');
 
   res.status(200).json({
     success: true,
     count: vouchers.length,
-    data: vouchers.map(withVoucherLabels),
+    data: vouchers,
   });
 });
 
@@ -58,18 +60,16 @@ const claimVoucher = catchAsync(async (req, res) => {
   const { id: voucherId } = req.params;
   const userId = req.user._id;
 
-  const voucher = await Voucher.findById(voucherId);
+  const voucher = await Voucher.findById(voucherId).catch(() => null);
   if (!voucher) throw new ApiError(404, 'Không tìm thấy voucher');
-  if (!voucher.isActive) throw new ApiError(400, 'Voucher đã bị tạm ngưng');
-  if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn');
-  if (voucher.codeType === 'shared' && !voucher.isUnlimited && voucher.usedCount >= voucher.quantity) {
-    throw new ApiError(400, 'Voucher đã hết số lượng');
-  }
   if (voucher.meetupReward) {
     throw new ApiError(400, 'Ưu đãi này chỉ nhận được khi bạn rủ bạn bè đi cafe và cả hai chốt hẹn tại quán');
   }
-  if (!(await Venue.exists({ _id: voucher.venueId, status: 'approved' }))) {
-    throw new ApiError(400, 'Quán của voucher này chưa được duyệt');
+  // Cùng một luật trạng thái với trang quán và trang admin
+  await voucher.populate('venueId', 'status');
+  const [annotated] = await annotateVouchers([voucher]);
+  if (annotated.status !== 'active') {
+    throw new ApiError(400, `Voucher không còn nhận được: ${VOUCHER_STATUS_LABEL[annotated.status].toLowerCase()}`);
   }
   if (voucher.premiumOnly && !isPremiumActive(req.user.studentProfile)) {
     throw new ApiError(403, 'Voucher này chỉ dành cho thành viên Premium. Nâng cấp Premium để nhận nhé!');
@@ -405,28 +405,6 @@ const getPartnerRedemptions = catchAsync(async (req, res) => {
 
 // ─── PARTNER ─────────────────────────────────────────────────────────────────
 
-/** Gắn thêm claimedCount (số lượt sinh viên đã lưu vào ví) cho từng voucher */
-const withClaimedCount = async (vouchers) => {
-  const counts = await UserVoucher.aggregate([
-    { $match: { voucherId: { $in: vouchers.map((v) => v._id) } } },
-    { $group: { _id: '$voucherId', count: { $sum: 1 } } },
-  ]);
-  const countById = new Map(counts.map((c) => [c._id.toString(), c.count]));
-  const now = Date.now();
-  return vouchers.map((v) => {
-    const labeled = withVoucherLabels(v);
-    // Quán chưa được duyệt → sinh viên chưa thấy voucher; tạm dừng; hết hạn; đang chạy
-    const displayStatus = labeled.venueId?.status && labeled.venueId.status !== 'approved'
-      ? 'pending'
-      : !labeled.isActive
-        ? 'paused'
-        : new Date(labeled.validUntil).getTime() < now
-          ? 'expired'
-          : 'active';
-    return { ...labeled, claimedCount: countById.get(v._id.toString()) || 0, displayStatus };
-  });
-};
-
 /** Partner: Lấy danh sách voucher do mình phát hành */
 const getMyPartnerVouchers = catchAsync(async (req, res) => {
   const vouchers = await Voucher.find({ partnerId: req.user._id })
@@ -436,7 +414,7 @@ const getMyPartnerVouchers = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: vouchers.length,
-    data: await withClaimedCount(vouchers),
+    data: await annotateVouchers(vouchers),
   });
 });
 
@@ -580,14 +558,15 @@ const toggleVoucherStatus = catchAsync(async (req, res) => {
 /** Admin: Quản lý toàn bộ voucher */
 const getAllVouchersAdmin = catchAsync(async (req, res) => {
   const vouchers = await Voucher.find()
-    .populate('venueId', 'name address')
+    .populate('venueId', 'name address status')
     .populate('partnerId', 'fullName email')
     .sort({ createdAt: -1 });
 
   res.status(200).json({
     success: true,
     count: vouchers.length,
-    data: await withClaimedCount(vouchers),
+    // Cùng trạng thái và số liệu với trang quán (utils/voucherStatus.js)
+    data: await annotateVouchers(vouchers),
   });
 });
 

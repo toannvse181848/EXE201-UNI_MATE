@@ -43,12 +43,13 @@ exports.registerStudent = catchAsync(async (req, res) => {
     isProfileCompleted: !!(studentId && university && major),
     studentProfile: {
       studentId: studentId || null,
-      university: university || 'Đại học FPT TP.HCM',
-      major: major || 'Kỹ thuật Phần mềm',
+      // Thiếu thông tin thì để trống (bước Onboarding sẽ hỏi lại), không tự điền trường / ngành mẫu
+      university: university || undefined,
+      major: major || undefined,
       year: year || 'Sinh viên năm 3',
       gender: gender || 'other',
-      bio: bio || 'Tìm bạn cùng học bài & khám phá quán cafe yên tĩnh 🚀',
-      interests: req.body.interests || ['Kết nối bạn học', 'Cà phê học bài', 'Boardgame'],
+      bio: bio || '',
+      interests: req.body.interests || [],
       uniCoin: 250,
       trustScore: 95,
       isVerifiedStudent: false,
@@ -287,4 +288,4 @@ exports.resetPassword = catchAsync(async (req, res) => {
   await user.save();
 
   res.status(200).json({ success: true, message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.' });
-});
+});

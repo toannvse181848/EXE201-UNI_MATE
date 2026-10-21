@@ -8,6 +8,8 @@ const { generateSecret, buildQrContent } = require('../utils/venueCheckin');
 const { isPartnerPlanActive } = require('../utils/subscription');
 const { findMeetupRewards, toRewardSummary } = require('../utils/meetupRewards');
 const { composeVenueName } = require('../utils/venueNaming');
+const { visibleVenueFilter, findVisibleVenue } = require('../utils/visibility');
+const User = require('../models/User');
 
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
@@ -32,10 +34,18 @@ const sanitizeVenueDistricts = (venues) => {
 };
 
 
+// Chưa có chức năng đánh giá quán: không trả số sao mặc định (4.8) như thể là thật,
+// và bỏ "tiện ích" mẫu (Wifi 95 Mbps, yên tĩnh 4.9/5...) mà đối tác không nhập được
+const toPublicVenue = (obj) => {
+  const out = { ...obj, rating: obj.reviewsCount > 0 ? obj.rating : null };
+  delete out.amenities;
+  return out;
+};
+
 // Lấy danh sách địa điểm đã duyệt (Dành cho Sinh viên / Public)
 const getVenues = catchAsync(async (req, res) => {
   const { category, search, district } = req.query;
-  const filter = { status: 'approved' };
+  const filter = {};
 
   if (category && category !== 'all') {
     filter.category = category;
@@ -53,7 +63,8 @@ const getVenues = catchAsync(async (req, res) => {
   }
 
 
-  const venues = await Venue.find(filter)
+  // Chỉ quán đã duyệt và tài khoản quán không bị khoá (utils/visibility.js)
+  const venues = await Venue.find(await visibleVenueFilter(filter))
     // API công khai: không trả email / số điện thoại của chủ tài khoản (admin xem ở /admin/all)
     .populate('partnerId', 'fullName partnerProfile.planExpiresAt')
     .sort({ rating: -1, createdAt: -1 });
@@ -63,7 +74,7 @@ const getVenues = catchAsync(async (req, res) => {
   const data = sanitizeVenueDistricts(venues).map((venue) => {
     const isFeatured = isPartnerPlanActive(venue.partnerId?.partnerProfile);
     if (venue.partnerId) delete venue.partnerId.partnerProfile;
-    return { ...venue, isFeatured, meetupReward: toRewardSummary(meetupRewards.get(String(venue._id))) };
+    return { ...toPublicVenue(venue), isFeatured, meetupReward: toRewardSummary(meetupRewards.get(String(venue._id))) };
   });
   // Quyền lợi Gói Đối tác: quán đang trả phí đứng đầu danh sách (sort ổn định, giữ thứ tự rating)
   data.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));
@@ -77,12 +88,14 @@ const getVenues = catchAsync(async (req, res) => {
 
 // Xem chi tiết địa điểm
 const getVenueById = catchAsync(async (req, res) => {
-  const venue = await Venue.findById(req.params.id).populate('partnerId', 'fullName');
+  // Quán chưa duyệt / bị từ chối / tài khoản quán bị khoá thì sinh viên không xem được
+  const visible = await findVisibleVenue(req.params.id);
+  const venue = visible ? await visible.populate('partnerId', 'fullName') : null;
   if (!venue) {
     throw new ApiError(404, 'Không tìm thấy địa điểm');
   }
 
-  const obj = venue.toObject();
+  const obj = toPublicVenue(venue.toObject());
   obj.district = extractDistrict(obj.address, obj.district);
 
   res.status(200).json({
@@ -210,6 +223,19 @@ const updateVenue = catchAsync(async (req, res) => {
     payload.district = extractDistrict(payload.address, payload.district);
   }
 
+  // Đổi tên hoặc địa chỉ của quán đã duyệt = thành quán khác → admin phải duyệt lại
+  // (sửa mô tả, ảnh, giờ mở cửa, giá... thì không cần)
+  let needsReview = false;
+  if (req.user.role !== 'admin' && venue.status === 'approved') {
+    const nameChanged = payload.name !== undefined && String(payload.name).trim() !== venue.name;
+    const addressChanged = payload.address !== undefined && String(payload.address).trim() !== venue.address;
+    if (nameChanged || addressChanged) {
+      payload.status = 'pending';
+      payload.rejectionReason = null;
+      needsReview = true;
+    }
+  }
+
   // Cập nhật
   const updated = await Venue.findByIdAndUpdate(req.params.id, payload, {
     returnDocument: 'after',
@@ -218,7 +244,10 @@ const updateVenue = catchAsync(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: 'Cập nhật địa điểm thành công',
+    message: needsReview
+      ? 'Đã lưu. Quán đổi tên hoặc địa chỉ nên cần admin duyệt lại trước khi hiện cho sinh viên.'
+      : 'Cập nhật địa điểm thành công',
+    needsReview,
     data: updated,
   });
 });
@@ -253,11 +282,16 @@ const updateVenueStatus = catchAsync(async (req, res) => {
   const venue = await Venue.findByIdAndUpdate(
     req.params.id,
     { status, rejectionReason: rejectionReason || null },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!venue) {
     throw new ApiError(404, 'Không tìm thấy địa điểm');
+  }
+
+  // Duyệt quán đầu tiên = duyệt luôn tài khoản quán (không đụng tới tài khoản đang bị khoá)
+  if (status === 'approved') {
+    await User.updateOne({ _id: venue.partnerId, role: 'partner', status: 'pending' }, { status: 'active' });
   }
 
   res.status(200).json({

@@ -1,6 +1,6 @@
 const Message = require('../models/Message');
 const Match = require('../models/Match');
-const Venue = require('../models/Venue');
+const { findVisibleVenue } = require('../utils/visibility');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
@@ -178,7 +178,7 @@ const sendMessage = catchAsync(async (req, res) => {
   // Gợi ý quán: lấy thông tin quán từ DB (không tin dữ liệu client gửi lên)
   let venueSnapshot = null;
   if (type === 'venue') {
-    const venue = venueId ? await Venue.findOne({ _id: venueId, status: 'approved' }) : null;
+    const venue = await findVisibleVenue(venueId);
     if (!venue) throw new ApiError(404, 'Không tìm thấy quán');
     venueSnapshot = {
       venueId: venue._id,
