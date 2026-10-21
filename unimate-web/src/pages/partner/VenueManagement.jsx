@@ -26,14 +26,17 @@ import {
   Loader2,
   Crown,
 } from 'lucide-react';
-import { venueApi } from '../../services/api';
+import { venueApi, voucherApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import PartnerPlanModal from '../../components/partner/PartnerPlanModal';
+import { describeVoucher } from '../../utils/voucher';
 import { extractDistrict } from '../../utils/addressUtils';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
 
 export default function VenueManagement() {
   const [venueId, setVenueId] = useState(null);
   const [formData, setFormData] = useState({
-    name: '',
+    branchName: '',
     description: '',
     phone: '',
     priceMin: '30.000',
@@ -43,7 +46,6 @@ export default function VenueManagement() {
     openTime: '07:00',
     closeTime: '22:30',
     tags: ['Cafe', 'Học tập', 'Wifi mạnh', 'Yên tĩnh'],
-    voucherTitle: 'Giảm 20% tổng hoá đơn',
     images: [],
   });
 
@@ -52,7 +54,16 @@ export default function VenueManagement() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isBoosted, setIsBoosted] = useState(false);
+  // Tên hiển thị = "Thương hiệu - Chi nhánh" (backend ghép khi lưu)
+  const { user, reloadUser } = useAuth();
+  const brand = user?.businessName || user?.partnerProfile?.businessName || user?.name || '';
+  const displayName = [brand, formData.branchName.trim()].filter(Boolean).join(' - ');
+  const [venues, setVenues] = useState([]);
+  const [partnerVouchers, setPartnerVouchers] = useState([]);
+  // Nổi bật = đang có Gói Đối tác còn hạn (trước đây nút Boost chỉ đổi chữ trên màn hình)
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const planExpiresAt = user?.partnerProfile?.planExpiresAt;
+  const isBoosted = Boolean(planExpiresAt && new Date(planExpiresAt) > new Date());
 
   // === Check-in QR State ===
   const [showCheckinQrModal, setShowCheckinQrModal] = useState(false);
@@ -60,34 +71,61 @@ export default function VenueManagement() {
   const [loadingQr, setLoadingQr] = useState(false);
   const [regeneratingQr, setRegeneratingQr] = useState(false);
 
-  React.useEffect(() => {
-    const loadMyVenue = async () => {
-      try {
-        const res = await venueApi.getMyVenues();
-        if (res?.data && res.data.length > 0) {
-          const v = res.data[0];
-          setVenueId(v._id || v.id);
-          setFormData((prev) => ({
+  // Tên chi nhánh của quán tạo trước khi có quy tắc đặt tên: bỏ phần thương hiệu ở đầu tên
+  const branchOf = (v) => {
+    if (typeof v.branchName === 'string') return v.branchName;
+    const name = v.name || '';
+    if (brand && name.toLowerCase().startsWith(brand.toLowerCase())) {
+      return name.slice(brand.length).replace(/^\s*[-–—:]\s*/, '');
+    }
+    return name;
+  };
+
+  // Điền form theo chi nhánh đang chọn; null = thêm chi nhánh mới
+  const fillForm = (v) => {
+    setVenueId(v ? v._id || v.id : null);
+    setFormData((prev) =>
+      v
+        ? {
             ...prev,
-            name: v.name || prev.name,
-            description: v.description || prev.description,
-            phone: v.phone || prev.phone,
-            address: v.address || prev.address,
-            district: v.district || extractDistrict(v.address) || prev.district,
+            branchName: branchOf(v),
+            description: v.description || '',
+            phone: v.phone || '',
+            address: v.address || '',
+            district: v.district || extractDistrict(v.address) || '',
             tags: v.tags?.length ? v.tags : prev.tags,
-            images: v.images?.length
-              ? v.images
-              : v.image
-              ? [v.image]
-              : prev.images,
-          }));
-        }
-      } catch (err) {
-        console.log('Backend my venues note:', err.message);
-      }
-    };
-    loadMyVenue();
+            images: v.images?.length ? v.images : v.image ? [v.image] : [],
+          }
+        : { ...prev, branchName: '', description: '', phone: '', address: '', district: '', images: [] }
+    );
+  };
+
+  const loadVenues = async (selectId = null) => {
+    try {
+      const res = await venueApi.getMyVenues();
+      const list = res?.data || [];
+      setVenues(list);
+      fillForm(list.find((v) => (v._id || v.id) === selectId) || list[0] || null);
+    } catch (err) {
+      console.log('Backend my venues note:', err.message);
+    }
+  };
+
+  React.useEffect(() => {
+    loadVenues();
+    voucherApi.getMyPartnerVouchers().then((res) => setPartnerVouchers(res?.data || [])).catch(() => {});
+    // Lấy hạn Gói Đối tác mới nhất (thông tin lúc đăng nhập không có partnerProfile)
+    reloadUser?.();
+    // Chỉ tải 1 lần khi mở trang
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Voucher thật của chi nhánh đang chọn (để xem trước đúng như sinh viên thấy)
+  const branchVouchers = partnerVouchers.filter(
+    (v) => String(v.venueId?._id || v.venueId) === String(venueId) && v.isActive && new Date(v.validUntil) > new Date()
+  );
+  const previewReward = branchVouchers.find((v) => v.meetupReward);
+  const previewVoucher = branchVouchers.find((v) => !v.meetupReward);
 
 
   // Xử lý upload nhiều ảnh từ máy tính: đẩy lên server (Cloudinary) rồi lưu URL trả về
@@ -175,7 +213,7 @@ export default function VenueManagement() {
 
     const districtVal = formData.district?.trim() || extractDistrict(formData.address);
     const payload = {
-      name: formData.name,
+      branchName: formData.branchName.trim(),
       description: formData.description,
       phone: formData.phone,
       address: formData.address,
@@ -190,9 +228,10 @@ export default function VenueManagement() {
     try {
       if (venueId) {
         await venueApi.updateVenue(venueId, payload);
+        await loadVenues(venueId);
       } else {
         const res = await venueApi.createVenue(payload);
-        if (res?.data?._id) setVenueId(res.data._id);
+        await loadVenues(res?.data?._id || null);
       }
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -246,7 +285,7 @@ export default function VenueManagement() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Mã QR Check-in - ${formData.name || 'UNI-MATE'}</title>
+          <title>Mã QR Check-in - ${displayName || 'UNI-MATE'}</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px; margin: 0; background: #f8fafc; }
             .card { background: #fff; border: 3px solid #FF5722; border-radius: 28px; padding: 36px 28px; display: inline-block; max-width: 360px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
@@ -265,7 +304,7 @@ export default function VenueManagement() {
         <body>
           <div class="card">
             <div class="badge">ĐỐI TÁC CHÍNH THỨC UNI-MATE</div>
-            <h2>${formData.name || 'Quán Cafe'}</h2>
+            <h2>${displayName || 'Quán Cafe'}</h2>
             <p>Mở app UNI-MATE quét mã để nhận UniCoin tích luỹ ưu đãi</p>
             <img src="${checkinQrData.qrImageUrl}" alt="Check-in QR" />
             <div class="footer">CHECK-IN TẠI QUÁN</div>
@@ -312,15 +351,16 @@ export default function VenueManagement() {
 
           <button
             type="button"
-            onClick={() => setIsBoosted(!isBoosted)}
+            onClick={() => setShowPlanModal(true)}
             className={`btn ${isBoosted ? 'btn-secondary' : 'btn-primary'}`}
             style={{
               backgroundColor: isBoosted ? '#FFECE6' : 'var(--primary)',
               color: isBoosted ? 'var(--primary)' : '#fff',
             }}
+            title="Gói Đối tác 99.000đ/tháng: quán lên đầu danh sách và khung Rủ cafe"
           >
             <Zap size={16} />
-            <span>{isBoosted ? 'Đang Boost (Ưu tiên)' : 'Boost địa điểm'}</span>
+            <span>{isBoosted ? `Nổi bật đến ${new Date(planExpiresAt).toLocaleDateString('vi-VN')}` : 'Đưa quán lên nổi bật'}</span>
           </button>
 
           <button
@@ -335,6 +375,49 @@ export default function VenueManagement() {
             </span>
           </button>
         </div>
+      </div>
+
+      <PartnerPlanModal
+        isOpen={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
+        onPaid={reloadUser}
+        planExpiresAt={planExpiresAt}
+      />
+
+      {/* Chi nhánh của thương hiệu: mỗi chi nhánh là 1 quán riêng trên app, tên = "Thương hiệu - Chi nhánh" */}
+      <div className="portal-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)', marginRight: '4px' }}>
+          Chi nhánh của {brand || 'quán'}:
+        </span>
+        {venues.map((v) => {
+          const id = v._id || v.id;
+          const active = id === venueId;
+          const statusText = v.status === 'approved' ? 'Đã duyệt' : v.status === 'rejected' ? 'Bị từ chối' : 'Chờ duyệt';
+          const statusColor = v.status === 'approved' ? '#059669' : v.status === 'rejected' ? '#DC2626' : '#B45309';
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => fillForm(v)}
+              style={{ padding: '7px 12px', borderRadius: '10px', border: `1.5px solid ${active ? 'var(--primary)' : 'var(--border-color)'}`, backgroundColor: active ? '#FFF3E0' : '#FFFFFF', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <div style={{ fontSize: '13px', fontWeight: '800', color: active ? '#C2410C' : 'var(--text-primary)' }}>{branchOf(v) || 'Cơ sở chính'}</div>
+              <div style={{ fontSize: '11px', fontWeight: '700', color: statusColor }}>{statusText}</div>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => fillForm(null)}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 12px', borderRadius: '10px', border: `1.5px dashed ${venueId ? 'var(--border-color)' : 'var(--primary)'}`, backgroundColor: venueId ? '#FFFFFF' : '#FFF3E0', color: 'var(--primary)', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}
+        >
+          <Plus size={15} /> Thêm chi nhánh
+        </button>
+        {!venueId && (
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)', flexBasis: '100%' }}>
+            Đang thêm chi nhánh mới: điền thông tin bên dưới rồi bấm "Lưu thay đổi". Chi nhánh mới cần admin duyệt trước khi hiện cho sinh viên.
+          </span>
+        )}
       </div>
 
       {savedSuccess && (
@@ -621,21 +704,24 @@ export default function VenueManagement() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
-                  Tên địa điểm / Cơ sở
+                  Tên chi nhánh / cơ sở
                 </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    border: '1.5px solid var(--border-color)',
-                    fontSize: '14px',
-                    outline: 'none',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'stretch', border: '1.5px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden' }}>
+                  <span style={{ padding: '10px 12px', backgroundColor: '#F1F5F9', fontSize: '14px', fontWeight: '700', color: 'var(--text-secondary)', whiteSpace: 'nowrap', borderRight: '1px solid var(--border-color)' }}>
+                    {brand || 'Thương hiệu'} -
+                  </span>
+                  <input
+                    type="text"
+                    value={formData.branchName}
+                    maxLength={80}
+                    onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                    placeholder="VD: Sư Vạn Hạnh (để trống nếu quán chỉ có 1 cơ sở)"
+                    style={{ flex: 1, minWidth: 0, padding: '10px 14px', border: 'none', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Sinh viên sẽ thấy: <strong style={{ color: 'var(--text-primary)' }}>{displayName || 'Tên quán'}</strong>. Muốn đổi tên thương hiệu, sửa ở hồ sơ đối tác.
+                </p>
               </div>
 
               <div>
@@ -914,7 +1000,7 @@ export default function VenueManagement() {
                 showDots={true}
                 showArrows={true}
                 showCounter={true}
-                alt={formData.name}
+                alt={displayName}
                 overlayBadges={
                   <>
                     {isBoosted && (
@@ -965,7 +1051,7 @@ export default function VenueManagement() {
               <div style={{ padding: '16px', backgroundColor: '#FFFFFF', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', marginTop: '-12px', position: 'relative', zIndex: 5 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#1A1A24', flex: 1, marginRight: '6px' }}>
-                    {formData.name || 'Tên quán'}
+                    {displayName || 'Tên quán'}
                   </h4>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#FEF3C7', padding: '2px 6px', borderRadius: '6px' }}>
                     <Star size={10} color="#D97706" fill="#D97706" />
@@ -1029,13 +1115,21 @@ export default function VenueManagement() {
                 >
                   <div>
                     <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary)' }}>
-                      {formData.voucherTitle}
+                      {previewReward
+                        ? `🤝 Hẹn ở đây, cả hai nhận: ${previewReward.title}`
+                        : previewVoucher
+                          ? `${previewVoucher.title} · ${describeVoucher(previewVoucher).discountLabel}`
+                          : 'Chưa có voucher đang chạy'}
                     </span>
-                    <p style={{ fontSize: '9px', color: '#9A3412' }}>Ưu đãi cho cặp đôi UNI-MATE</p>
+                    <p style={{ fontSize: '9px', color: '#9A3412' }}>
+                      {previewReward || previewVoucher ? 'Lấy từ voucher thật của chi nhánh này' : 'Tạo ở mục Quản lý Voucher'}
+                    </p>
                   </div>
-                  <span style={{ fontSize: '10px', fontWeight: '800', color: '#fff', backgroundColor: 'var(--primary)', padding: '3px 8px', borderRadius: '6px' }}>
-                    Lấy mã
-                  </span>
+                  {(previewReward || previewVoucher) && (
+                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#fff', backgroundColor: 'var(--primary)', padding: '3px 8px', borderRadius: '6px' }}>
+                      Lấy mã
+                    </span>
+                  )}
                 </div>
 
                 {/* Action CTA Button */}
@@ -1158,7 +1252,7 @@ export default function VenueManagement() {
                     style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '10px' }}
                   />
                   <div style={{ fontSize: '12px', fontWeight: '800', color: '#1E40AF', marginTop: '10px' }}>
-                    {formData.name || 'Quán Đối Tác'}
+                    {displayName || 'Quán Đối Tác'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: '700', marginTop: '2px' }}>
                     +20 UniCoin cho sinh viên

@@ -1,6 +1,8 @@
 const User = require('../models/User');
+const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { composeVenueName } = require('../utils/venueNaming');
 const { cloudinary, getUploadedFileUrl } = require('../config/cloudinary');
 const { escapeRegex } = require('../middlewares/security');
 const { getPlan, resolvePlanId } = require('../config/plans');
@@ -180,11 +182,24 @@ const updateMe = catchAsync(async (req, res) => {
     );
   }
 
+  let brandChanged = false;
   if (user.role === 'partner' && businessName !== undefined) {
-    user.partnerProfile = { ...(user.partnerProfile || {}), businessName };
+    const nextBrand = String(businessName || '').trim();
+    brandChanged = nextBrand !== String(user.partnerProfile?.businessName || '').trim();
+    user.partnerProfile = { ...(user.partnerProfile || {}), businessName: nextBrand };
   }
 
   await user.save();
+
+  // Tên chi nhánh = "Thương hiệu - Chi nhánh": đổi thương hiệu thì đổi luôn tên các chi nhánh
+  if (brandChanged) {
+    const branches = await Venue.find({ partnerId: user._id, branchName: { $exists: true } }).select('branchName');
+    await Promise.all(
+      branches.map((v) =>
+        Venue.updateOne({ _id: v._id }, { name: composeVenueName(user.partnerProfile.businessName || user.fullName, v.branchName) })
+      )
+    );
+  }
 
   res.status(200).json({
     success: true,

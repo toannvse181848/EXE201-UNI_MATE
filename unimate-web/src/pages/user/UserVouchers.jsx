@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { describeVoucher } from '../../utils/voucher';
 import {
   Ticket,
   QrCode,
@@ -107,12 +108,10 @@ export default function UserVouchers() {
       brand: venue?.name || '—',
       logo: '🎟️',
       expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : '—',
-      discount: v.discountPercent
-        ? `-${v.discountPercent}%`
-        : v.discountAmount
-        ? `-${v.discountAmount.toLocaleString('vi-VN')}đ`
-        : '—',
-      minOrder: v.minBill ? `Từ ${v.minBill.toLocaleString('vi-VN')}đ` : 'Không giới hạn',
+      // Nhãn giá trị do backend tính, giống hệt trang quán
+      discount: describeVoucher(v).discountShort,
+      discountLabel: describeVoucher(v).discountLabel,
+      minOrder: describeVoucher(v).conditionLabel,
       description: v.description || (v.terms || []).join(' · '),
       status: isWalletItem ? raw.status : 'available',
     };
@@ -225,7 +224,7 @@ export default function UserVouchers() {
             cursor: 'pointer',
           }}
         >
-          Đổi điểm UniCoin lấy Voucher 🪙
+          Kho voucher của quán 🎟️
         </button>
       </div>
 
@@ -321,9 +320,12 @@ export default function UserVouchers() {
                     Mã: <code style={{ backgroundColor: '#F8FAFC', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E2E8F0', color: '#EA580C' }}>{vch.displayCode || vch.code}</code>
                   </span>
                 </div>
-                <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '2px' }}>
                   {vch.title}
                 </h3>
+                <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#E64A19', marginBottom: '6px' }}>
+                  {vch.discountLabel}
+                </div>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.5' }}>
                   {vch.description}
                 </p>
@@ -422,7 +424,8 @@ export default function UserVouchers() {
                     )}
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: '700', color: '#E64A19', marginBottom: '4px' }}>{vch.brand}</div>
-                  <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '6px' }}>{vch.title}</h4>
+                  <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '2px' }}>{vch.title}</h4>
+                  <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#E64A19', marginBottom: '6px' }}>{vch.discountLabel}</div>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.5', flex: 1 }}>{vch.description}</p>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px' }}>Điều kiện: {vch.minOrder} · HSD: {vch.expiry}</div>
                   {lockedForPremium ? (

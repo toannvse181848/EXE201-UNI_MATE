@@ -1,51 +1,35 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Ticket,
   Plus,
   Search,
-  Filter,
-  CheckCircle,
-  Clock,
-  PauseCircle,
-  XCircle,
-  Eye,
-  Edit2,
-  Trash2,
-  Calendar,
-  Layers,
   Loader2,
-  RefreshCw,
   FileSpreadsheet,
 } from 'lucide-react';
 import { voucherApi, venueApi } from '../../services/api';
 import ImportVoucherModal from '../../components/partner/ImportVoucherModal';
+import CreateVoucherModal from '../../components/partner/CreateVoucherModal';
+import { describeVoucher } from '../../utils/voucher';
 
 export default function VoucherManagement() {
   const [vouchers, setVouchers] = useState([]);
   const [venues, setVenues] = useState([]);
-  const [selectedVenueId, setSelectedVenueId] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  // Bấm "Tạo voucher mới" ở thanh trên cùng (từ trang khác) → vào đây với ?create=1 và mở sẵn form
+  const [searchParams, setSearchParams] = useSearchParams();
+  // ?create=1 → voucher thường, ?create=meetup → chọn sẵn "Ưu đãi hẹn cafe"
+  const [createKind, setCreateKind] = useState(() => (searchParams.get('create') === 'meetup' ? 'meetup' : 'normal'));
+  const [showCreateModal, setShowCreateModal] = useState(() => Boolean(searchParams.get('create')));
   const [showImportModal, setShowImportModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
 
-  // New Voucher Form State
-  const [newVoucher, setNewVoucher] = useState({
-    name: '',
-    code: '',
-    codeType: 'shared', // 'shared' | 'unique'
-    isUnlimited: false,
-    premiumOnly: false,
-    meetupReward: false,
-    coinCost: 0,
-    type: 'Phần trăm (%)',
-    value: '',
-    total: 500,
-    expiry: '2026-12-31',
-  });
+  // Xoá ?create=1 khỏi địa chỉ để tải lại trang không tự mở form lần nữa
+  useEffect(() => {
+    if (searchParams.get('create')) setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Modal quản lý danh sách mã riêng
   const [selectedUniqueVoucher, setSelectedUniqueVoucher] = useState(null);
@@ -57,11 +41,7 @@ export default function VoucherManagement() {
   const loadVenues = async () => {
     try {
       const res = await venueApi.getMyVenues();
-      const vList = res?.data || [];
-      setVenues(vList);
-      if (vList.length > 0) {
-        setSelectedVenueId(vList[0]._id || vList[0].id);
-      }
+      setVenues(res?.data || []);
     } catch (err) {
       console.log('Load venues note:', err.message);
     }
@@ -81,13 +61,17 @@ export default function VoucherManagement() {
         premiumOnly: Boolean(v.premiumOnly),
         meetupReward: Boolean(v.meetupReward),
         coinCost: Number(v.coinCost) || 0,
-        type: v.discountPercent ? 'Phần trăm (%)' : (v.discountAmount ? 'Tiền mặt (VNĐ)' : 'Quà tặng'),
-        value: v.discountPercent ? `${v.discountPercent}%` : (v.discountAmount ? `${v.discountAmount.toLocaleString()}đ` : v.title),
+        // Nhãn giá trị do backend tính (cùng cách hiển thị với phía sinh viên)
+        value: describeVoucher(v).discountLabel,
+        condition: describeVoucher(v).conditionLabel,
+        branch: v.venueId?.name || '',
         total: v.isUnlimited ? 'Không giới hạn' : (v.quantity || 500),
         issued: v.claimedCount || 0,
         used: v.usedCount || 0,
         expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : 'Không thời hạn',
-        status: v.isActive ? 'active' : 'paused',
+        // Chờ duyệt (quán chưa được duyệt) / tạm dừng / hết hạn / đang chạy
+        status: v.displayStatus || (v.isActive ? 'active' : 'paused'),
+        isActive: Boolean(v.isActive),
       }));
       setVouchers(formatted);
     } catch (err) {
@@ -106,77 +90,10 @@ export default function VoucherManagement() {
   const handleToggleStatus = async (id) => {
     try {
       await voucherApi.toggleVoucher(id);
-      setVouchers((prev) =>
-        prev.map((v) => (v.id === id ? { ...v, status: v.status === 'active' ? 'paused' : 'active' } : v))
-      );
-    } catch (err) {
-      alert('Không thể cập nhật trạng thái voucher: ' + err.message);
-    }
-  };
-
-  const handleCreateVoucher = async (e) => {
-    e.preventDefault();
-    if (!newVoucher.name || !newVoucher.code) {
-      alert('Vui lòng điền đủ tên và mã voucher');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const valNum = parseInt(newVoucher.value) || 0;
-      const effectiveVenueId = selectedVenueId || (venues.length > 0 ? (venues[0]._id || venues[0].id) : undefined);
-
-      let parsedDate = null;
-      if (newVoucher.expiry) {
-        if (newVoucher.expiry.includes('/')) {
-          const parts = newVoucher.expiry.split('/');
-          if (parts.length === 3) {
-            parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-          }
-        } else {
-          parsedDate = new Date(newVoucher.expiry);
-        }
-      }
-      if (!parsedDate || isNaN(parsedDate.getTime())) {
-        parsedDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
-      }
-
-      const payload = {
-        venueId: effectiveVenueId,
-        title: newVoucher.name,
-        code: newVoucher.code.toUpperCase().trim(),
-        codeType: newVoucher.codeType,
-        isUnlimited: Boolean(newVoucher.isUnlimited),
-        meetupReward: Boolean(newVoucher.meetupReward),
-        // Ưu đãi hẹn cafe tặng cho mọi buổi hẹn, không giới hạn Premium
-        premiumOnly: !newVoucher.meetupReward && Boolean(newVoucher.premiumOnly),
-        coinCost: Number(newVoucher.coinCost) || 0,
-        quantity: newVoucher.isUnlimited ? null : (Number(newVoucher.total) || 500),
-        validUntil: parsedDate.toISOString(),
-        ...(newVoucher.type === 'Phần trăm (%)' ? { discountPercent: valNum || 20 } : {}),
-        ...(newVoucher.type === 'Tiền mặt (VNĐ)' ? { discountAmount: valNum || 50000 } : {}),
-      };
-
-      await voucherApi.createVoucher(payload);
-      setShowCreateModal(false);
-      setNewVoucher({
-        name: '',
-        code: '',
-        codeType: 'shared',
-        isUnlimited: false,
-        premiumOnly: false,
-        meetupReward: false,
-        coinCost: 0,
-        type: 'Phần trăm (%)',
-        value: '',
-        total: 500,
-        expiry: '2026-12-31',
-      });
+      // Trạng thái hiển thị (chờ duyệt / hết hạn...) do backend tính → tải lại cho đúng
       await fetchVouchers();
     } catch (err) {
-      alert('Lỗi tạo voucher: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setSubmitting(false);
+      alert('Không thể cập nhật trạng thái voucher: ' + err.message);
     }
   };
 
@@ -269,7 +186,7 @@ export default function VoucherManagement() {
             <FileSpreadsheet size={16} color="#10B981" />
             <span>Nhập Excel / Sheet</span>
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+          <button onClick={() => { setCreateKind('normal'); setShowCreateModal(true); }} className="btn btn-primary">
             <Plus size={16} />
             <span>Tạo voucher mới</span>
           </button>
@@ -390,6 +307,9 @@ export default function VoucherManagement() {
                     <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--primary)', letterSpacing: '0.5px' }}>
                       MÃ: {item.code}
                     </span>
+                    {item.branch && (
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>{item.branch}</div>
+                    )}
                   </td>
                   <td style={{ padding: '16px 16px' }}>
                     <span
@@ -437,6 +357,7 @@ export default function VoucherManagement() {
                   </td>
                   <td style={{ padding: '16px 16px', fontWeight: '700', color: 'var(--text-primary)' }}>
                     {item.value}
+                    <div style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-muted)', marginTop: '2px' }}>{item.condition}</div>
                   </td>
                   <td style={{ padding: '16px 16px', textAlign: 'center' }}>
                     {item.coinCost > 0 ? (
@@ -491,11 +412,11 @@ export default function VoucherManagement() {
                           fontWeight: '700',
                           border: '1px solid var(--border-color)',
                           backgroundColor: '#FFFFFF',
-                          color: item.status === 'active' ? '#DC2626' : '#059669',
+                          color: item.isActive ? '#DC2626' : '#059669',
                           cursor: 'pointer',
                         }}
                       >
-                        {item.status === 'active' ? 'Tạm dừng' : 'Bật chạy'}
+                        {item.isActive ? 'Tạm dừng' : 'Bật chạy'}
                       </button>
                     </div>
                   </td>
@@ -517,298 +438,19 @@ export default function VoucherManagement() {
             color: 'var(--text-secondary)',
           }}
         >
-          <span>Hiển thị 1 - {filteredVouchers.length} trong số {vouchers.length} voucher</span>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}>&lt;</button>
-            <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '12px' }}>1</button>
-            <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}>2</button>
-            <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}>&gt;</button>
-          </div>
+          <span>Hiển thị {filteredVouchers.length} / {vouchers.length} voucher</span>
         </div>
       </div>
 
       {/* Modal: Tạo voucher mới */}
       {showCreateModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '20px',
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: '520px',
-              backgroundColor: '#FFFFFF',
-              borderRadius: '20px',
-              padding: '28px',
-              boxShadow: 'var(--shadow-xl)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '900', color: 'var(--text-primary)' }}>
-                Tạo voucher ưu đãi mới
-              </h3>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-muted)' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateVoucher} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                  Cơ sở / Quán áp dụng voucher *
-                </label>
-                {venues.length > 0 ? (
-                  <select
-                    value={selectedVenueId}
-                    onChange={(e) => setSelectedVenueId(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      backgroundColor: '#fff',
-                      fontSize: '13px',
-                      outline: 'none',
-                    }}
-                  >
-                    {venues.map((v) => (
-                      <option key={v._id || v.id} value={v._id || v.id}>
-                        {v.name} — {v.address}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      backgroundColor: '#FFF7ED',
-                      border: '1px solid #FFEDD5',
-                      color: '#C2410C',
-                      fontSize: '12px',
-                      lineHeight: '18px',
-                    }}
-                  >
-                    💡 Hệ thống sẽ tự động liên kết cơ sở của bạn hoặc bạn có thể vào mục <strong>"Quản lý Địa điểm"</strong> để tuỳ chỉnh cơ sở trước.
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                  Tên chương trình voucher *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ví dụ: Giảm 20% cho cặp đôi sinh viên"
-                  value={newVoucher.name}
-                  onChange={(e) => setNewVoucher({ ...newVoucher, name: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                    Mã code (Viết hoa) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="VD: UNI20"
-                    value={newVoucher.code}
-                    onChange={(e) => setNewVoucher({ ...newVoucher, code: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', textTransform: 'uppercase' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                    Loại ưu đãi
-                  </label>
-                  <select
-                    value={newVoucher.type}
-                    onChange={(e) => setNewVoucher({ ...newVoucher, type: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: '#fff' }}
-                  >
-                    <option>Phần trăm (%)</option>
-                    <option>Tiền mặt (VNĐ)</option>
-                    <option>Quà tặng</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                    Cơ chế loại mã *
-                  </label>
-                  <select
-                    value={newVoucher.codeType}
-                    onChange={(e) => setNewVoucher({ ...newVoucher, codeType: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: '#fff' }}
-                  >
-                    <option value="shared">Mã chung (1 mã dùng nhiều lượt)</option>
-                    <option value="unique">Mã riêng (danh sách mã, mỗi bạn 1 mã)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                    Giá UniCoin đổi voucher
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0 = Miễn phí"
-                    value={newVoucher.coinCost}
-                    onChange={(e) => setNewVoucher({ ...newVoucher, coinCost: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                    Giá trị ưu đãi
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="20% tối đa 50k"
-                    value={newVoucher.value}
-                    onChange={(e) => setNewVoucher({ ...newVoucher, value: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                    Số lượng phát hành
-                  </label>
-                  <input
-                    type="number"
-                    disabled={newVoucher.isUnlimited}
-                    value={newVoucher.isUnlimited ? '' : newVoucher.total}
-                    onChange={(e) => setNewVoucher({ ...newVoucher, total: e.target.value })}
-                    placeholder={newVoucher.isUnlimited ? 'Không giới hạn' : '500'}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: newVoucher.isUnlimited ? '#F1F5F9' : '#fff' }}
-                  />
-                  {newVoucher.codeType === 'shared' && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '6px', color: '#475569', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={newVoucher.isUnlimited}
-                        onChange={(e) => setNewVoucher({ ...newVoucher, isUnlimited: e.target.checked })}
-                      />
-                      <span>Không giới hạn số lượng</span>
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #FDBA74',
-                  backgroundColor: '#FFF7ED',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={newVoucher.meetupReward}
-                  onChange={(e) => setNewVoucher({ ...newVoucher, meetupReward: e.target.checked, premiumOnly: e.target.checked ? false : newVoucher.premiumOnly })}
-                  style={{ marginTop: '2px' }}
-                />
-                <span>
-                  <strong>Ưu đãi hẹn cafe (khuyến nghị)</strong>
-                  <br />
-                  <span style={{ fontSize: '12px', color: '#9A3412' }}>
-                    Không hiện trong danh sách voucher. Khi 2 sinh viên rủ nhau đến quán bạn và chốt hẹn trên UNI-MATE, mỗi người tự nhận 1 ưu đãi này. Quán được giới thiệu khách đi theo cặp.
-                  </span>
-                </span>
-              </label>
-
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #FDE68A',
-                  backgroundColor: '#FFFBEB',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={newVoucher.premiumOnly}
-                  disabled={newVoucher.meetupReward}
-                  onChange={(e) => setNewVoucher({ ...newVoucher, premiumOnly: e.target.checked })}
-                  style={{ marginTop: '2px' }}
-                />
-                <span>
-                  <strong>Chỉ dành cho sinh viên Premium</strong>
-                  <br />
-                  <span style={{ fontSize: '12px', color: '#92400E' }}>
-                    Dùng cho ưu đãi lớn: sinh viên thường thấy voucher nhưng phải nâng cấp Premium mới lưu được.
-                  </span>
-                </span>
-              </label>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>
-                  Hạn sử dụng *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={newVoucher.expiry}
-                  onChange={(e) => setNewVoucher({ ...newVoucher, expiry: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    backgroundColor: '#fff',
-                    fontSize: '13px',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-secondary">
-                  Hủy
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Phát hành voucher
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CreateVoucherModal
+          open={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          venues={venues}
+          initialKind={createKind}
+          onCreated={fetchVouchers}
+        />
       )}
 
       {/* Import Voucher Modal từ Excel / Sheet */}

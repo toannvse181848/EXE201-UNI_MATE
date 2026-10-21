@@ -2,9 +2,16 @@ const mongoose = require('mongoose');
 
 const venueSchema = new mongoose.Schema(
   {
+    // Tên hiển thị = "Tên thương hiệu - Tên chi nhánh" (backend tự ghép khi đối tác lưu)
     name: {
       type: String,
       required: [true, 'Tên địa điểm là bắt buộc'],
+      trim: true,
+    },
+    // Tên chi nhánh / cơ sở, VD: "Sư Vạn Hạnh". Rỗng = quán chỉ có 1 cơ sở.
+    // Quán tạo trước khi có quy tắc đặt tên không có trường này.
+    branchName: {
+      type: String,
       trim: true,
     },
     partnerId: {

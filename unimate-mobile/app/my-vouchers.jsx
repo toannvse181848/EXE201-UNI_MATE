@@ -81,10 +81,13 @@ export default function MyVouchersScreen() {
     const isUsed = item.status === 'used';
     const isUsable = item.status === 'saved' && !isExpired;
 
-    const discountLabel = v.discountPercent
+    // Nhãn do backend tính (giống web và trang quán): "-20%", "-15K", "Quà tặng"
+    const discountLabel = v.discountShort
+      ? v.discountShort === 'Quà tặng'
+        ? 'QUÀ TẶNG'
+        : `GIẢM ${v.discountShort.replace('-', '')}`
+      : v.discountPercent
       ? `GIẢM ${v.discountPercent}%`
-      : v.discountAmount
-      ? `GIẢM ${(v.discountAmount / 1000).toLocaleString('vi-VN')}K`
       : 'ƯU ĐÃI';
 
     return (
@@ -110,6 +113,11 @@ export default function MyVouchersScreen() {
         <Text style={styles.voucherTitle} numberOfLines={2}>
           {v.title || 'Ưu đãi sinh viên'}
         </Text>
+        {Boolean(v.discountLabel) && (
+          <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 6 }} numberOfLines={2}>
+            {v.discountLabel} · {v.conditionLabel}
+          </Text>
+        )}
 
         <View style={styles.venueRow}>
           <Ionicons name="cafe" size={14} color={COLORS.primary} style={{ marginRight: 4 }} />

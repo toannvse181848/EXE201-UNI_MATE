@@ -18,15 +18,36 @@ const voucherSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    /**
+     * Kiểu ưu đãi:
+     * - percent: giảm discountPercent %, tối đa maxDiscount đồng (0 = không giới hạn)
+     * - amount: giảm thẳng discountAmount đồng
+     * - gift: tặng giftItem (VD: "1 bánh flan")
+     * Voucher cũ chưa có trường này thì suy ra từ số liệu (utils/voucherFormat.js)
+     */
+    discountType: {
+      type: String,
+      enum: ['percent', 'amount', 'gift'],
+    },
     discountPercent: {
       type: Number,
-      default: 20,
+      default: 0,
       min: 0,
       max: 100,
     },
     discountAmount: {
       type: Number,
       default: 0,
+    },
+    maxDiscount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    giftItem: {
+      type: String,
+      trim: true,
+      default: '',
     },
     minBill: {
       type: Number,

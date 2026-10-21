@@ -129,9 +129,7 @@ export default function PartnerDashboard() {
 
   // Xử lý tạo Quán mới
   const handleCreateVenue = async () => {
-    if (!venueForm.name.trim()) {
-      return Alert.alert('Thông báo', 'Vui lòng nhập tên quán cafe');
-    }
+    // Tên chi nhánh không bắt buộc: để trống = quán chỉ có 1 cơ sở, tên quán = tên thương hiệu
     if (!venueForm.address.trim()) {
       return Alert.alert('Thông báo', 'Vui lòng nhập địa chỉ quán');
     }
@@ -139,13 +137,14 @@ export default function PartnerDashboard() {
     try {
       setCreatingVenue(true);
       const res = await venueApi.createVenue({
-        name: venueForm.name.trim(),
+        // Backend ghép tên hiển thị "Thương hiệu - Chi nhánh"
+        branchName: venueForm.name.trim(),
         address: venueForm.address.trim(),
         phone: venueForm.phone.trim() || user?.phone || '',
         openHours: venueForm.openHours.trim() || '07:00 - 22:30',
         priceRange: venueForm.priceRange.trim() || '25.000đ - 65.000đ',
         description: venueForm.description.trim() || 'Quán đối tác UNI-MATE dành cho sinh viên.',
-        category: 'cafe',
+        category: 'study',
         tags: ['Wifi mạnh', 'Ổ cắm', 'Sinh viên', 'Yên tĩnh'],
       });
 
@@ -576,10 +575,10 @@ export default function PartnerDashboard() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>Tên quán cafe (*)</Text>
+              <Text style={styles.inputLabel}>Tên chi nhánh ({businessName} - ...)</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="Ví dụ: The Coffee House - Làng Đại Học"
+                placeholder="VD: Làng Đại Học (để trống nếu chỉ có 1 cơ sở)"
                 value={venueForm.name}
                 onChangeText={(v) => setVenueForm({ ...venueForm, name: v })}
               />

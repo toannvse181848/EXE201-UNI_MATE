@@ -10,7 +10,6 @@ import {
   FileCheck,
   Headphones,
   LogOut,
-  Plus,
   Menu,
   X,
 } from 'lucide-react';
@@ -178,23 +177,18 @@ export default function PartnerLayout() {
 
           {/* Quick Header CTAs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* Hide these on very small screens */}
-            <button
-              onClick={() => navigate('/partner/qr-scanner')}
-              className="btn btn-secondary header-btn-hide-sm"
-              style={{ padding: '8px 16px', fontSize: '13px' }}
-            >
-              <QrCode size={16} color="var(--primary)" />
-              <span>Quét QR voucher</span>
-            </button>
-            <button
-              onClick={() => navigate('/partner/vouchers')}
-              className="btn btn-primary header-btn-hide-sm"
-              style={{ padding: '8px 16px', fontSize: '13px' }}
-            >
-              <Plus size={16} />
-              <span>Tạo voucher mới</span>
-            </button>
+            {/* Nút nhanh cho quầy thu ngân; trang Tổng quan và trang Quét QR đã có sẵn nên ẩn để khỏi trùng.
+                Tạo voucher nằm ở trang Tổng quan và trang Voucher. */}
+            {!['/partner/dashboard', '/partner/qr-scanner'].includes(location.pathname) && (
+              <button
+                onClick={() => navigate('/partner/qr-scanner')}
+                className="btn btn-secondary header-btn-hide-sm"
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+              >
+                <QrCode size={16} color="var(--primary)" />
+                <span>Quét QR voucher</span>
+              </button>
+            )}
 
             {/* Profile Avatar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '12px', borderLeft: '1px solid var(--border-color)' }}>

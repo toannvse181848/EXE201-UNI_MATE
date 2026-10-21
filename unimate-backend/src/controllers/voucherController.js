@@ -20,6 +20,7 @@ const {
 } = require('../utils/voucherSpreadsheetParser');
 const { isPremiumActive } = require('../utils/subscription');
 const { onMeetupVoucherRedeemed } = require('./meetupController');
+const { DISCOUNT_TYPES, describeVoucherValue, withVoucherLabels } = require('../utils/voucherFormat');
 
 
 // ─── PUBLIC / STUDENT ────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ const getPublicVouchers = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: vouchers.length,
-    data: vouchers,
+    data: vouchers.map(withVoucherLabels),
   });
 });
 
@@ -168,7 +169,7 @@ const getMyWallet = catchAsync(async (req, res) => {
   const wallet = await UserVoucher.find({ userId })
     .populate({
       path: 'voucherId',
-      select: 'title code codeType discountPercent discountAmount validUntil minBill terms isActive meetupReward',
+      select: 'title description code codeType discountType discountPercent discountAmount maxDiscount giftItem validUntil minBill terms isActive meetupReward',
       populate: { path: 'venueId', select: 'name address image' },
     })
     .sort({ claimedAt: -1 });
@@ -180,6 +181,7 @@ const getMyWallet = catchAsync(async (req, res) => {
     const obj = uv.toObject();
     // Mã sinh viên đọc cho thu ngân: mã riêng nếu có, không thì mã chung của quán
     obj.displayCode = obj.assignedCode || obj.voucherId?.code || null;
+    if (obj.voucherId) Object.assign(obj.voucherId, describeVoucherValue(obj.voucherId));
     if (
       obj.status === 'saved' &&
       obj.voucherId?.validUntil &&
@@ -299,6 +301,7 @@ const verifyVoucher = catchAsync(async (req, res) => {
       discountPercent: voucher.discountPercent,
       discountAmount: voucher.discountAmount,
       minBill: voucher.minBill,
+      ...describeVoucherValue(voucher),
       validUntil: voucher.validUntil,
       venueName: voucher.venueId?.name || null,
       assignedCode: userVoucher?.assignedCode || null,
@@ -368,6 +371,7 @@ const redeemVoucher = catchAsync(async (req, res) => {
       title: voucher.title,
       discountPercent: voucher.discountPercent,
       discountAmount: voucher.discountAmount,
+      ...describeVoucherValue(voucher),
       venueName: voucher.venueId?.name,
       student: userVoucher?.userId?.fullName || null,
       remainingCount: voucher.isUnlimited ? null : voucher.quantity - voucher.usedCount - 1,
@@ -408,13 +412,25 @@ const withClaimedCount = async (vouchers) => {
     { $group: { _id: '$voucherId', count: { $sum: 1 } } },
   ]);
   const countById = new Map(counts.map((c) => [c._id.toString(), c.count]));
-  return vouchers.map((v) => ({ ...v.toObject(), claimedCount: countById.get(v._id.toString()) || 0 }));
+  const now = Date.now();
+  return vouchers.map((v) => {
+    const labeled = withVoucherLabels(v);
+    // Quán chưa được duyệt → sinh viên chưa thấy voucher; tạm dừng; hết hạn; đang chạy
+    const displayStatus = labeled.venueId?.status && labeled.venueId.status !== 'approved'
+      ? 'pending'
+      : !labeled.isActive
+        ? 'paused'
+        : new Date(labeled.validUntil).getTime() < now
+          ? 'expired'
+          : 'active';
+    return { ...labeled, claimedCount: countById.get(v._id.toString()) || 0, displayStatus };
+  });
 };
 
 /** Partner: Lấy danh sách voucher do mình phát hành */
 const getMyPartnerVouchers = catchAsync(async (req, res) => {
   const vouchers = await Voucher.find({ partnerId: req.user._id })
-    .populate('venueId', 'name address image')
+    .populate('venueId', 'name address image status')
     .sort({ createdAt: -1 });
 
   res.status(200).json({
@@ -425,12 +441,48 @@ const getMyPartnerVouchers = catchAsync(async (req, res) => {
 });
 
 /** Partner: Tạo voucher khuyến mãi mới */
-const createVoucher = catchAsync(async (req, res) => {
-  let { venueId, code } = req.body;
+const toInt = (value) => Math.round(Number(value));
 
-  if (!code) {
-    throw new ApiError(400, 'Vui lòng nhập mã voucher');
+/**
+ * Giá trị ưu đãi theo kiểu: phần trăm (có thể kèm giảm tối đa), số tiền, hoặc quà tặng.
+ * Client cũ chỉ gửi discountPercent / discountAmount (không có discountType) thì tự suy ra.
+ */
+const buildDiscountFields = (body) => {
+  const type = DISCOUNT_TYPES.includes(body.discountType)
+    ? body.discountType
+    : toInt(body.discountAmount) > 0 && !(toInt(body.discountPercent) > 0)
+      ? 'amount'
+      : 'percent';
+
+  if (type === 'percent') {
+    const percent = toInt(body.discountPercent);
+    if (!(percent >= 1 && percent <= 100)) throw new ApiError(400, 'Phần trăm giảm phải từ 1 đến 100');
+    const maxDiscount = toInt(body.maxDiscount) || 0;
+    if (maxDiscount < 0) throw new ApiError(400, 'Số tiền giảm tối đa không hợp lệ');
+    return { discountType: type, discountPercent: percent, discountAmount: 0, maxDiscount, giftItem: '' };
   }
+  if (type === 'amount') {
+    const amount = toInt(body.discountAmount);
+    if (!(amount >= 1000)) throw new ApiError(400, 'Số tiền giảm tối thiểu là 1.000đ');
+    return { discountType: type, discountPercent: 0, discountAmount: amount, maxDiscount: 0, giftItem: '' };
+  }
+  const giftItem = String(body.giftItem || '').trim();
+  if (!giftItem) throw new ApiError(400, 'Vui lòng nhập món quà tặng (VD: 1 bánh flan)');
+  if (giftItem.length > 100) throw new ApiError(400, 'Tên quà tặng tối đa 100 ký tự');
+  return { discountType: 'gift', discountPercent: 0, discountAmount: 0, maxDiscount: 0, giftItem };
+};
+
+/** Partner: Tạo voucher khuyến mãi mới (chỉ nhận đúng các trường cho phép) */
+const createVoucher = catchAsync(async (req, res) => {
+  const { venueId } = req.body;
+  const code = String(req.body.code || '').toUpperCase().trim();
+  const title = String(req.body.title || '').trim();
+  if (!code) throw new ApiError(400, 'Vui lòng nhập mã voucher');
+  if (!/^[A-Z0-9_-]{3,30}$/.test(code)) {
+    throw new ApiError(400, 'Mã voucher gồm 3–30 ký tự: chữ không dấu, số, gạch ngang hoặc gạch dưới');
+  }
+  if (!title) throw new ApiError(400, 'Vui lòng nhập tên chương trình voucher');
+  if (title.length > 100) throw new ApiError(400, 'Tên chương trình tối đa 100 ký tự');
 
   // Voucher phải gắn với quán của chính đối tác. Quán chưa duyệt vẫn tạo trước được,
   // nhưng sinh viên chỉ thấy voucher sau khi admin duyệt quán.
@@ -440,58 +492,64 @@ const createVoucher = catchAsync(async (req, res) => {
   if (!venue) {
     throw new ApiError(400, 'Bạn cần thêm quán ở mục "Quản lý địa điểm" trước khi phát hành voucher');
   }
-
-
-  if (
-    venue.partnerId.toString() !== req.user._id.toString() &&
-    req.user.role !== 'admin'
-  ) {
+  if (venue.partnerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
     throw new ApiError(403, 'Bạn không sở hữu địa điểm này');
   }
 
-  const existing = await Voucher.findOne({ code: code.toUpperCase().trim() });
-  if (existing) throw new ApiError(400, 'Mã voucher này đã tồn tại');
+  if (await Voucher.exists({ code })) throw new ApiError(400, 'Mã voucher này đã tồn tại');
 
-  // Xử lý hạn sử dụng (validUntil / expiry)
-  let rawDate = req.body.validUntil || req.body.expiry;
-  let parsedDate = null;
-  if (rawDate) {
-    if (typeof rawDate === 'string' && rawDate.includes('/')) {
-      const parts = rawDate.split('/');
-      if (parts.length === 3) {
-        parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-      }
-    } else {
-      parsedDate = new Date(rawDate);
-    }
+  // Hạn sử dụng: nhận "dd/mm/yyyy" hoặc ngày ISO; không gửi thì mặc định 6 tháng
+  const rawDate = req.body.validUntil || req.body.expiry;
+  let validUntil = null;
+  if (typeof rawDate === 'string' && rawDate.includes('/')) {
+    const [d, m, y] = rawDate.split('/');
+    validUntil = new Date(`${y}-${m}-${d}T23:59:59`);
+  } else if (rawDate) {
+    validUntil = new Date(rawDate);
   }
-
-  if (!parsedDate || isNaN(parsedDate.getTime())) {
-    // Mặc định hạn dùng 6 tháng sau nếu không truyền hoặc không hợp lệ
-    parsedDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+  if (!validUntil || Number.isNaN(validUntil.getTime())) {
+    validUntil = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
   }
+  if (validUntil.getTime() < Date.now()) throw new ApiError(400, 'Hạn sử dụng phải từ hôm nay trở đi');
 
+  const meetupReward = Boolean(req.body.meetupReward);
   const isUnique = req.body.codeType === 'unique';
+  const isUnlimited = !isUnique && Boolean(req.body.isUnlimited);
+  const quantity = isUnique ? 0 : isUnlimited ? 0 : toInt(req.body.quantity) || 100;
+  if (!isUnique && !isUnlimited && quantity < 1) throw new ApiError(400, 'Số lượng phát hành phải từ 1 trở lên');
+  const minBill = toInt(req.body.minBill) || 0;
+  if (minBill < 0) throw new ApiError(400, 'Hoá đơn tối thiểu không hợp lệ');
+  const coinCost = meetupReward ? 0 : Math.max(0, toInt(req.body.coinCost) || 0);
+  const description = String(req.body.description || '').trim().slice(0, 500);
+  const terms = Array.isArray(req.body.terms)
+    ? req.body.terms.map((t) => String(t).trim()).filter(Boolean).slice(0, 10)
+    : [];
+
   const voucher = await Voucher.create({
-    ...req.body,
+    code,
+    title,
+    description,
+    terms,
+    ...buildDiscountFields(req.body),
+    minBill,
     venueId: venue._id,
-    validUntil: parsedDate,
-    code: code.toUpperCase().trim(),
-    partnerId: req.user._id,
-    usedCount: 0,
+    partnerId: venue.partnerId,
     codeType: isUnique ? 'unique' : 'shared',
-    isUnlimited: !isUnique && Boolean(req.body.isUnlimited),
-    meetupReward: Boolean(req.body.meetupReward),
-    // Ưu đãi hẹn cafe tặng cho mọi buổi hẹn tại quán, không giới hạn theo Premium
-    premiumOnly: !req.body.meetupReward && Boolean(req.body.premiumOnly),
+    isUnlimited,
     // Mã riêng: số lượng tự tính khi nạp danh sách mã (POST /api/vouchers/:id/codes)
-    ...(isUnique ? { quantity: 0 } : {}),
+    quantity,
+    coinCost,
+    meetupReward,
+    // Ưu đãi hẹn cafe tặng cho mọi buổi hẹn tại quán, không giới hạn theo Premium
+    premiumOnly: !meetupReward && Boolean(req.body.premiumOnly),
+    validUntil,
+    usedCount: 0,
   });
 
   res.status(201).json({
     success: true,
     message: 'Tạo voucher khuyến mãi thành công',
-    data: voucher,
+    data: withVoucherLabels(voucher),
   });
 });
 
@@ -673,6 +731,7 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
       code,
       title: item.title,
       description: item.description || '',
+      discountType: Number(item.discountAmount) > 0 && !(Number(item.discountPercent) > 0) ? 'amount' : 'percent',
       discountPercent: Number(item.discountPercent) || 0,
       discountAmount: Number(item.discountAmount) || 0,
       minBill: Number(item.minBill) || 0,

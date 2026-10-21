@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const Voucher = require('../models/Voucher');
 const UserVoucher = require('../models/UserVoucher');
 const VoucherCode = require('../models/VoucherCode');
+const { describeVoucherValue } = require('./voucherFormat');
 
 /** Voucher còn lượt để phát: mã riêng thì còn mã trống, mã chung thì chưa dùng hết số lượng */
 const hasStock = async (voucher) => {
@@ -42,6 +43,7 @@ const toRewardSummary = (voucher) =>
         discountAmount: voucher.discountAmount,
         minBill: voucher.minBill,
         validUntil: voucher.validUntil,
+        ...describeVoucherValue(voucher),
       }
     : null;
 

@@ -7,6 +7,7 @@ const { escapeRegex } = require('../middlewares/security');
 const { generateSecret, buildQrContent } = require('../utils/venueCheckin');
 const { isPartnerPlanActive } = require('../utils/subscription');
 const { findMeetupRewards, toRewardSummary } = require('../utils/meetupRewards');
+const { composeVenueName } = require('../utils/venueNaming');
 
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
@@ -127,6 +128,29 @@ const pickEditableFields = (body) =>
     return acc;
   }, {});
 
+/**
+ * Tên quán đối tác lưu = "Tên thương hiệu - Tên chi nhánh" để các chi nhánh luôn đồng bộ với thương hiệu.
+ * - Client mới gửi branchName (có thể rỗng nếu quán chỉ có 1 cơ sở).
+ * - Client cũ gửi name: tên chưa bắt đầu bằng thương hiệu thì coi là tên chi nhánh.
+ * Admin sửa quán thì giữ nguyên tên admin nhập.
+ */
+const applyBranchNaming = (payload, body, user) => {
+  if (user.role === 'admin') return payload;
+  const brand = String(user.partnerProfile?.businessName || user.fullName || '').trim();
+  let branch;
+  if (body.branchName !== undefined) {
+    branch = String(body.branchName || '').trim().slice(0, 80);
+  } else if (payload.name !== undefined) {
+    const name = String(payload.name || '').trim();
+    if (brand && name.toLowerCase().startsWith(brand.toLowerCase())) return payload;
+    branch = name.slice(0, 80);
+  } else {
+    return payload;
+  }
+  if (!brand && !branch) throw new ApiError(400, 'Vui lòng nhập tên quán');
+  return { ...payload, branchName: branch, name: composeVenueName(brand, branch) };
+};
+
 // Dành cho Partner: Upload ảnh quán (tối đa 10 ảnh / lần), trả về danh sách URL
 const uploadVenueImages = catchAsync(async (req, res) => {
   if (!req.files || req.files.length === 0) {
@@ -144,7 +168,9 @@ const uploadVenueImages = catchAsync(async (req, res) => {
 
 // Dành cho Partner: Đăng ký quán cafe mới (Mặc định status: pending chờ duyệt)
 const createVenue = catchAsync(async (req, res) => {
-  const payload = pickEditableFields(req.body);
+  // Quán chưa gửi tên gì thì mặc định là tên thương hiệu (quán 1 cơ sở)
+  const body = req.body.branchName === undefined && !req.body.name ? { ...req.body, branchName: '' } : req.body;
+  const payload = applyBranchNaming(pickEditableFields(body), body, req.user);
   if (payload.address && (!payload.district || payload.district === 'Quận 10')) {
     payload.district = extractDistrict(payload.address, payload.district);
   }
@@ -179,14 +205,14 @@ const updateVenue = catchAsync(async (req, res) => {
     throw new ApiError(403, 'Bạn không có quyền sửa địa điểm này');
   }
 
-  const payload = pickEditableFields(req.body);
+  const payload = applyBranchNaming(pickEditableFields(req.body), req.body, req.user);
   if (payload.address && (!payload.district || payload.district === 'Quận 10')) {
     payload.district = extractDistrict(payload.address, payload.district);
   }
 
   // Cập nhật
   const updated = await Venue.findByIdAndUpdate(req.params.id, payload, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true,
   });
 

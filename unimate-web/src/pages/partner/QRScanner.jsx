@@ -15,6 +15,7 @@ import {
 import { voucherApi } from '../../services/api';
 import { trackEvent } from '../../utils/analytics';
 import { getAvatarUrl } from '../../constants/avatar';
+import { describeVoucher } from '../../utils/voucher';
 
 export default function QRScanner() {
   const [inputCode, setInputCode] = useState('');
@@ -71,6 +72,10 @@ export default function QRScanner() {
         code: found.code,
         valid: true,
         title: found.title || `Voucher ${found.code}`,
+        // Ưu đãi và điều kiện thật của voucher (nhân viên đối chiếu trước khi áp)
+        discountLabel: describeVoucher(found).discountLabel,
+        conditionLabel: describeVoucher(found).conditionLabel,
+        note: found.description || '',
         studentName: student?.fullName || 'Khách dùng mã chung (không qua ví)',
         studentSchool: student
           ? [student.university, student.studentId && `MSSV: ${student.studentId}`].filter(Boolean).join(' · ')
@@ -262,7 +267,8 @@ export default function QRScanner() {
                     {scanResult.title}
                   </h3>
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    Áp dụng giảm trực tiếp trên tổng hóa đơn gọi món nước tại quán.
+                    {scanResult.discountLabel} · {scanResult.conditionLabel}
+                    {scanResult.note ? <><br />{scanResult.note}</> : null}
                   </p>
                 </div>
 

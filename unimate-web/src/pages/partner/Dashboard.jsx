@@ -25,7 +25,6 @@ import OrderHistory from '../../components/OrderHistory';
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, reloadUser } = useAuth();
-  const [boostActive, setBoostActive] = useState(false);
   const [partnerVouchers, setPartnerVouchers] = useState([]);
   const [showPlanModal, setShowPlanModal] = useState(false);
 
@@ -88,7 +87,7 @@ export default function Dashboard() {
             <QrCode size={16} color="var(--primary)" />
             <span>Quét QR voucher</span>
           </button>
-          <button onClick={() => navigate('/partner/vouchers')} className="btn btn-primary">
+          <button onClick={() => navigate('/partner/vouchers?create=1')} className="btn btn-primary">
             <Plus size={16} />
             <span>Tạo voucher mới</span>
           </button>
@@ -156,13 +155,13 @@ export default function Dashboard() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
-          {/* Card 1: Boost */}
+          {/* Card 1: Ưu đãi hẹn cafe — sinh viên rủ nhau tới quán */}
           <div
             style={{
               padding: '18px',
               borderRadius: '16px',
-              border: boostActive ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-              backgroundColor: boostActive ? 'var(--primary-light)' : '#FAFAFA',
+              border: '2px solid #FDBA74',
+              backgroundColor: '#FFF7ED',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
@@ -172,24 +171,24 @@ export default function Dashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <Zap size={18} color="var(--primary)" />
                 <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  Boost địa điểm
+                  Ưu đãi hẹn cafe
                 </span>
-                {boostActive && <span className="badge badge-orange">ĐANG CHẠY</span>}
+                <span className="badge badge-orange">KHUYẾN NGHỊ</span>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '18px', marginBottom: '16px' }}>
-                Ưu tiên địa điểm trong phần gợi ý sau match của sinh viên trong bán kính 3km.
+                Khi 2 sinh viên đã kết bạn rủ nhau tới quán bạn và chốt hẹn trên UNI-MATE, mỗi người tự nhận ưu đãi này. Quán có thêm khách đi theo cặp.
               </p>
             </div>
             <button
-              onClick={() => setBoostActive(!boostActive)}
-              className={`btn ${boostActive ? 'btn-secondary' : 'btn-primary'}`}
+              onClick={() => navigate('/partner/vouchers?create=meetup')}
+              className="btn btn-primary"
               style={{ width: '100%', padding: '8px', fontSize: '13px' }}
             >
-              {boostActive ? 'Tắt Boost' : 'Boost ngay (299k/tuần)'}
+              Tạo ưu đãi hẹn cafe
             </button>
           </div>
 
-          {/* Card 2: Đẩy voucher */}
+          {/* Card 2: Voucher thường */}
           <div
             style={{
               padding: '18px',
@@ -205,19 +204,19 @@ export default function Dashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <Send size={18} color="#8B5CF6" />
                 <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  Đẩy voucher mục tiêu
+                  Voucher cho sinh viên
                 </span>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '18px', marginBottom: '16px' }}>
-                Đưa voucher của bạn đến đúng nhóm sinh viên các trường ĐH lân cận đang tìm quán học bài.
+                Hiện trong mục Voucher của sinh viên. Sinh viên lưu vào ví, tới quán đưa mã QR để nhân viên quét.
               </p>
             </div>
             <button
-              onClick={() => navigate('/partner/vouchers')}
+              onClick={() => navigate('/partner/vouchers?create=1')}
               className="btn btn-secondary"
               style={{ width: '100%', padding: '8px', fontSize: '13px' }}
             >
-              Tạo chiến dịch đẩy
+              Tạo voucher
             </button>
           </div>
 
