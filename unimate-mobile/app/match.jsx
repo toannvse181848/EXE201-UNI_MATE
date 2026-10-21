@@ -23,7 +23,7 @@ export default function MatchScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
 
-  const matchedName = params.matchedName || 'Lê Phương Thảo';
+  const matchedName = params.matchedName || 'bạn ấy';
   const matchedPhoto = getAvatarUrl(params.matchedPhoto || null);
   const userPhoto = getAvatarUrl(user?.avatar || null);
 
@@ -85,9 +85,9 @@ export default function MatchScreen() {
         <View style={styles.calloutCard}>
           <Ionicons name="cafe" size={24} color={COLORS.primary} style={{ marginRight: 12 }} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.calloutTitle}>Ưu đãi độc quyền UNI-MATE</Text>
+            <Text style={styles.calloutTitle}>Rủ nhau đi cafe</Text>
             <Text style={styles.calloutDesc}>
-              Chọn ngay quán cafe đối tác để nhận Voucher giảm 20% và mở phòng chat riêng tư!
+              Hai bạn đã nhắn tin được trong mục Tin nhắn. Rủ bạn tới quán đối tác: bạn ấy đồng ý là cả hai nhận ưu đãi hẹn cafe của quán (nếu quán có).
             </Text>
           </View>
         </View>
@@ -95,7 +95,7 @@ export default function MatchScreen() {
         {/* Action Buttons */}
         <View style={styles.bottomActions}>
           <Button
-            title="📍 Chọn địa điểm để mở chat"
+            title="☕ Rủ đi cafe"
             onPress={handleSelectPlace}
             style={styles.selectBtn}
           />

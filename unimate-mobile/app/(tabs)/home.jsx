@@ -38,7 +38,7 @@ const QUICK_ACTIONS = [
   {
     icon: 'ticket',
     label: 'Voucher hot',
-    sub: 'Giảm tới 20%',
+    sub: 'Ưu đãi quán đối tác',
     color: '#10B981',
     route: '/(tabs)/explore',
   },
@@ -91,7 +91,8 @@ export default function HomeScreen() {
   }, [user]);
 
   // Chuẩn hoá danh sách sinh viên gợi ý lấy từ DB
-  const displayMates = realStudents.map((s, idx) => ({
+  const myUniversity = user?.university || user?.studentProfile?.university || '';
+  const displayMates = realStudents.map((s) => ({
     id: s._id,
     name: s.fullName,
     school: [
@@ -99,10 +100,10 @@ export default function HomeScreen() {
       s.studentProfile?.year ? formatStudentYear(s.studentProfile.year) : null,
     ].filter(Boolean).join(' • ') || 'Đại học',
     major: s.studentProfile?.major || '',
-    avatar: s.avatar
-      ? getAvatarUrl(s.avatar)
-      : (idx % 2 === 0 ? DEFAULT_AVATAR : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'),
-    score: `${s.studentProfile?.trustScore || 95}% Hợp`,
+    // Chưa có ảnh thì dùng ảnh mặc định (trước đây xen ảnh người lạ trên mạng)
+    avatar: s.avatar ? getAvatarUrl(s.avatar) : DEFAULT_AVATAR,
+    // Danh sách này không tính % hợp nhau → chỉ gắn nhãn khi đúng là cùng trường
+    sameSchool: Boolean(myUniversity && s.studentProfile?.university === myUniversity),
   }));
 
   return (
@@ -117,7 +118,8 @@ export default function HomeScreen() {
             <Avatar name={displayName} uri={user?.avatar} size={48} />
             <View style={styles.greetingBox}>
               <View style={styles.badgeRow}>
-                <Text style={styles.goldBadge}>UNI-MATE GOLD 👑</Text>
+                {/* Chỉ người đang có Premium mới có huy hiệu */}
+                <Text style={styles.goldBadge}>{user?.isPremium ? 'PREMIUM 👑' : 'THÀNH VIÊN'}</Text>
               </View>
               <Text style={styles.greetingText}>Chào bạn, {displayName}!</Text>
             </View>
@@ -204,10 +206,12 @@ export default function HomeScreen() {
               onPress={() => router.push('/(tabs)/discover')}
             >
               <Image source={{ uri: mate.avatar }} style={styles.mateAvatar} />
-              <View style={styles.matchPill}>
-                <Ionicons name="sparkles" size={10} color={COLORS.white} />
-                <Text style={styles.matchPillText}>{mate.score}</Text>
-              </View>
+              {mate.sameSchool && (
+                <View style={styles.matchPill}>
+                  <Ionicons name="school" size={10} color={COLORS.white} />
+                  <Text style={styles.matchPillText}>Cùng trường</Text>
+                </View>
+              )}
               <Text style={styles.mateName} numberOfLines={1}>
                 {mate.name}
               </Text>
@@ -246,8 +250,8 @@ export default function HomeScreen() {
                     {item.name}
                   </Text>
                   <View style={styles.homeVenueRating}>
-                    <Ionicons name="star" size={12} color="#D97706" />
-                    <Text style={styles.homeVenueRatingNum}>{item.rating}</Text>
+                    {item.rating != null && <Ionicons name="star" size={12} color="#D97706" />}
+                    <Text style={styles.homeVenueRatingNum}>{item.rating ?? 'Quán mới'}</Text>
                   </View>
                 </View>
                 <Text style={styles.homeVenueAddr} numberOfLines={1}>

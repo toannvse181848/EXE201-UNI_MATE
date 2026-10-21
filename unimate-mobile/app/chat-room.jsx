@@ -24,6 +24,7 @@ import { MessageAttachment, isVenueMessage } from '../src/components/MessageAtta
 import { MeetupCard, isMeetupMessage } from '../src/components/MeetupCard';
 import { meetupApi } from '../src/api/meetupApi';
 import { chatApi } from '../src/api/chatApi';
+import { reportApi, USER_REPORT_REASONS } from '../src/api/reportApi';
 import { useAuth } from '../src/context/AuthContext';
 
 const QUICK_EMOJIS = ['☕', '📚', '🎉', '🔥', '❤️', '👍', '😂', '👋', '💯', '✨', '💻', '🙌'];
@@ -48,6 +49,11 @@ export default function ChatRoomScreen() {
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [buddyPresence, setBuddyPresence] = useState({ isOnline: false, lastActiveAt: null });
+  // Báo cáo người dùng với ban quản trị
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportNote, setReportNote] = useState('');
+  const [reporting, setReporting] = useState(false);
   const flatListRef = useRef(null);
   const currentUserId = (user?.id || user?._id)?.toString();
 
@@ -330,6 +336,31 @@ export default function ChatRoomScreen() {
     );
   };
 
+  const closeReport = () => {
+    setReportOpen(false);
+    setReportReason('');
+    setReportNote('');
+  };
+
+  const handleReport = async () => {
+    if (!reportReason || reporting) return;
+    setReporting(true);
+    try {
+      const res = await reportApi.create({
+        targetType: 'user',
+        targetId: buddyId,
+        reason: reportReason,
+        description: reportNote.trim(),
+      });
+      closeReport();
+      Alert.alert('Đã gửi báo cáo', res.data?.message || 'Ban quản trị sẽ xem xét sớm.');
+    } catch (err) {
+      Alert.alert('Không gửi được báo cáo', err.message || 'Vui lòng thử lại');
+    } finally {
+      setReporting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Top Header */}
@@ -342,18 +373,7 @@ export default function ChatRoomScreen() {
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.buddyInfo}
-          activeOpacity={0.8}
-          onPress={() => {
-            if (buddyId) {
-              router.push({
-                pathname: '/profile',
-                params: { userId: buddyId },
-              });
-            }
-          }}
-        >
+        <View style={styles.buddyInfo}>
           <View style={{ position: 'relative' }}>
             <Avatar name={buddyName} uri={buddyAvatar} size={40} />
             <View
@@ -371,7 +391,7 @@ export default function ChatRoomScreen() {
               {getPresenceText()}
             </Text>
           </View>
-        </TouchableOpacity>
+        </View>
 
         {/* Nút Rủ đi Cafe */}
         <TouchableOpacity
@@ -387,6 +407,17 @@ export default function ChatRoomScreen() {
           <Ionicons name="cafe" size={16} color={COLORS.primary} />
           <Text style={styles.cafeInviteText}>Rủ cafe</Text>
         </TouchableOpacity>
+
+        {Boolean(buddyId) && (
+          <TouchableOpacity
+            style={styles.reportBtn}
+            onPress={() => setReportOpen(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="Báo cáo người dùng"
+          >
+            <Ionicons name="flag-outline" size={18} color="#DC2626" />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Danh sách tin nhắn */}
@@ -508,6 +539,55 @@ export default function ChatRoomScreen() {
       </KeyboardAvoidingView>
 
       {/* LIGHTBOX PREVIEW ẢNH */}
+      <Modal visible={reportOpen} transparent animationType="slide" onRequestClose={closeReport}>
+        <View style={styles.reportOverlay}>
+          <View style={styles.reportSheet}>
+            <View style={styles.reportHeader}>
+              <Text style={styles.reportTitle}>Báo cáo {buddyName}</Text>
+              <TouchableOpacity onPress={closeReport}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.reportHint}>Ban quản trị sẽ xem xét. Người bị báo cáo không biết ai đã báo cáo.</Text>
+            {USER_REPORT_REASONS.map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                style={[styles.reportReason, reportReason === r.id && styles.reportReasonActive]}
+                onPress={() => setReportReason(r.id)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={reportReason === r.id ? 'radio-button-on' : 'radio-button-off'}
+                  size={18}
+                  color={reportReason === r.id ? '#DC2626' : COLORS.textMuted}
+                />
+                <Text style={styles.reportReasonText}>{r.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TextInput
+              style={styles.reportInput}
+              value={reportNote}
+              onChangeText={setReportNote}
+              placeholder="Mô tả thêm (không bắt buộc)"
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              maxLength={1000}
+            />
+            <TouchableOpacity
+              style={[styles.reportSubmit, (!reportReason || reporting) && styles.reportSubmitDisabled]}
+              onPress={handleReport}
+              disabled={!reportReason || reporting}
+            >
+              {reporting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.reportSubmitText}>Gửi báo cáo</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={Boolean(previewImage)} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
         <View style={styles.lightboxOverlay}>
           <TouchableOpacity style={styles.lightboxCloseBtn} onPress={() => setPreviewImage(null)}>
@@ -780,5 +860,85 @@ const styles = StyleSheet.create({
   lightboxImage: {
     width: '94%',
     height: '80%',
+  },
+  reportBtn: {
+    marginLeft: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+  },
+  reportOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    justifyContent: 'flex-end',
+  },
+  reportSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 8,
+  },
+  reportHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reportTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  reportHint: {
+    fontSize: 12.5,
+    color: COLORS.textMuted,
+    marginBottom: 4,
+  },
+  reportReason: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  reportReasonActive: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  reportReasonText: {
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  reportInput: {
+    minHeight: 70,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    textAlignVertical: 'top',
+  },
+  reportSubmit: {
+    marginTop: 4,
+    backgroundColor: '#DC2626',
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  reportSubmitDisabled: {
+    backgroundColor: '#CBD5E1',
+  },
+  reportSubmitText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 15,
   },
 });

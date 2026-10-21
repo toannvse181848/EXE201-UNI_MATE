@@ -84,7 +84,7 @@ export default function PlaceDetailScreen() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Hẹn gặp nhau tại ${venue.name} - ${venue.address} với ưu đãi ${venue.voucherBadge} trên UNI-MATE!`,
+        message: `Hẹn gặp nhau tại ${venue.name} - ${venue.address}${venue.voucherId ? ` với ưu đãi ${venue.voucherBadge}` : ''} trên UNI-MATE!`,
       });
     } catch (e) {
       console.log(e);
@@ -218,9 +218,15 @@ export default function PlaceDetailScreen() {
           <View style={styles.titleRow}>
             <Text style={styles.venueTitle}>{venue.name}</Text>
             <View style={styles.ratingBox}>
-              <Ionicons name="star" size={14} color="#F59E0B" />
-              <Text style={styles.ratingNumber}>{venue.rating}</Text>
-              <Text style={styles.ratingCount}>({venue.reviewsCount})</Text>
+              {venue.rating != null ? (
+                <>
+                  <Ionicons name="star" size={14} color="#F59E0B" />
+                  <Text style={styles.ratingNumber}>{venue.rating}</Text>
+                  <Text style={styles.ratingCount}>({venue.reviewsCount})</Text>
+                </>
+              ) : (
+                <Text style={styles.ratingCount}>Chưa có đánh giá</Text>
+              )}
             </View>
           </View>
 
@@ -236,15 +242,20 @@ export default function PlaceDetailScreen() {
             <Text style={styles.mapsButtonText}>Chỉ đường bằng Google Maps</Text>
           </TouchableOpacity>
 
-          <View style={styles.metaRow}>
-            <Ionicons name="time-outline" size={16} color="#10B981" style={{ marginRight: 8 }} />
-            <Text style={styles.metaText}>Mở cửa • {venue.openHours}</Text>
-          </View>
+          {/* Chỉ hiện thông tin quán đã điền */}
+          {Boolean(venue.openHours) && (
+            <View style={styles.metaRow}>
+              <Ionicons name="time-outline" size={16} color="#10B981" style={{ marginRight: 8 }} />
+              <Text style={styles.metaText}>Mở cửa • {venue.openHours}</Text>
+            </View>
+          )}
 
-          <View style={styles.metaRow}>
-            <Ionicons name="cash-outline" size={16} color="#6366F1" style={{ marginRight: 8 }} />
-            <Text style={styles.metaText}>Khoảng giá • {venue.priceRange}</Text>
-          </View>
+          {Boolean(venue.priceRange) && (
+            <View style={styles.metaRow}>
+              <Ionicons name="cash-outline" size={16} color="#6366F1" style={{ marginRight: 8 }} />
+              <Text style={styles.metaText}>Khoảng giá • {venue.priceRange}</Text>
+            </View>
+          )}
 
           {/* Tags */}
           <View style={styles.tagsContainer}>
@@ -260,11 +271,13 @@ export default function PlaceDetailScreen() {
 
           <View style={styles.divider} />
 
-          {/* Description */}
-          <Text style={styles.sectionHeading}>Giới thiệu không gian</Text>
-          <Text style={styles.descText}>{venue.description}</Text>
-
-          <View style={styles.divider} />
+          {Boolean(venue.description) && (
+            <>
+              <Text style={styles.sectionHeading}>Giới thiệu không gian</Text>
+              <Text style={styles.descText}>{venue.description}</Text>
+              <View style={styles.divider} />
+            </>
+          )}
 
           {/* Voucher Promo Card */}
           <Text style={styles.sectionHeading}>Ưu đãi độc quyền UNI-MATE</Text>
@@ -292,29 +305,6 @@ export default function PlaceDetailScreen() {
             )}
           </View>
 
-          {/* Amenities Grid */}
-          <View style={styles.divider} />
-          <Text style={styles.sectionHeading}>Tiện ích sinh viên</Text>
-          <View style={styles.amenitiesGrid}>
-            <View style={styles.amenityItem}>
-              <Ionicons name="wifi" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>Wifi {venue.amenities.wifiSpeed || 'miễn phí'}</Text>
-            </View>
-            <View style={styles.amenityItem}>
-              <Ionicons name="battery-charging" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>{venue.amenities.powerSockets || 'Có ổ cắm'}</Text>
-            </View>
-            <View style={styles.amenityItem}>
-              <Ionicons name="snow" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>{venue.amenities.airConditioning || 'Điều hòa mát'}</Text>
-            </View>
-            <View style={styles.amenityItem}>
-              <Ionicons name="volume-mute" size={20} color={COLORS.primary} />
-              <Text style={styles.amenityText}>
-                {venue.amenities.quietScore ? `Yên tĩnh ${venue.amenities.quietScore}` : 'Khu vực yên tĩnh'}
-              </Text>
-            </View>
-          </View>
         </View>
       </ScrollView>
 
@@ -322,7 +312,7 @@ export default function PlaceDetailScreen() {
       <SafeAreaView edges={['bottom']} style={styles.bottomBar}>
         <View style={styles.priceContainer}>
           <Text style={styles.priceLabel}>Ưu đãi</Text>
-          <Text style={styles.priceValue}>{venue.voucherBadge}</Text>
+          <Text style={styles.priceValue}>{venue.voucherId ? venue.voucherBadge : 'Chưa có voucher'}</Text>
         </View>
         <TouchableOpacity
           style={styles.mainCtaBtn}
@@ -586,26 +576,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 12,
     fontWeight: '700',
-  },
-  amenitiesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  amenityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surfaceLight,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 8,
-    width: (width - 64) / 2,
-  },
-  amenityText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.text,
   },
   bottomBar: {
     position: 'absolute',

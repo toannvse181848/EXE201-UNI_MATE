@@ -16,11 +16,14 @@ import { COLORS } from '../../src/constants/colors';
 import { matchApi } from '../../src/api/matchApi';
 import { formatStudentYear } from '../../src/constants/academic';
 import { getAvatarUrl } from '../../src/constants/avatar';
+import { useAuth } from '../../src/context/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
 export default function DiscoverScreen() {
   const router = useRouter();
+  const { user: me } = useAuth();
+  const myUniversity = me?.university || me?.studentProfile?.university || '';
   const [deck, setDeck] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -30,21 +33,22 @@ export default function DiscoverScreen() {
 
   const currentProfile = deck[currentIndex];
 
-  // Chuẩn hóa profile từ API sang format hiển thị (sử dụng kết quả thuật toán Matching)
+  // Chuẩn hóa profile từ API sang format hiển thị (sử dụng kết quả thuật toán Matching).
+  // Chỉ thông tin thật: không tự đặt % hợp gu, khoảng cách hay câu giới thiệu mẫu
   const normalizeProfile = (user) => ({
     id: user._id,
     name: user.fullName,
     photo: getAvatarUrl(user.avatar),
-    university: user.studentProfile?.university || 'Đại học',
-    major: user.studentProfile?.major || 'Sinh viên',
+    university: user.studentProfile?.university || 'Chưa cập nhật trường',
+    sameSchool: Boolean(myUniversity && user.studentProfile?.university === myUniversity),
+    major: user.studentProfile?.major || '',
     year: user.studentProfile?.year,
-    bio: user.studentProfile?.bio || 'Đang tìm bạn học cùng ☕',
+    bio: user.studentProfile?.bio || '',
     tags: (user.commonTags?.length > 0 ? user.commonTags : user.studentProfile?.interests || []).slice(0, 4).map((i) => `#${i}`),
     commonTags: user.commonTags || [],
     isVerifiedStudent: Boolean(user.studentProfile?.isVerifiedStudent || user.studentProfile?.isPremium || user.isVerifiedStudent || user.isPremium),
     isPremium: Boolean(user.studentProfile?.isPremium || user.isPremium),
-    matchScore: user.matchPercentage || Math.floor(Math.random() * 15) + 82,
-    distance: `${(Math.random() * 3.5 + 0.5).toFixed(1)} km`,
+    matchScore: typeof user.matchPercentage === 'number' ? user.matchPercentage : null,
     purpose: user.studentProfile?.objectives?.[0] === 'study_buddy'
       ? '📚 Tìm bạn học'
       : user.studentProfile?.objectives?.[0] === 'project'
@@ -64,7 +68,7 @@ export default function DiscoverScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [myUniversity]);
 
   useEffect(() => { fetchDeck(); }, [fetchDeck]);
 
@@ -150,22 +154,24 @@ export default function DiscoverScreen() {
 
             {/* Top Badges inside card */}
             <View style={styles.cardTopRow}>
-              <View style={styles.matchBadge}>
-                <Ionicons name="sparkles" size={14} color={COLORS.white} />
-                <Text style={styles.matchText}>{currentProfile.matchScore}% Hợp gu</Text>
-              </View>
-              <View style={styles.distanceBadge}>
-                <Ionicons name="location-sharp" size={13} color={COLORS.white} />
-                <Text style={styles.distanceText}>{currentProfile.distance}</Text>
-              </View>
+              {currentProfile.matchScore != null && (
+                <View style={styles.matchBadge}>
+                  <Ionicons name="sparkles" size={14} color={COLORS.white} />
+                  <Text style={styles.matchText}>{currentProfile.matchScore}% Hợp gu</Text>
+                </View>
+              )}
+              {currentProfile.sameSchool && (
+                <View style={styles.distanceBadge}>
+                  <Ionicons name="school" size={13} color={COLORS.white} />
+                  <Text style={styles.distanceText}>Cùng trường</Text>
+                </View>
+              )}
             </View>
 
             {/* Bottom Info inside card */}
             <View style={styles.cardInfo}>
               <View style={styles.nameRow}>
-                <Text style={styles.nameText}>
-                  {currentProfile.name}, {currentProfile.age}
-                </Text>
+                <Text style={styles.nameText}>{currentProfile.name}</Text>
                 {currentProfile.isVerifiedStudent && (
                   <Ionicons name="checkmark-circle" size={20} color="#38BDF8" />
                 )}
@@ -185,9 +191,11 @@ export default function DiscoverScreen() {
                 <Text style={styles.purposeTagText}>{currentProfile.purpose}</Text>
               </View>
 
-              <Text style={styles.bioText} numberOfLines={2}>
-                {currentProfile.bio}
-              </Text>
+              {Boolean(currentProfile.bio) && (
+                <Text style={styles.bioText} numberOfLines={2}>
+                  {currentProfile.bio}
+                </Text>
+              )}
 
               <View style={styles.tagRow}>
                 {currentProfile.tags.map((tag, idx) => (

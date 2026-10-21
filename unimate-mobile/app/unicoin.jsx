@@ -317,7 +317,7 @@ export default function UniCoinScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.redeemTitle}>Đổi Voucher Giảm Giá Quán Cafe</Text>
-              <Text style={styles.redeemSub}>Khám phá các ưu đãi từ 10% - 50% dành cho sinh viên</Text>
+              <Text style={styles.redeemSub}>Ưu đãi của các quán đối tác dành cho sinh viên</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#FFF" />
           </TouchableOpacity>

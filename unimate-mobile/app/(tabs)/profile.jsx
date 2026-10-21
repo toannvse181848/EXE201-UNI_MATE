@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../src/constants/colors';
 import { useAuth } from '../../src/context/AuthContext';
 import { userApi, buildAvatarFormData } from '../../src/api/userApi';
+import { matchApi } from '../../src/api/matchApi';
 import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -52,6 +53,14 @@ export default function ProfileScreen() {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwErrors, setPwErrors] = useState({});
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [friendCount, setFriendCount] = useState(null);
+
+  useEffect(() => {
+    matchApi
+      .getMyMatches()
+      .then((res) => setFriendCount(res.data?.count ?? res.data?.data?.length ?? 0))
+      .catch(() => {});
+  }, []);
 
   const handleAvatarPress = () => {
     Alert.alert(
@@ -295,10 +304,11 @@ export default function ProfileScreen() {
 
         {/* Stats Row */}
         <View style={styles.statsCard}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.trustScore ?? 0}</Text>
-            <Text style={styles.statLabel}>Trust Score</Text>
-          </View>
+          {/* Số bạn đã kết nối (thay "Trust Score" trước đây luôn là 95 với mọi tài khoản) */}
+          <TouchableOpacity style={styles.statItem} onPress={() => router.push('/(tabs)/chat')} activeOpacity={0.8}>
+            <Text style={styles.statNumber}>{friendCount ?? '—'}</Text>
+            <Text style={styles.statLabel}>Bạn bè</Text>
+          </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity
             style={styles.statItem}
@@ -310,8 +320,8 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.isVerifiedStudent ? 'SV' : '---'}</Text>
-            <Text style={styles.statLabel}>Trạng thái</Text>
+            <Text style={styles.statNumber}>{user?.isPremium ? 'Premium' : 'Miễn phí'}</Text>
+            <Text style={styles.statLabel}>Gói</Text>
           </View>
         </View>
 
@@ -345,9 +355,13 @@ export default function ProfileScreen() {
         {/* Menu Section */}
         <View style={styles.menuCard}>
           <MenuItem
-            icon={user?.isVerifiedStudent ? "checkmark-circle" : "star-outline"}
-            label={user?.isVerifiedStudent ? "Hội viên Premium (Đã có tích xanh)" : "Nâng cấp Premium nhận Tích Xanh"}
-            sublabel={user?.isVerifiedStudent ? "Tài khoản của bạn đã được xác thực chính chủ" : "Nhận tích xanh uy tín & ưu tiên kết nối bạn học"}
+            icon={user?.isPremium ? "checkmark-circle" : "star-outline"}
+            label={user?.isPremium ? "Hội viên Premium (Đã có tích xanh)" : "Nâng cấp Premium nhận Tích Xanh"}
+            sublabel={
+              user?.isPremium
+                ? `Hiệu lực đến ${user.premiumExpiresAt ? new Date(user.premiumExpiresAt).toLocaleDateString('vi-VN') : 'không giới hạn'} • bấm để gia hạn`
+                : "Nhận tích xanh uy tín & ưu tiên kết nối bạn học"
+            }
             onPress={handleUpgradePremium}
           />
           <View style={styles.menuDivider} />

@@ -206,8 +206,8 @@ export default function ExploreScreen() {
                     {item.name}
                   </Text>
                   <View style={styles.starBox}>
-                    <Ionicons name="star" size={12} color="#D97706" />
-                    <Text style={styles.starText}>{item.rating}</Text>
+                    {item.rating != null && <Ionicons name="star" size={12} color="#D97706" />}
+                    <Text style={styles.starText}>{item.rating ?? 'Quán mới'}</Text>
                   </View>
                 </View>
 

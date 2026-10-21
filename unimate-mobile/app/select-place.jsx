@@ -213,8 +213,8 @@ export default function SelectPlaceScreen() {
                   {item.name}
                 </Text>
                 <View style={styles.ratingBadge}>
-                  <Ionicons name="star" size={13} color="#F59E0B" />
-                  <Text style={styles.ratingText}>{item.rating}</Text>
+                  {item.rating != null && <Ionicons name="star" size={13} color="#F59E0B" />}
+                  <Text style={styles.ratingText}>{item.rating ?? 'Quán mới'}</Text>
                 </View>
               </View>
 

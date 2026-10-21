@@ -16,11 +16,13 @@ export const toVenueCard = (venue, voucher = null) => {
   return {
     id: venue._id,
     name: venue.name,
-    rating: venue.rating ?? 4.8,
+    // Chưa có đánh giá thì không hiện số sao (trước đây mặc định 4.8 cho mọi quán)
+    rating: venue.reviewsCount > 0 ? venue.rating : null,
     reviewsCount: venue.reviewsCount ?? 0,
-    distance: venue.district || 'Gần bạn',
+    // App chưa lấy vị trí người dùng: hiện quận của quán thay cho "Gần bạn"
+    distance: venue.district || venue.city || 'TP.HCM',
     address: venue.address,
-    openHours: venue.openHours || '07:00 - 22:30',
+    openHours: venue.openHours || '',
     priceRange: venue.priceRange || '',
     image: images[0],
     images,
@@ -35,7 +37,6 @@ export const toVenueCard = (venue, voucher = null) => {
     tags: venue.tags || [],
     category: venue.category || 'other',
     description: venue.description || '',
-    amenities: venue.amenities || {},
   };
 };
 
