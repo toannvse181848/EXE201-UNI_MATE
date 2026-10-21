@@ -26,6 +26,9 @@ export default function UserManagement() {
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [total, setTotal] = useState(0);
+  // Backend trả mỗi trang 20 người, mới nhất trước
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
@@ -46,7 +49,7 @@ export default function UserManagement() {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { page };
       if (search.trim()) params.search = search.trim();
       if (roleFilter) params.role = roleFilter;
       if (statusFilter) params.status = statusFilter;
@@ -54,12 +57,13 @@ export default function UserManagement() {
       const res = await userApi.getAllUsers(params);
       setUsers(res.data || []);
       setTotal(res.total || 0);
+      setTotalPages(Math.max(1, res.totalPages || 1));
     } catch (err) {
       console.error('Lỗi tải danh sách người dùng:', err);
     } finally {
       setLoading(false);
     }
-  }, [search, roleFilter, statusFilter]);
+  }, [search, roleFilter, statusFilter, page]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -233,7 +237,7 @@ export default function UserManagement() {
             type="text"
             placeholder="Tìm theo tên, email, MSSV, trường học..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             style={{
               width: '100%',
               padding: '10px 12px 10px 40px',
@@ -251,7 +255,7 @@ export default function UserManagement() {
           <Filter size={16} color="var(--text-muted)" />
           <select
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
+            onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
             style={{
               padding: '10px 14px',
               borderRadius: '8px',
@@ -272,7 +276,7 @@ export default function UserManagement() {
         {/* Status Filter */}
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           style={{
             padding: '10px 14px',
             borderRadius: '8px',
@@ -523,6 +527,32 @@ export default function UserManagement() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '14px 20px', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Trang {page} / {totalPages} · {total} người dùng
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || loading}
+                style={{ padding: '8px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', backgroundColor: '#FFFFFF', fontWeight: '600', fontSize: '13px', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}
+              >
+                ← Trang trước
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || loading}
+                style={{ padding: '8px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', backgroundColor: '#FFFFFF', fontWeight: '600', fontSize: '13px', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}
+              >
+                Trang sau →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
