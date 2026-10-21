@@ -65,15 +65,12 @@ export const AuthProvider = ({ children }) => {
       businessName: dbUser.partnerProfile?.businessName || '',
       status: dbUser.status || 'active',
       uniCoin: dbUser.uniCoin || 0,
-      isPremium: Boolean(dbUser.isPremium || dbUser.studentProfile?.isPremium),
-      premiumPlan: dbUser.premiumPlan || dbUser.studentProfile?.premiumPlan || null,
-      premiumExpiresAt: dbUser.premiumExpiresAt || dbUser.studentProfile?.premiumExpiresAt || null,
-      isVerifiedStudent: Boolean(
-        dbUser.isPremium ||
-        dbUser.isVerifiedStudent ||
-        dbUser.studentProfile?.isPremium ||
-        dbUser.studentProfile?.isVerifiedStudent
-      ),
+      // Backend đã tính isPremium / isVerifiedStudent theo hạn gói. Cờ thô studentProfile.isPremium
+      // vẫn là true sau khi hết hạn nên không dùng (trước đây Premium hết hạn vẫn hiện như còn)
+      isPremium: Boolean(dbUser.isPremium),
+      premiumPlan: dbUser.premiumPlan || null,
+      premiumExpiresAt: dbUser.premiumExpiresAt || null,
+      isVerifiedStudent: Boolean(dbUser.isVerifiedStudent),
       trustScore: dbUser.trustScore || 0,
       interests: dbUser.studentProfile?.interests || [],
       bio: dbUser.studentProfile?.bio || '',

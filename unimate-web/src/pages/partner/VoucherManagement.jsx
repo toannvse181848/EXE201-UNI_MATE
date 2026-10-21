@@ -11,6 +11,15 @@ import { voucherApi, venueApi } from '../../services/api';
 import ImportVoucherModal from '../../components/partner/ImportVoucherModal';
 import CreateVoucherModal from '../../components/partner/CreateVoucherModal';
 import { describeVoucher } from '../../utils/voucher';
+import VoucherStatusBadge from '../../components/VoucherStatusBadge';
+
+// Tab lọc → các trạng thái backend thuộc tab đó
+const TAB_GROUPS = {
+  active: ['active'],
+  pending: ['venue_pending', 'venue_rejected', 'partner_suspended'],
+  paused: ['paused'],
+  expired: ['expired', 'sold_out'],
+};
 
 export default function VoucherManagement() {
   const [vouchers, setVouchers] = useState([]);
@@ -67,10 +76,13 @@ export default function VoucherManagement() {
         branch: v.venueId?.name || '',
         total: v.isUnlimited ? 'Không giới hạn' : (v.quantity || 500),
         issued: v.claimedCount || 0,
-        used: v.usedCount || 0,
+        // Lượt dùng thật tại quầy (bản ghi quét), cùng số với trang admin
+        used: (v.redeemedByQr || 0) + (v.redeemedByCode || 0),
         expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : 'Không thời hạn',
         // Chờ duyệt (quán chưa được duyệt) / tạm dừng / hết hạn / đang chạy
-        status: v.displayStatus || (v.isActive ? 'active' : 'paused'),
+        // Cùng trạng thái với trang admin (backend tính): chờ duyệt quán / tạm dừng / hết hạn / hết lượt / đang chạy
+        status: v.status || (v.isActive ? 'active' : 'paused'),
+        statusLabel: v.statusLabel,
         isActive: Boolean(v.isActive),
       }));
       setVouchers(formatted);
@@ -138,24 +150,10 @@ export default function VoucherManagement() {
     const matchSearch =
       v.name.toLowerCase().includes(search.toLowerCase()) ||
       v.code.toLowerCase().includes(search.toLowerCase());
-    const matchTab = activeTab === 'all' || v.status === activeTab;
+    const matchTab = activeTab === 'all' || (TAB_GROUPS[activeTab] || []).includes(v.status);
     return matchSearch && matchTab;
   });
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'active':
-        return <span className="badge badge-success">ĐANG CHẠY</span>;
-      case 'pending':
-        return <span className="badge badge-warning">CHỜ DUYỆT</span>;
-      case 'paused':
-        return <span className="badge badge-danger">TẠM DỪNG</span>;
-      case 'expired':
-        return <span className="badge" style={{ backgroundColor: '#E2E8F0', color: '#64748B' }}>HẾT HẠN</span>;
-      default:
-        return null;
-    }
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -201,9 +199,9 @@ export default function VoucherManagement() {
             {[
               { id: 'all', label: 'Tất cả' },
               { id: 'active', label: 'Đang chạy' },
-              { id: 'pending', label: 'Chờ duyệt' },
+              { id: 'pending', label: 'Chờ duyệt quán' },
               { id: 'paused', label: 'Tạm dừng' },
-              { id: 'expired', label: 'Hết hạn' },
+              { id: 'expired', label: 'Hết hạn / hết lượt' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -266,7 +264,7 @@ export default function VoucherManagement() {
                 <th style={{ padding: '14px 16px' }}>GIÁ TRỊ</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center' }}>GIÁ UNICOIN</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center' }}>SỐ LƯỢNG</th>
-                <th style={{ padding: '14px 16px', textAlign: 'center' }}>ĐÃ PHÁT</th>
+                <th style={{ padding: '14px 16px', textAlign: 'center' }}>ĐÃ LƯU</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center' }}>ĐÃ DÙNG</th>
                 <th style={{ padding: '14px 16px' }}>HẠN DÙNG</th>
                 <th style={{ padding: '14px 16px', textAlign: 'center' }}>TRẠNG THÁI</th>
@@ -381,7 +379,7 @@ export default function VoucherManagement() {
                     {item.expiry}
                   </td>
                   <td style={{ padding: '16px 16px', textAlign: 'center' }}>
-                    {getStatusBadge(item.status)}
+                    <VoucherStatusBadge status={item.status} label={item.statusLabel} />
                   </td>
                   <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>

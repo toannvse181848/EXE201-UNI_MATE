@@ -2,15 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Ticket,
   Search,
-  CheckCircle,
-  AlertTriangle,
-  PauseCircle,
-  PlayCircle,
-  ShieldCheck,
-  TrendingUp,
   Loader2,
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
+import VoucherStatusBadge from '../../components/VoucherStatusBadge';
+import { describeVoucher } from '../../utils/voucher';
 
 export default function VoucherOversight() {
   const [vouchers, setVouchers] = useState([]);
@@ -27,11 +23,18 @@ export default function VoucherOversight() {
         venue: v.venueId?.name || 'Đối tác UNI-MATE',
         name: v.title,
         code: v.code,
-        discount: v.discountPercent ? `${v.discountPercent}%` : (v.discountAmount ? `${v.discountAmount.toLocaleString()}đ` : v.title),
-        issued: v.claimedCount || 0,
-        used: v.usedCount || 0,
-        risk: v.usedCount > (v.quantity || 500) ? 'Cảnh báo lạm dụng' : 'An toàn',
-        status: v.isActive ? 'active' : 'paused',
+        // Nhãn giá trị + trạng thái do backend tính, giống hệt trang quán
+        discount: describeVoucher(v).discountLabel,
+        condition: describeVoucher(v).conditionLabel,
+        kind: v.meetupReward ? 'Hẹn cafe' : v.premiumOnly ? 'Chỉ Premium' : 'Thường',
+        claimed: v.claimedCount || 0,
+        walletUsed: v.walletUsedCount || 0,
+        // Lượt dùng thật tại quầy (theo bản ghi quét): quét ví + nhập mã chung
+        usedQr: v.redeemedByQr || 0,
+        usedCode: v.redeemedByCode || 0,
+        isActive: Boolean(v.isActive),
+        status: v.status || (v.isActive ? 'active' : 'paused'),
+        statusLabel: v.statusLabel,
       }));
       setVouchers(mapped);
     } catch (err) {
@@ -49,11 +52,8 @@ export default function VoucherOversight() {
   const togglePause = async (id) => {
     try {
       await voucherApi.toggleVoucher(id);
-      setVouchers((prev) =>
-        prev.map((v) =>
-          v.id === id ? { ...v, status: v.status === 'active' ? 'paused' : 'active' } : v
-        )
-      );
+      // Trạng thái (chờ duyệt quán, hết hạn...) do backend tính → tải lại cho đúng
+      await fetchVouchers();
     } catch (err) {
       alert('Không thể cập nhật trạng thái voucher: ' + err.message);
     }
@@ -66,9 +66,14 @@ export default function VoucherOversight() {
       v.code.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalIssued = vouchers.reduce((acc, v) => acc + (v.issued || 0), 0);
-  const totalUsed = vouchers.reduce((acc, v) => acc + (v.used || 0), 0);
-  const conversionRate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + '%' : '0%';
+  const sum = (key) => vouchers.reduce((acc, v) => acc + (v[key] || 0), 0);
+  const totalClaimed = sum('claimed');
+  const totalWalletUsed = sum('walletUsed');
+  const totalQr = sum('usedQr');
+  const totalCode = sum('usedCode');
+  const activeCount = vouchers.filter((v) => v.status === 'active').length;
+  // Trong số voucher sinh viên đã lưu vào ví, bao nhiêu % đã được dùng tại quán (không thể vượt 100%)
+  const walletUseRate = totalClaimed > 0 ? `${((totalWalletUsed / totalClaimed) * 100).toFixed(1)}%` : '—';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -77,31 +82,31 @@ export default function VoucherOversight() {
           Giám sát Voucher Toàn Sàn ({vouchers.length} chương trình)
         </h1>
         <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-          Kiểm soát lưu lượng phát hành, tỷ lệ đổi quà và phát hiện hành vi gian lận mã ưu đãi.
+          Trạng thái và số liệu giống hệt trang của quán. Tạm dừng voucher vi phạm hoặc bật lại.
         </p>
       </div>
 
-      {/* KPI Stats */}
+      {/* KPI Stats — số liệu thật từ ví sinh viên và bản ghi quét tại quầy */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         <div className="portal-card" style={{ padding: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>TỔNG CHƯƠNG TRÌNH</span>
           <h2 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--text-primary)', marginTop: '4px' }}>{vouchers.length}</h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Đang được quản lý trên hệ thống</span>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{activeCount} đang chạy (sinh viên thấy được)</span>
         </div>
         <div className="portal-card" style={{ padding: '18px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>VOUCHER ĐÃ PHÁT</span>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#8B5CF6', marginTop: '4px' }}>{totalIssued.toLocaleString()}</h2>
-          <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>Tổng lượt lưu vào ví</span>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>LƯỢT LƯU VÀO VÍ</span>
+          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#8B5CF6', marginTop: '4px' }}>{totalClaimed.toLocaleString('vi-VN')}</h2>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Gồm cả ưu đãi hẹn cafe tự nhận</span>
         </div>
         <div className="portal-card" style={{ padding: '18px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>VOUCHER ĐÃ SỬ DỤNG</span>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#10B981', marginTop: '4px' }}>{totalUsed.toLocaleString()}</h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Check-in thành công tại quầy</span>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>LƯỢT DÙNG TẠI QUẦY</span>
+          <h2 style={{ fontSize: '26px', fontWeight: '900', color: '#10B981', marginTop: '4px' }}>{(totalQr + totalCode).toLocaleString('vi-VN')}</h2>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{totalQr} quét ví · {totalCode} nhập mã chung</span>
         </div>
         <div className="portal-card" style={{ padding: '18px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>TỶ LỆ CHUYỂN ĐỔI (CR)</span>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--primary)', marginTop: '4px' }}>{conversionRate}</h2>
-          <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>Hiệu quả kích cầu đối soát</span>
+          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)' }}>TỶ LỆ DÙNG VOUCHER ĐÃ LƯU</span>
+          <h2 style={{ fontSize: '26px', fontWeight: '900', color: 'var(--primary)', marginTop: '4px' }}>{walletUseRate}</h2>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{totalWalletUsed}/{totalClaimed} voucher trong ví đã được quán quét</span>
         </div>
       </div>
 
@@ -128,9 +133,9 @@ export default function VoucherOversight() {
                 <th style={{ padding: '12px 18px' }}>QUÁN ĐỐI TÁC</th>
                 <th style={{ padding: '12px 14px' }}>TÊN VOUCHER & MÃ</th>
                 <th style={{ padding: '12px 14px' }}>MỨC GIẢM</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center' }}>ĐÃ PHÁT</th>
+                <th style={{ padding: '12px 14px' }}>LOẠI</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center' }}>ĐÃ LƯU</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center' }}>ĐÃ DÙNG</th>
-                <th style={{ padding: '12px 14px' }}>ĐỘ RỦI RO</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center' }}>TRẠNG THÁI</th>
                 <th style={{ padding: '12px 18px', textAlign: 'right' }}>THAO TÁC</th>
               </tr>
@@ -159,20 +164,20 @@ export default function VoucherOversight() {
                     <div>{v.name}</div>
                     <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '700' }}>{v.code}</span>
                   </td>
-                  <td style={{ padding: '14px 14px', fontWeight: '700' }}>{v.discount}</td>
-                  <td style={{ padding: '14px 14px', textAlign: 'center' }}>{v.issued}</td>
-                  <td style={{ padding: '14px 14px', textAlign: 'center', fontWeight: '700', color: '#10B981' }}>{v.used}</td>
-                  <td style={{ padding: '14px 14px' }}>
-                    {v.risk === 'An toàn' ? (
-                      <span style={{ color: '#059669', fontSize: '12px', fontWeight: '600' }}>✓ An toàn</span>
-                    ) : (
-                      <span style={{ color: '#DC2626', fontSize: '12px', fontWeight: '700' }}>⚠ {v.risk}</span>
+                  <td style={{ padding: '14px 14px', fontWeight: '700' }}>
+                    {v.discount}
+                    <div style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-muted)' }}>{v.condition}</div>
+                  </td>
+                  <td style={{ padding: '14px 14px', fontSize: '12px', fontWeight: '700', color: v.kind === 'Thường' ? 'var(--text-secondary)' : '#C2410C' }}>{v.kind}</td>
+                  <td style={{ padding: '14px 14px', textAlign: 'center' }}>{v.claimed}</td>
+                  <td style={{ padding: '14px 14px', textAlign: 'center', fontWeight: '700', color: '#10B981' }}>
+                    {v.usedQr + v.usedCode}
+                    {v.usedCode > 0 && (
+                      <div style={{ fontSize: '10.5px', fontWeight: '600', color: 'var(--text-muted)' }}>{v.usedCode} nhập mã</div>
                     )}
                   </td>
                   <td style={{ padding: '14px 14px', textAlign: 'center' }}>
-                    {v.status === 'active' && <span className="badge badge-success">ACTIVE</span>}
-                    {v.status === 'flagged' && <span className="badge badge-warning">CẢNH BÁO</span>}
-                    {v.status === 'paused' && <span className="badge badge-danger">TẠM DỪNG</span>}
+                    <VoucherStatusBadge status={v.status} label={v.statusLabel} />
                   </td>
                   <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                     <button
@@ -180,7 +185,7 @@ export default function VoucherOversight() {
                       className="btn btn-secondary"
                       style={{ padding: '5px 10px', fontSize: '12px' }}
                     >
-                      {v.status === 'active' ? 'Tạm dừng' : 'Kích hoạt'}
+                      {v.isActive ? 'Tạm dừng' : 'Bật lại'}
                     </button>
                   </td>
                 </tr>

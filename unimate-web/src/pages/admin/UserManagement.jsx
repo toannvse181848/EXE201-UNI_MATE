@@ -4,7 +4,6 @@ import {
   Search,
   Filter,
   ShieldCheck,
-  ShieldAlert,
   Ban,
   CheckCircle2,
   GraduationCap,
@@ -18,6 +17,12 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { userApi } from '../../services/api';
+
+// Premium còn hạn (giống backend utils/subscription.isPremiumActive): cờ isPremium vẫn là true sau khi hết hạn
+const isPremiumActive = (sp) =>
+  Boolean(sp?.isPremium && (!sp.premiumExpiresAt || new Date(sp.premiumExpiresAt) > new Date()));
+const hasBlueTick = (u) => isPremiumActive(u.studentProfile) || Boolean(u.studentProfile?.isVerifiedStudent);
+const isPremiumExpired = (sp) => Boolean(sp?.isPremium && sp.premiumExpiresAt && new Date(sp.premiumExpiresAt) <= new Date());
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -73,7 +78,8 @@ export default function UserManagement() {
   }, [fetchUsers]);
 
   const handleToggleStatus = async (user) => {
-    const newStatus = user.status === 'active' ? 'suspended' : 'active';
+    // Chỉ tài khoản đang bị khoá mới được "Mở khoá"; còn lại (hoạt động / quán chờ duyệt) là "Khoá"
+    const newStatus = user.status === 'suspended' ? 'active' : 'suspended';
     const confirmMsg = newStatus === 'suspended'
       ? `Bạn có chắc chắn muốn KHOÁ tài khoản "${user.fullName}" (${user.email})?`
       : `Mở khoá tài khoản "${user.fullName}" (${user.email})?`;
@@ -100,7 +106,7 @@ export default function UserManagement() {
   };
 
   const handleTogglePremium = async (user) => {
-    const isPrem = Boolean(user.studentProfile?.isPremium || user.studentProfile?.isVerifiedStudent);
+    const isPrem = hasBlueTick(user);
     const newPremium = !isPrem;
     const confirmMsg = newPremium
       ? `CẤP gói Premium & Tích xanh cho tài khoản "${user.fullName}"?`
@@ -290,6 +296,7 @@ export default function UserManagement() {
           <option value="">Tất cả trạng thái</option>
           <option value="active">🟢 Đang hoạt động (Active)</option>
           <option value="suspended">🔴 Bị khoá (Banned)</option>
+          <option value="pending">🟡 Quán chờ duyệt</option>
         </select>
       </div>
 
@@ -377,7 +384,7 @@ export default function UserManagement() {
                               <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
                                 {u.studentProfile?.university || 'Chưa cập nhật trường'}
                               </span>
-                              {Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? (
+                              {hasBlueTick(u) ? (
                                 <span
                                   style={{
                                     display: 'inline-flex',
@@ -390,7 +397,11 @@ export default function UserManagement() {
                                     fontSize: '11px',
                                     fontWeight: '800',
                                   }}
-                                  title="Tài khoản Premium (Tích xanh)"
+                                  title={
+                                    u.studentProfile?.premiumExpiresAt
+                                      ? `Premium đến ${new Date(u.studentProfile.premiumExpiresAt).toLocaleDateString('vi-VN')}`
+                                      : 'Tài khoản Premium (Tích xanh)'
+                                  }
                                 >
                                   <CheckCircle2 size={11} color="#0284C7" /> Tích Xanh
                                 </span>
@@ -407,7 +418,7 @@ export default function UserManagement() {
                                     fontWeight: '600',
                                   }}
                                 >
-                                  Thường
+                                  {isPremiumExpired(u.studentProfile) ? 'Premium đã hết hạn' : 'Thường'}
                                 </span>
                               )}
                             </div>
@@ -449,6 +460,14 @@ export default function UserManagement() {
                           }}>
                             <Ban size={12} /> Đã bị khoá
                           </span>
+                        ) : u.status === 'pending' ? (
+                          <span title="Quán mới đăng ký: duyệt quán ở mục Quản lý địa điểm là tài khoản được kích hoạt" style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '4px',
+                            backgroundColor: '#FFFBEB', color: '#B45309',
+                            padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700'
+                          }}>
+                            Chờ duyệt quán
+                          </span>
                         ) : (
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: '4px',
@@ -474,19 +493,19 @@ export default function UserManagement() {
                                 fontWeight: '700',
                                 cursor: 'pointer',
                                 border: '1px solid',
-                                borderColor: Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#BAE6FD' : '#FED7AA',
-                                backgroundColor: Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#F0F9FF' : '#FFF7ED',
-                                color: Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#0369A1' : '#C2410C',
+                                borderColor: hasBlueTick(u) ? '#BAE6FD' : '#FED7AA',
+                                backgroundColor: hasBlueTick(u) ? '#F0F9FF' : '#FFF7ED',
+                                color: hasBlueTick(u) ? '#0369A1' : '#C2410C',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '5px',
                               }}
-                              title={Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? 'Bấm để thu hồi Premium & Tích xanh' : 'Bấm để cấp Premium & Tích xanh'}
+                              title={hasBlueTick(u) ? 'Bấm để thu hồi Premium & Tích xanh' : 'Bấm để cấp Premium & Tích xanh'}
                             >
-                              <Crown size={13} color={Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent) ? '#0284C7' : '#EA580C'} />
+                              <Crown size={13} color={hasBlueTick(u) ? '#0284C7' : '#EA580C'} />
                               {actionLoading === `prem_${u._id}`
                                 ? '...'
-                                : Boolean(u.studentProfile?.isPremium || u.studentProfile?.isVerifiedStudent)
+                                : hasBlueTick(u)
                                 ? 'Thu hồi Tích xanh'
                                 : 'Cấp Tích xanh'}
                             </button>

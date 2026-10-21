@@ -31,11 +31,13 @@ import {
   LogOut,
   Crown,
   ChevronDown,
+  Flag,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { chatApi, matchApi, groupChatApi, meetupApi, API_BASE_URL } from '../../services/api';
 import MeetupCard from '../../components/user/MeetupCard';
 import MeetupInviteModal from '../../components/user/MeetupInviteModal';
+import ReportUserModal from '../../components/user/ReportUserModal';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarUrl } from '../../constants/avatar';
 import { UNREAD_CHANGED_EVENT } from '../../constants/events';
@@ -351,6 +353,8 @@ export default function UserMessages() {
 
   // "Rủ đi cafe": khung chọn quán + thẻ lời mời đang được trả lời
   const [showMeetupModal, setShowMeetupModal] = useState(false);
+  // Báo cáo người đang chat với ban quản trị
+  const [showReportModal, setShowReportModal] = useState(false);
   const [busyMeetupId, setBusyMeetupId] = useState(null);
 
   // Đóng emoji picker (1-1 và nhóm) khi click ra ngoài
@@ -2082,6 +2086,14 @@ export default function UserMessages() {
                 <Coffee size={16} />
                 <span>Rủ đi cafe</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setShowReportModal(true)}
+                title="Báo cáo người dùng này với ban quản trị"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#FFFFFF', color: '#94A3B8', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+              >
+                <Flag size={16} />
+              </button>
             </div>
           </div>
 
@@ -3058,6 +3070,14 @@ export default function UserMessages() {
           </div>
         </div>
       )}
+
+      {/* ====== MODAL BÁO CÁO NGƯỜI DÙNG ====== */}
+      <ReportUserModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        targetId={activeConversation?.buddy?.id}
+        targetName={activeConversation?.buddy?.fullName}
+      />
 
       {/* ====== MODAL RỦ ĐI CAFE ====== */}
       <MeetupInviteModal

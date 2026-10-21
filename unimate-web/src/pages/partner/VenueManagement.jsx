@@ -1,26 +1,19 @@
 import React, { useState } from 'react';
 import {
-  Store,
   Save,
   Zap,
-  Phone,
   MapPin,
   Clock,
   DollarSign,
-  Tag,
   Star,
-  Wifi,
-  BatteryCharging,
   Sparkles,
   Check,
   Upload,
   Image as ImageIcon,
   Trash2,
   Plus,
-  Link as LinkIcon,
   QrCode,
   Printer,
-  Download,
   RefreshCw,
   X,
   Loader2,
@@ -81,6 +74,12 @@ export default function VenueManagement() {
     return name;
   };
 
+  // "07:00 - 22:30" → ['07:00', '22:30']; "30.000 - 65.000 VNĐ" → ['30.000', '65.000']
+  const splitRange = (text, fallback) => {
+    const parts = String(text || '').replace(/\s*VNĐ\s*$/i, '').split(/\s*[-–]\s*/);
+    return parts.length === 2 && parts[0] && parts[1] ? parts : fallback;
+  };
+
   // Điền form theo chi nhánh đang chọn; null = thêm chi nhánh mới
   const fillForm = (v) => {
     setVenueId(v ? v._id || v.id : null);
@@ -93,8 +92,10 @@ export default function VenueManagement() {
             phone: v.phone || '',
             address: v.address || '',
             district: v.district || extractDistrict(v.address) || '',
-            tags: v.tags?.length ? v.tags : prev.tags,
+            tags: v.tags || [],
             images: v.images?.length ? v.images : v.image ? [v.image] : [],
+            ...(([openTime, closeTime]) => ({ openTime, closeTime }))(splitRange(v.openHours, [prev.openTime, prev.closeTime])),
+            ...(([priceMin, priceMax]) => ({ priceMin, priceMax }))(splitRange(v.priceRange, [prev.priceMin, prev.priceMax])),
           }
         : { ...prev, branchName: '', description: '', phone: '', address: '', district: '', images: [] }
     );
@@ -125,6 +126,7 @@ export default function VenueManagement() {
     (v) => String(v.venueId?._id || v.venueId) === String(venueId) && v.isActive && new Date(v.validUntil) > new Date()
   );
   const previewReward = branchVouchers.find((v) => v.meetupReward);
+  const activeVenue = venues.find((v) => (v._id || v.id) === venueId);
   const previewVoucher = branchVouchers.find((v) => !v.meetupReward);
 
 
@@ -221,20 +223,34 @@ export default function VenueManagement() {
       tags: formData.tags,
       images: formData.images,
       image: formData.images[0] || '',
+      openHours: `${formData.openTime.trim()} - ${formData.closeTime.trim()}`,
+      priceRange: `${formData.priceMin.trim()} - ${formData.priceMax.trim()} VNĐ`,
     };
 
 
     setIsSaving(true);
     try {
+      let saved;
+      let needsReview = false;
       if (venueId) {
-        await venueApi.updateVenue(venueId, payload);
+        const res = await venueApi.updateVenue(venueId, payload);
+        saved = res?.data;
+        needsReview = Boolean(res?.needsReview);
         await loadVenues(venueId);
       } else {
         const res = await venueApi.createVenue(payload);
+        saved = res?.data;
         await loadVenues(res?.data?._id || null);
       }
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
+      // Báo đúng sinh viên đã thấy thay đổi hay chưa (quán chưa duyệt thì chưa hiện)
+      setSavedSuccess(
+        needsReview
+          ? { tone: 'warn', text: 'Đã lưu. Bạn đổi tên hoặc địa chỉ nên chi nhánh cần admin duyệt lại; trong lúc chờ, sinh viên tạm thời không thấy chi nhánh này.' }
+          : saved?.status === 'approved'
+            ? { tone: 'ok', text: 'Đã lưu. Sinh viên thấy thông tin mới ngay trên web và app.' }
+            : { tone: 'warn', text: 'Đã lưu. Chi nhánh đang chờ admin duyệt nên sinh viên chưa thấy.' }
+      );
+      setTimeout(() => setSavedSuccess(false), 6000);
     } catch (err) {
       alert('Lưu thông tin quán thất bại: ' + err.message);
     } finally {
@@ -413,6 +429,16 @@ export default function VenueManagement() {
         >
           <Plus size={15} /> Thêm chi nhánh
         </button>
+        {activeVenue?.status === 'rejected' && (
+          <span style={{ fontSize: '12px', color: '#B91C1C', fontWeight: '700', flexBasis: '100%' }}>
+            Chi nhánh bị từ chối{activeVenue.rejectionReason ? `: ${activeVenue.rejectionReason}` : ''}. Sửa thông tin rồi lưu để gửi duyệt lại.
+          </span>
+        )}
+        {activeVenue?.status === 'pending' && (
+          <span style={{ fontSize: '12px', color: '#B45309', fontWeight: '700', flexBasis: '100%' }}>
+            Chi nhánh đang chờ admin duyệt: sinh viên chưa thấy chi nhánh này và voucher của nó.
+          </span>
+        )}
         {!venueId && (
           <span style={{ fontSize: '12px', color: 'var(--text-muted)', flexBasis: '100%' }}>
             Đang thêm chi nhánh mới: điền thông tin bên dưới rồi bấm "Lưu thay đổi". Chi nhánh mới cần admin duyệt trước khi hiện cho sinh viên.
@@ -423,11 +449,11 @@ export default function VenueManagement() {
       {savedSuccess && (
         <div
           style={{
-            backgroundColor: '#ECFDF5',
-            color: '#065F46',
+            backgroundColor: savedSuccess.tone === 'ok' ? '#ECFDF5' : '#FFFBEB',
+            color: savedSuccess.tone === 'ok' ? '#065F46' : '#92400E',
             padding: '12px 18px',
             borderRadius: '12px',
-            border: '1px solid #A7F3D0',
+            border: `1px solid ${savedSuccess.tone === 'ok' ? '#A7F3D0' : '#FDE68A'}`,
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
@@ -436,7 +462,7 @@ export default function VenueManagement() {
           }}
         >
           <Check size={18} />
-          <span>Thông tin địa điểm và album ảnh đã được cập nhật đồng bộ lên toàn hệ thống app UNI-MATE!</span>
+          <span>{savedSuccess.text}</span>
         </div>
       )}
 
@@ -1026,23 +1052,25 @@ export default function VenueManagement() {
                         <span>NỔI BẬT</span>
                       </div>
                     )}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: '10px',
-                        right: '10px',
-                        backgroundColor: 'rgba(0,0,0,0.65)',
-                        backdropFilter: 'blur(4px)',
-                        color: '#fff',
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        padding: '3px 8px',
-                        borderRadius: '8px',
-                        zIndex: 4,
-                      }}
-                    >
-                      Cách 650m
-                    </div>
+                    {formData.district && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '10px',
+                          right: '10px',
+                          backgroundColor: 'rgba(0,0,0,0.65)',
+                          backdropFilter: 'blur(4px)',
+                          color: '#fff',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          zIndex: 4,
+                        }}
+                      >
+                        {formData.district}
+                      </div>
+                    )}
                   </>
                 }
               />
@@ -1053,9 +1081,9 @@ export default function VenueManagement() {
                   <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#1A1A24', flex: 1, marginRight: '6px' }}>
                     {displayName || 'Tên quán'}
                   </h4>
+                  {/* Chưa có hệ thống đánh giá → sinh viên thấy "Quán mới" thay cho số sao */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#FEF3C7', padding: '2px 6px', borderRadius: '6px' }}>
-                    <Star size={10} color="#D97706" fill="#D97706" />
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#D97706' }}>4.8</span>
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#D97706' }}>Quán mới</span>
                   </div>
                 </div>
 

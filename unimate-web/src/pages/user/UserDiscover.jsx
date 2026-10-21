@@ -19,9 +19,12 @@ import { userApi, matchApi, onboardingApi } from '../../services/api';
 import { trackEvent } from '../../utils/analytics';
 import { formatStudentYear } from '../../constants/academic';
 import { getAvatarUrl, DEFAULT_AVATAR } from '../../constants/avatar';
+import { useAuth } from '../../context/AuthContext';
 
 
 export default function UserDiscover() {
+  const { user } = useAuth();
+  const myUniversity = user?.university || '';
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,41 +60,29 @@ export default function UserDiscover() {
       }
 
       if (realData.length > 0) {
-        const formatted = realData.map((u, idx) => {
+        // Chỉ hiển thị thông tin thật người dùng đã điền — không tự đặt tuổi, ảnh, khoảng cách, điểm
+        const formatted = realData.map((u) => {
           const profile = u.studentProfile || {};
           const isReco = isAlgorithm && u.matchPercentage !== undefined;
+          const university = u.university || profile.university || '';
 
           return {
             id: u.id || u._id,
             name: u.name || u.fullName,
-            age: 20 + (idx % 4),
-            gender: (profile.gender || u.gender) === 'female' ? 'Nữ' : 'Nam',
-            university: u.university || profile.university || 'Đại học FPT TP.HCM',
-            major: u.major || profile.major || 'Kỹ thuật Phần mềm',
-            year: u.year || profile.year || 'Sinh viên năm 3',
+            university: university || 'Chưa cập nhật trường',
+            // Cùng trường với mình (thông tin thật, thay cho khoảng cách ngẫu nhiên trước đây)
+            sameSchool: Boolean(university && myUniversity && university === myUniversity),
+            major: u.major || profile.major || '',
+            year: u.year || profile.year || '',
             studentId: profile.studentId || u.studentId || '',
-            avatar:
-              u.avatar
-                ? getAvatarUrl(u.avatar)
-                : (idx % 2 === 0
-                  ? DEFAULT_AVATAR
-                  : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500'),
-            distance: `${(Math.random() * 2.5 + 0.4).toFixed(1)} km`,
-            trustScore: u.trustScore || profile.trustScore || 96,
+            avatar: u.avatar ? getAvatarUrl(u.avatar) : DEFAULT_AVATAR,
             isVerifiedStudent: Boolean(u.isVerifiedStudent || u.isPremium || profile.isVerifiedStudent || profile.isPremium),
             isPremium: Boolean(u.isPremium || profile.isPremium),
-            matchPercentage: isReco ? u.matchPercentage : 85 - (idx * 2 % 25),
+            // % hợp nhau chỉ có khi thuật toán gợi ý tính được
+            matchPercentage: isReco ? u.matchPercentage : null,
             commonTags: u.commonTags || [],
-            bio:
-              u.bio ||
-              profile.bio ||
-              'Tìm bạn cùng học bài & khám phá các quán cafe yên tĩnh 🚀',
-            interests:
-              (u.interests?.length > 0 ? u.interests : profile.interests?.length > 0 ? profile.interests : [
-                'Cà phê học bài',
-                'Boardgame',
-                'Kết nối bạn bè',
-              ]),
+            bio: u.bio || profile.bio || '',
+            interests: u.interests?.length > 0 ? u.interests : profile.interests || [],
           };
         });
         setStudents(formatted);
@@ -104,7 +95,7 @@ export default function UserDiscover() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [myUniversity]);
 
   useEffect(() => {
     fetchStudents();
@@ -462,6 +453,7 @@ export default function UserDiscover() {
                   )}
 
                   {/* Distance Pill */}
+                  {student.sameSchool && (
                   <div
                     style={{
                       position: 'absolute',
@@ -481,10 +473,12 @@ export default function UserDiscover() {
                     }}
                   >
                     <MapPin size={12} color="#FFB74D" />
-                    <span>Cách {student.distance}</span>
+                    <span>Cùng trường với bạn</span>
                   </div>
+                  )}
 
                   {/* Verified Trust Badge */}
+                  {student.isVerifiedStudent && (
                   <div
                     style={{
                       position: 'absolute',
@@ -503,8 +497,9 @@ export default function UserDiscover() {
                     }}
                   >
                     <CheckCircle2 size={12} />
-                    <span>Tín nhiệm {student.trustScore}%</span>
+                    <span>Đã xác minh</span>
                   </div>
+                  )}
 
                   {/* Name & Uni Overlay */}
                   <div
@@ -565,6 +560,7 @@ export default function UserDiscover() {
                     flexDirection: 'column',
                   }}
                 >
+                  {student.bio && (
                   <div
                     style={{
                       fontSize: '12.5px',
@@ -576,6 +572,7 @@ export default function UserDiscover() {
                   >
                     "{student.bio}"
                   </div>
+                  )}
 
                   {/* Major & Favorite Cafe */}
                   <div
@@ -597,7 +594,7 @@ export default function UserDiscover() {
                     >
                       <BookOpen size={14} color="#FF5722" />
                       <span>
-                        Ngành: <strong>{student.major}</strong>
+                        Ngành: <strong>{student.major || "Chưa cập nhật"}</strong>
                       </span>
                     </div>
                   </div>

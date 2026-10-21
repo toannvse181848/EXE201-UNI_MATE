@@ -16,7 +16,6 @@ import {
   Wifi,
   Zap,
   Clock,
-  Star,
   LogIn,
   UserPlus,
   ExternalLink,
@@ -386,7 +385,7 @@ export default function Home() {
                 maxWidth: '560px',
               }}
             >
-              Không còn cày deadline một mình. Kết nối bạn học cùng trường ĐH, chọn quán cafe yên tĩnh có đủ ổ cắm & wifi tốc độ cao, đồng thời săn voucher giảm giá tới 50% mỗi ngày!
+              Không còn cày deadline một mình. Kết nối bạn học cùng trường ĐH, rủ nhau tới quán cafe đối tác và dùng voucher dành riêng cho sinh viên.
             </p>
 
             {/* Hero CTAs */}
@@ -477,7 +476,7 @@ export default function Home() {
                 ))}
               </div>
               <div style={{ fontSize: '13px', color: '#64748B' }}>
-                <strong style={{ color: '#0F172A', fontWeight: '800' }}>15,000+ Sinh viên</strong> từ FPTU, Bách Khoa, UEH, UIT đã tham gia
+                Dành cho <strong style={{ color: '#0F172A', fontWeight: '800' }}>sinh viên</strong> FPTU, Bách Khoa, UEH, UIT và các trường tại TP.HCM
               </div>
             </div>
           </div>
@@ -591,10 +590,10 @@ export default function Home() {
                   </div>
                   <div>
                     <span style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A', display: 'block' }}>
-                      Bảo vệ 100% Danh tính
+                      Bảo vệ thông tin cá nhân
                     </span>
                     <span style={{ fontSize: '10px', color: '#059669', fontWeight: '700' }}>
-                      Mã hóa 2 lớp AES-256
+                      Mật khẩu mã hoá một chiều
                     </span>
                   </div>
                 </div>
@@ -652,7 +651,7 @@ export default function Home() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <KeyRound size={15} color="#059669" />
                   <span style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
-                    Chuẩn truyền thông bảo mật SSL/TLS 256-bit
+                    Kết nối được mã hoá HTTPS (TLS)
                   </span>
                 </div>
                 <span
@@ -703,7 +702,7 @@ export default function Home() {
                       Ẩn danh thông tin nhạy cảm
                     </h5>
                     <p style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.5 }}>
-                      Số điện thoại, email và MSSV của bạn được che kín hoàn toàn. Sinh viên khác chỉ thấy Tên và Trường học mà bạn đồng ý hiển thị trên thẻ Uni-Card.
+                      Số điện thoại, email và MSSV của bạn không hiện cho người khác. Sinh viên khác chỉ thấy tên, ảnh, trường, ngành và sở thích bạn điền.
                     </p>
                   </div>
                 </div>
@@ -737,10 +736,10 @@ export default function Home() {
                   </div>
                   <div>
                     <h5 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A', marginBottom: '2px' }}>
-                      Xác minh MSSV an toàn — Không lưu ảnh thẻ thô
+                      Báo cáo vi phạm ngay trong khung chat
                     </h5>
                     <p style={{ fontSize: '12px', color: '#64748B', lineHeight: 1.5 }}>
-                      Hình ảnh thẻ sinh viên chỉ dùng đối soát một lần để cấp tích xanh chính chủ. Tuyệt đối không lưu trữ hay chia sẻ thông tin này cho bên thứ ba.
+                      Gặp tài khoản quấy rối hay giả mạo, bấm Báo cáo để ban quản trị xem xét và khoá tài khoản vi phạm. Người bị báo cáo không biết ai đã báo cáo.
                     </p>
                   </div>
                 </div>
@@ -833,27 +832,27 @@ export default function Home() {
           }}
         >
           <div>
-            <div style={{ fontSize: '38px', fontWeight: '900', color: '#FF5722', letterSpacing: '-1px' }}>15,000+</div>
-            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Sinh viên tham gia</div>
-            <div style={{ fontSize: '12px', color: '#64748B' }}>Từ 20+ trường ĐH tại TP.HCM</div>
+            <div style={{ fontSize: '38px', fontWeight: '900', color: '#FF5722', letterSpacing: '-1px' }}>0đ</div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Tìm bạn học & nhắn tin</div>
+            <div style={{ fontSize: '12px', color: '#64748B' }}>Miễn phí cho sinh viên</div>
           </div>
 
           <div>
-            <div style={{ fontSize: '38px', fontWeight: '900', color: '#0F172A', letterSpacing: '-1px' }}>120+</div>
-            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Quán Cafe & Không gian học</div>
-            <div style={{ fontSize: '12px', color: '#64748B' }}>Đầy đủ ổ điện, wifi và yên tĩnh</div>
+            <div style={{ fontSize: '38px', fontWeight: '900', color: '#0F172A', letterSpacing: '-1px' }}>2 người</div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Ưu đãi hẹn cafe</div>
+            <div style={{ fontSize: '12px', color: '#64748B' }}>Rủ bạn tới quán đối tác, cả hai cùng nhận</div>
           </div>
 
           <div>
-            <div style={{ fontSize: '38px', fontWeight: '900', color: '#10B981', letterSpacing: '-1px' }}>35,000+</div>
-            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Voucher đã được đổi</div>
-            <div style={{ fontSize: '12px', color: '#64748B' }}>Tiết kiệm hơn 500 triệu đồng</div>
+            <div style={{ fontSize: '38px', fontWeight: '900', color: '#10B981', letterSpacing: '-1px' }}>QR</div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Dùng voucher tại quầy</div>
+            <div style={{ fontSize: '12px', color: '#64748B' }}>Nhân viên quán quét mã trong ví của bạn</div>
           </div>
 
           <div>
-            <div style={{ fontSize: '38px', fontWeight: '900', color: '#FF9800', letterSpacing: '-1px' }}>98.6%</div>
-            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Độ tin nhiệm sinh viên</div>
-            <div style={{ fontSize: '12px', color: '#64748B' }}>Xác minh MSSV & đánh giá văn minh</div>
+            <div style={{ fontSize: '38px', fontWeight: '900', color: '#FF9800', letterSpacing: '-1px' }}>MSSV</div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', marginTop: '4px' }}>Hồ sơ sinh viên</div>
+            <div style={{ fontSize: '12px', color: '#64748B' }}>Khai báo mã số sinh viên khi đăng ký</div>
           </div>
         </div>
       </section>
@@ -907,13 +906,13 @@ export default function Home() {
               1. Kết Bạn Bạn Học Thông Minh (Study Match)
             </h3>
             <p style={{ fontSize: '15px', color: '#64748B', lineHeight: 1.6, marginBottom: '20px' }}>
-              Thuật toán thông minh tự động tìm kiếm và gợi ý các bạn sinh viên cùng trường (FPT, BK, UEH, UIT...), cùng chuyên ngành, cùng môn học đang chuẩn bị thi hoặc làm đồ án tốt nghiệp.
+              Thuật toán gợi ý các bạn sinh viên hợp với bạn dựa trên trường (FPT, BK, UEH, UIT...), chuyên ngành, sở thích và mục tiêu học tập.
             </p>
             <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                'Lọc theo trường đại học, ngành học và năm học',
-                'Tính % độ hợp gu học tập (yên tĩnh, thảo luận, cày đêm)',
-                'Gửi lời mời kết bạn học cafe an toàn và văn minh',
+                'Lọc theo trường, tìm theo tên hoặc ngành học',
+                'Tính % hợp nhau theo sở thích, mục tiêu và thói quen học',
+                'Hai bạn cùng thích nhau mới mở được khung chat',
               ].map((text, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#334155' }}>
                   <CheckCircle2 size={16} color="#FF5722" />
@@ -952,16 +951,16 @@ export default function Home() {
               <Coffee size={28} />
             </div>
             <h3 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', marginBottom: '12px' }}>
-              2. Không Gian Cafe Học Bài Đạt Chuẩn Sinh Viên
+              2. Quán Cafe Đối Tác Cho Sinh Viên
             </h3>
             <p style={{ fontSize: '15px', color: '#64748B', lineHeight: 1.6, marginBottom: '20px' }}>
-              Không còn nỗi lo vào quán cafe hết ổ cắm hay wifi chập chờn. Danh sách quán cafe đối tác trên UNI-MATE đều được kiểm định thực tế các tiện ích học tập quan trọng.
+              Danh sách quán cafe đối tác đã được ban quản trị UNI-MATE duyệt, kèm địa chỉ, giờ mở cửa, khoảng giá và voucher đang chạy để bạn chọn chỗ học.
             </p>
             <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                'Kiểm định ổ cắm điện từng bàn và wifi tốc độ cao (>100Mbps)',
-                'Phân loại khu vực yên tĩnh cày bài vs khu họp nhóm thảo luận',
-                'Hiển thị khoảng cách chính xác từ cổng trường ĐH đến quán',
+                'Chỉ hiện quán đã được ban quản trị duyệt',
+                'Xem địa chỉ, giờ mở cửa, khoảng giá và chỉ đường Google Maps',
+                'Phân loại quán học bài, chill, boardgame, học nhóm',
               ].map((text, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#334155' }}>
                   <CheckCircle2 size={16} color="#E65100" />
@@ -1002,13 +1001,13 @@ export default function Home() {
               3. Săn Voucher & Tích Lũy UniCoin
             </h3>
             <p style={{ fontSize: '15px', color: '#64748B', lineHeight: 1.6, marginBottom: '20px' }}>
-              Tiết kiệm chi phí uống nước học bài mỗi ngày. Tích điểm UniCoin qua mỗi lần check-in học bài và đổi lấy mã giảm giá đồ uống từ các đối tác lớn như The Coffee House, Phúc Long, v.v.
+              Tiết kiệm chi phí uống nước học bài. Tích UniCoin khi điểm danh và check-in tại quán, rồi đổi lấy voucher của các quán đối tác UNI-MATE.
             </p>
             <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                'Voucher giảm 20% - 50% dành riêng cho thẻ sinh viên',
-                'Quét mã QR tại quầy thanh toán cực nhanh trong 3 giây',
-                'Nhận thưởng UniCoin khi hoàn thành các thử thách học nhóm',
+                'Voucher dành riêng cho sinh viên từ các quán đối tác',
+                'Đưa mã QR trong ví để nhân viên quét tại quầy',
+                'Nhận UniCoin khi điểm danh, check-in quán và hoàn thành buổi hẹn cafe',
               ].map((text, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#334155' }}>
                   <CheckCircle2 size={16} color="#059669" />
@@ -1045,16 +1044,16 @@ export default function Home() {
               <ShieldCheck size={28} />
             </div>
             <h3 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', marginBottom: '12px' }}>
-              4. Thẻ Uni-Card & Điểm Tin Nhiệm Sinh Viên
+              4. Thẻ Uni-Card & Báo Cáo Vi Phạm
             </h3>
             <p style={{ fontSize: '15px', color: '#64748B', lineHeight: 1.6, marginBottom: '20px' }}>
-              An toàn là ưu tiên số một. Hồ sơ sinh viên Uni-Card được xác minh qua mã số sinh viên (MSSV) và hệ thống điểm tin nhiệm cộng đồng nhằm loại bỏ tài khoản ảo, xây dựng không gian học tập văn minh.
+              An toàn là ưu tiên số một. Hồ sơ sinh viên Uni-Card khai báo mã số sinh viên (MSSV) và trường; tài khoản vi phạm bị báo cáo sẽ được ban quản trị xem xét và khoá.
             </p>
             <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                'Xác thực sinh viên chính chủ qua MSSV và email trường',
-                'Hệ thống chấm điểm tin nhiệm sau mỗi lần gặp gỡ',
-                'Cơ chế báo cáo vi phạm và đội ngũ Admin trực duyệt 24/7',
+                'Khai báo MSSV, trường và ngành khi đăng ký',
+                'Tích xanh cho tài khoản Premium',
+                'Nút báo cáo vi phạm trong khung chat, admin xem xét và khoá tài khoản',
               ].map((text, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#334155' }}>
                   <CheckCircle2 size={16} color="#4F46E5" />
@@ -1085,21 +1084,21 @@ export default function Home() {
               {
                 step: '01',
                 title: 'Đăng Ký & Kích Hoạt Uni-Card',
-                desc: 'Đăng ký tài khoản nhanh chóng bằng email trường hoặc cá nhân, chọn trường ĐH và ngành học của bạn để nhận ngay 100 UniCoin chào mừng.',
+                desc: 'Đăng ký bằng email hoặc tài khoản Google, điền trường ĐH và ngành học của bạn để nhận ngay 250 UniCoin chào mừng.',
                 linkText: 'Đăng ký ngay →',
                 linkUrl: '/register',
               },
               {
                 step: '02',
                 title: 'Ghép Bạn Học & Chọn Quán Cafe',
-                desc: 'Khám phá danh sách bạn học đang tìm người học chung hoặc chọn quán cafe gần trường có không gian và ưu đãi phù hợp.',
+                desc: 'Khám phá danh sách bạn học, thích nhau là mở chat, rồi rủ nhau tới quán cafe đối tác ngay trong khung chat.',
                 linkText: 'Xem giao diện kết bạn →',
                 linkUrl: '/login',
               },
               {
                 step: '03',
                 title: 'Cày Deadline & Quét Mã Nhận Ưu Đãi',
-                desc: 'Đến quán gặp gỡ, học tập hiệu quả cùng nhau và đưa mã QR voucher cho nhân viên quét để nhận giảm giá đồ uống tức thì.',
+                desc: 'Đến quán gặp gỡ, học cùng nhau và đưa mã QR voucher trong ví cho nhân viên quét để nhận ưu đãi.',
                 linkText: 'Khám phá Voucher →',
                 linkUrl: '/login',
               },
@@ -1195,15 +1194,15 @@ export default function Home() {
             </h2>
 
             <p style={{ fontSize: '16px', color: '#D1D5DB', lineHeight: 1.6, marginBottom: '30px' }}>
-              Bạn đang có những khung giờ vắng khách vào ban ngày? Trở thành đối tác của UNI-MATE để tiếp cận ngay hàng chục ngàn sinh viên năng động, phát hành voucher linh hoạt và quản lý lượt quét mã tiện lợi.
+              Bạn đang có những khung giờ vắng khách vào ban ngày? Trở thành đối tác của UNI-MATE để tiếp cận sinh viên các trường quanh quán, phát hành voucher linh hoạt và quản lý lượt quét mã tiện lợi.
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '36px' }}>
               {[
                 'Lấp đầy chỗ ngồi vào các khung giờ thấp điểm',
                 'Quét mã QR voucher tại quầy chỉ mất 3 giây',
-                'Quản lý thực đơn và thông số chi nhánh tiện lợi',
-                'Theo dõi báo cáo doanh thu & lượt khách chi tiết',
+                'Quản lý nhiều chi nhánh, ảnh, giờ mở cửa và khoảng giá',
+                'Theo dõi lượt lưu và lượt dùng voucher theo ngày',
               ].map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#E5E7EB' }}>
                   <CheckCircle2 size={16} color="#FF5722" />
@@ -1272,14 +1271,14 @@ export default function Home() {
                 style={{ width: '56px', height: '56px', borderRadius: '14px', objectFit: 'cover' }}
               />
               <div>
-                <h4 style={{ fontSize: '18px', fontWeight: '800', color: '#FFFFFF' }}>The Coffee House</h4>
-                <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>● Chi nhánh đang hoạt động</span>
+                <h4 style={{ fontSize: '18px', fontWeight: '800', color: '#FFFFFF' }}>Quán của bạn</h4>
+                <span style={{ fontSize: '12px', color: '#10B981', fontWeight: '700' }}>● Chi nhánh đã được duyệt</span>
               </div>
             </div>
 
             <div style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)', borderRadius: '16px', padding: '16px', marginBottom: '16px' }}>
               <div style={{ fontSize: '11px', color: '#9CA3AF', textTransform: 'uppercase', fontWeight: '700' }}>
-                Hôm nay đã tiếp đón
+                Lượt dùng voucher hôm nay (minh hoạ)
               </div>
               <div style={{ fontSize: '28px', fontWeight: '900', color: '#FFA726', marginTop: '4px' }}>
                 48 lượt sinh viên
@@ -1288,7 +1287,7 @@ export default function Home() {
             </div>
 
             <div style={{ fontSize: '12px', color: '#9CA3AF', textAlign: 'center' }}>
-              Được bảo chứng bởi hệ sinh thái khởi nghiệp sinh viên UNI-MATE
+              Giao diện minh hoạ trang Tổng quan của quán trên UNI-MATE
             </div>
           </div>
         </div>
@@ -1299,10 +1298,10 @@ export default function Home() {
         <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '50px' }}>
             <span style={{ fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: '#FF5722', letterSpacing: '1px' }}>
-              CẢM NHẬN THỰC TẾ
+              CÁCH DÙNG
             </span>
             <h2 style={{ fontSize: '36px', fontWeight: '900', color: '#0F172A', marginTop: '8px' }}>
-              Cộng Đồng Sinh Viên Nói Gì?
+              Sinh Viên Dùng UNI-MATE Để Làm Gì?
             </h2>
           </div>
 
@@ -1316,22 +1315,19 @@ export default function Home() {
           >
             {[
               {
-                name: 'Trần Minh Thư',
-                school: 'ĐH Kinh Tế TP.HCM (UEH)',
-                avatar: DEFAULT_AVATAR,
-                review: 'Nhờ UNI-MATE mà mình đã tìm được bạn học nhóm môn Kinh tế vi mô. Ứng dụng lọc quán cafe có ổ cắm điện rất chuẩn xác, không còn sợ laptop hết pin giữa chừng!',
+                icon: Users,
+                title: 'Tìm bạn học nhóm',
+                text: 'Lọc theo trường, ngành và sở thích để tìm bạn cùng ôn thi, làm đồ án. Hai bạn cùng thích nhau là mở được khung chat.',
               },
               {
-                name: 'Lê Hoàng Nam',
-                school: 'ĐH Bách Khoa TP.HCM (HCMUT)',
-                avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-                review: 'Tính năng kết bạn theo chuyên ngành rất xịn. Mình tìm được bạn cùng cày đồ án môn Mạng máy tính ở quán cafe đối diện trường, vừa có bạn học cùng vừa được giảm 30% trà đào.',
+                icon: Coffee,
+                title: 'Rủ nhau đi cafe',
+                text: 'Rủ bạn tới quán đối tác ngay trong khung chat. Bạn ấy đồng ý là cả hai nhận ưu đãi hẹn cafe của quán (nếu quán có).',
               },
               {
-                name: 'Nguyễn Thảo My',
-                school: 'ĐH FPT TP.HCM',
-                avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-                review: 'Uni-Card giúp mình hoàn toàn yên tâm vì ai tham gia cũng được xác minh MSSV chính chủ. Đổi voucher bằng UniCoin siêu tiện, quét mã cái là xong ngay tại quầy!',
+                icon: Ticket,
+                title: 'Dùng voucher tại quầy',
+                text: 'Lưu voucher vào ví, tới quán đưa mã QR cho nhân viên quét. Mỗi lượt dùng được ghi lại cho cả bạn và quán.',
               },
             ].map((t, idx) => (
               <div
@@ -1344,24 +1340,12 @@ export default function Home() {
                   boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)',
                   display: 'flex',
                   flexDirection: 'column',
-                  justifyContent: 'space-between',
+                  gap: '12px',
                 }}
               >
-                <div style={{ display: 'flex', gap: '3px', marginBottom: '14px' }}>
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={16} fill="#F59E0B" color="#F59E0B" />
-                  ))}
-                </div>
-                <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6, marginBottom: '20px', fontStyle: 'italic' }}>
-                  "{t.review}"
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <img src={t.avatar} alt={t.name} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover' }} />
-                  <div>
-                    <h5 style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>{t.name}</h5>
-                    <span style={{ fontSize: '12px', color: '#64748B' }}>{t.school}</span>
-                  </div>
-                </div>
+                <t.icon size={26} color="#FF5722" />
+                <h5 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>{t.title}</h5>
+                <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>{t.text}</p>
               </div>
             ))}
           </div>
@@ -1388,7 +1372,7 @@ export default function Home() {
             Sẵn Sàng Nâng Cấp Trải Nghiệm Học Tập Cùng UNI-MATE?
           </h2>
           <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.92)', maxWidth: '680px', margin: '0 auto 36px', lineHeight: 1.6 }}>
-            Tham gia cộng đồng hàng chục ngàn sinh viên TP.HCM ngay hôm nay. Tạo tài khoản Uni-Card miễn phí và nhận ngay ưu đãi đồ uống đầu tiên!
+            Tham gia cùng sinh viên TP.HCM ngay hôm nay. Tạo tài khoản Uni-Card miễn phí, nhận 250 UniCoin chào mừng, tìm bạn học và rủ nhau đi cafe.
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -1526,10 +1510,12 @@ export default function Home() {
               Hỗ Trợ & Liên Hệ
             </h5>
             <p style={{ fontSize: '14px', color: '#94A3B8', lineHeight: 1.6, marginBottom: '10px' }}>
-              Email: <strong style={{ color: '#FFFFFF' }}>support@unimate.vn</strong>
+              UNI-MATE là dự án khởi nghiệp của nhóm sinh viên môn EXE201.
             </p>
             <p style={{ fontSize: '14px', color: '#94A3B8', lineHeight: 1.6 }}>
-              Hotline: <strong style={{ color: '#FFFFFF' }}>1900 8888 (8:00 - 22:00)</strong>
+              <Link to="/privacy" style={{ color: '#FFFFFF', fontWeight: '700' }}>Chính sách quyền riêng tư</Link>
+              {' · '}
+              <Link to="/terms" style={{ color: '#FFFFFF', fontWeight: '700' }}>Điều khoản sử dụng</Link>
             </p>
           </div>
         </div>
@@ -1692,7 +1678,7 @@ export default function Home() {
                   2. Tiêu chuẩn bảo mật & Mã hóa dữ liệu
                 </h4>
                 <p>
-                  Mọi dữ liệu trao đổi giữa ứng dụng và máy chủ đều được mã hóa bằng giao thức SSL/TLS và chuẩn mã hóa cấp cao AES-256. Hình ảnh thẻ sinh viên chỉ được quét tự động bởi hệ thống để xác minh 1 lần, tuyệt đối không lưu trữ ảnh thô trên cơ sở dữ liệu công khai.
+                  Dữ liệu trao đổi giữa ứng dụng và máy chủ được mã hoá bằng HTTPS (TLS). Mật khẩu được mã hoá một chiều, không ai đọc được. Người dùng khác chỉ thấy hồ sơ công khai của bạn (tên, ảnh, trường, ngành, sở thích); email, số điện thoại và MSSV không hiện cho người khác.
                 </p>
               </div>
 
@@ -1710,16 +1696,16 @@ export default function Home() {
                   4. Quyền tự chủ dữ liệu của sinh viên
                 </h4>
                 <p>
-                  Bạn có toàn quyền lựa chọn thông tin hiển thị trên Uni-Card, chuyển sang chế độ ẩn danh (Ghost Mode) bất cứ lúc nào hoặc yêu cầu xóa vĩnh viễn toàn bộ tài khoản và dữ liệu liên quan khỏi hệ thống bằng cách gửi email về bộ phận bảo vệ dữ liệu.
+                  Bạn có thể xem và sửa hồ sơ trong mục Hồ sơ, hoặc yêu cầu xoá vĩnh viễn tài khoản cùng toàn bộ dữ liệu liên quan qua email hỗ trợ ghi trên màn hình đăng nhập Google của UNI-MATE.
                 </p>
               </div>
 
               <div style={{ backgroundColor: '#F8FAFC', padding: '16px', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
                 <span style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  Bộ phận Phụ trách Bảo vệ Dữ liệu Cá nhân (DPO - UNI-MATE):
+                  Xem đầy đủ:
                 </span>
                 <div style={{ fontSize: '13px', color: '#64748B' }}>
-                  Email tiếp nhận: <strong style={{ color: '#0F172A' }}>privacy@unimate.vn</strong> | Hotline: <strong style={{ color: '#0F172A' }}>1900 8888</strong>
+                  <Link to="/privacy" style={{ color: '#0F172A', fontWeight: '700' }}>Chính sách quyền riêng tư</Link> | <Link to="/terms" style={{ color: '#0F172A', fontWeight: '700' }}>Điều khoản sử dụng</Link>
                 </div>
               </div>
             </div>

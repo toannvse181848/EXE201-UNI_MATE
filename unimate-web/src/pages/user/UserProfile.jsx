@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { userApi, authApi, orderApi } from '../../services/api';
+import { userApi, authApi, orderApi, matchApi } from '../../services/api';
 import { trackEvent, getAnalyticsClientId } from '../../utils/analytics';
 import usePremiumPlans, { PREMIUM_PLAN_LABEL, formatVnd } from '../../hooks/usePremiumPlans';
 import { getAvatarUrl } from '../../constants/avatar';
@@ -85,6 +85,15 @@ export default function UserProfile() {
   const premiumExpiresText = user?.premiumExpiresAt
     ? new Date(user.premiumExpiresAt).toLocaleDateString('vi-VN')
     : null;
+
+  // Số bạn đã kết nối thật (trước đây ô "Cạ cứng Match" luôn ghi 12)
+  const [friendCount, setFriendCount] = useState(null);
+  useEffect(() => {
+    matchApi
+      .getMyMatches()
+      .then((res) => setFriendCount(res?.count ?? res?.data?.length ?? 0))
+      .catch(() => {});
+  }, []);
 
   // Mở sẵn modal Premium khi vào từ link /user/profile?upgrade=monthly|yearly (vd: trang UniCoin)
   const [searchParams, setSearchParams] = useSearchParams();
@@ -624,7 +633,7 @@ export default function UserProfile() {
                   Chuyên ngành
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '700' }}>
-                  {user?.major || 'Kỹ thuật Phần mềm'}
+                  {user?.major || 'Chưa cập nhật'}
                 </div>
               </div>
 
@@ -633,7 +642,7 @@ export default function UserProfile() {
                   Năm học
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '700' }}>
-                  {formatStudentYear(user?.year || 'Sinh viên năm 3')}
+                  {user?.year ? formatStudentYear(user.year) : 'Chưa cập nhật'}
                 </div>
               </div>
 
@@ -653,8 +662,9 @@ export default function UserProfile() {
             }}
           >
             <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#FF5722' }}>98%</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Tín nhiệm SV</div>
+              {/* Gói hiện tại (trước đây ô "Tín nhiệm SV" luôn ghi 98%) */}
+              <div style={{ fontSize: '22px', fontWeight: '900', color: '#FF5722' }}>{user?.isPremium ? 'Premium' : 'Miễn phí'}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Gói tài khoản</div>
             </div>
             <div
               onClick={() => navigate('/user/unicoin')}
@@ -665,8 +675,8 @@ export default function UserProfile() {
               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>UniCoin ⭐</div>
             </div>
             <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-              <div style={{ fontSize: '22px', fontWeight: '900', color: '#6366F1' }}>12</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Cạ cứng Match</div>
+              <div style={{ fontSize: '22px', fontWeight: '900', color: '#6366F1' }}>{friendCount ?? '—'}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>Bạn bè đã kết nối</div>
             </div>
           </div>
         </div>

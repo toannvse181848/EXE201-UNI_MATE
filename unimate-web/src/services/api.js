@@ -366,10 +366,12 @@ export const reportApi = {
     const res = await client.get('/api/reports', { params });
     return res.data;
   },
-  resolveReport: async (id, status, adminNote) => {
+  // suspendTarget: khoá luôn tài khoản bị báo cáo (chỉ với báo cáo người dùng)
+  resolveReport: async (id, status, adminNote, suspendTarget = false) => {
     const res = await client.patch(`/api/reports/${id}`, {
       status,
       adminNote,
+      suspendTarget,
     });
     return res.data;
   },

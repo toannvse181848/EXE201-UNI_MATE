@@ -2,22 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye,
-  Heart,
+  Store,
   Ticket,
   CheckCircle,
   Percent,
-  DollarSign,
-  TrendingUp,
   Zap,
   Send,
   Crown,
   QrCode,
   Plus,
-  ArrowUpRight,
-  Clock,
-  Star,
 } from 'lucide-react';
-import { voucherApi } from '../../services/api';
+import { venueApi, voucherApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import PartnerPlanModal from '../../components/partner/PartnerPlanModal';
 import OrderHistory from '../../components/OrderHistory';
@@ -27,6 +22,9 @@ export default function Dashboard() {
   const { user, reloadUser } = useAuth();
   const [partnerVouchers, setPartnerVouchers] = useState([]);
   const [showPlanModal, setShowPlanModal] = useState(false);
+  // Lượt quán quét voucher thật (biểu đồ 14 ngày + hoạt động gần đây) và chi nhánh của quán
+  const [redemptions, setRedemptions] = useState([]);
+  const [venues, setVenues] = useState([]);
 
   // Lấy hạn Gói Đối tác mới nhất (thông tin lúc đăng nhập không có partnerProfile).
   // Chỉ gọi 1 lần: reloadUser được tạo lại mỗi lần AuthProvider render nên không đưa vào deps
@@ -45,21 +43,35 @@ export default function Dashboard() {
         setPartnerVouchers(res?.data || []);
       })
       .catch(() => {});
+    voucherApi.getPartnerRedemptions(200).then((res) => setRedemptions(res?.data || [])).catch(() => {});
+    venueApi.getMyVenues().then((res) => setVenues(res?.data || [])).catch(() => {});
   }, []);
 
+  // Số liệu thật: lượt lưu vào ví, lượt quét tại quầy (cùng cách tính với trang admin)
   const totalIssued = partnerVouchers.reduce((acc, v) => acc + (v.claimedCount || 0), 0);
-  // usedCount được backend tăng mỗi lần đối soát voucher tại quầy
-  const totalUsed = partnerVouchers.reduce((acc, v) => acc + (v.usedCount || 0), 0);
-  const usageRate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + '%' : (totalUsed > 0 ? '100%' : '0%');
-  const estimatedRevenue = totalUsed > 0 ? `${(totalUsed * 45000).toLocaleString('vi-VN')} đ` : '0 đ';
+  const totalUsed = partnerVouchers.reduce((acc, v) => acc + (v.redeemedByQr || 0) + (v.redeemedByCode || 0), 0);
+  const walletUsed = partnerVouchers.reduce((acc, v) => acc + (v.walletUsedCount || 0), 0);
+  const usageRate = totalIssued > 0 ? `${((walletUsed / totalIssued) * 100).toFixed(1)}%` : '—';
+  const runningVouchers = partnerVouchers.filter((v) => v.status === 'active').length;
+  const approvedVenues = venues.filter((v) => v.status === 'approved').length;
+
+  // Lượt quét mỗi ngày trong 14 ngày gần nhất (theo giờ máy)
+  const dayKey = (d) => new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    return dayKey(d);
+  });
+  const perDay = days.map((day) => ({ day, count: redemptions.filter((r) => dayKey(r.createdAt) === day).length }));
+  const maxPerDay = Math.max(1, ...perDay.map((d) => d.count));
+  const usedLast14 = perDay.reduce((acc, d) => acc + d.count, 0);
 
   const kpis = [
-    { label: 'TỔNG SỐ VOUCHER', val: partnerVouchers.length.toString(), change: 'Chương trình phát hành', icon: Eye, color: '#3B82F6' },
-    { label: 'VOUCHER ĐÃ PHÁT', val: totalIssued.toString(), change: 'Được lưu vào ví sinh viên', icon: Ticket, color: '#8B5CF6' },
-    { label: 'CHECK-IN ĐÃ DÙNG', val: totalUsed.toString(), change: 'Lượt đổi tại quầy', icon: CheckCircle, color: '#10B981' },
-    { label: 'TỶ LỆ QUY ĐỔI', val: usageRate, change: 'Hiệu quả chiến dịch', icon: Percent, color: '#F59E0B' },
-    { label: 'DOANH THU ĐỐI SOÁT', val: estimatedRevenue, change: 'Ước tính từ voucher', icon: DollarSign, color: '#FF5722' },
-    { label: 'ĐỊA ĐIỂM HOẠT ĐỘNG', val: 'Đã kết nối', change: 'Hệ sinh thái UNI-MATE', icon: Heart, color: '#EC4899' },
+    { label: 'VOUCHER ĐANG CHẠY', val: `${runningVouchers}/${partnerVouchers.length}`, change: 'Sinh viên đang thấy được', icon: Eye, color: '#3B82F6' },
+    { label: 'LƯỢT LƯU VÀO VÍ', val: totalIssued.toString(), change: 'Sinh viên đã lưu voucher của quán', icon: Ticket, color: '#8B5CF6' },
+    { label: 'LƯỢT DÙNG TẠI QUẦY', val: totalUsed.toString(), change: 'Đã quét / nhập mã thành công', icon: CheckCircle, color: '#10B981' },
+    { label: 'TỶ LỆ DÙNG VOUCHER ĐÃ LƯU', val: usageRate, change: `${walletUsed}/${totalIssued} voucher trong ví đã dùng`, icon: Percent, color: '#F59E0B' },
+    { label: 'CHI NHÁNH ĐÃ DUYỆT', val: `${approvedVenues}/${venues.length}`, change: 'Chi nhánh chờ duyệt chưa hiện cho sinh viên', icon: Store, color: '#EC4899' },
   ];
 
   return (
@@ -94,7 +106,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 6 Metric KPI Cards */}
+      {/* Chỉ số chính (số liệu thật) */}
       <div
         style={{
           display: 'grid',
@@ -127,10 +139,8 @@ export default function Dashboard() {
               <div style={{ fontSize: '24px', fontWeight: '900', color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {kpi.val}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#10B981', fontWeight: '700' }}>
-                <TrendingUp size={12} />
-                <span>{kpi.change}</span>
-              </div>
+              {/* Dòng giải thích cách tính (không phải % tăng trưởng) */}
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>{kpi.change}</div>
             </div>
           );
         })}
@@ -147,10 +157,10 @@ export default function Dashboard() {
       >
         <div style={{ marginBottom: '18px' }}>
           <h2 style={{ fontSize: '18px', fontWeight: '900', color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Tăng trưởng khách hàng (Monetization Tools)
+            Công cụ thu hút khách sinh viên
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Địa điểm của bạn có thể được ưu tiên hiển thị với nhóm user phù hợp như học bài, đi cafe, chơi boardgame hoặc workshop.
+            Ưu đãi hẹn cafe và voucher hiện trực tiếp trong app sinh viên; Gói Đối tác đưa quán lên đầu danh sách quán.
           </p>
         </div>
 
@@ -260,130 +270,57 @@ export default function Dashboard() {
       {/* Lịch sử mua Gói Đối tác (ẩn khi chưa có đơn) */}
       <OrderHistory onResume={() => setShowPlanModal(true)} refreshKey={showPlanModal} />
 
-      {/* Two Column: Foot-Traffic Chart + Recent Activities */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-        {/* Left Chart */}
+      {/* Hai cột: lượt dùng voucher 14 ngày + hoạt động gần đây (dữ liệu thật) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
         <div className="portal-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', gap: '12px' }}>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                Voucher được sử dụng trong 30 ngày
-              </h3>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Số lượng sinh viên check-in và đổi ưu đãi tại quầy thu ngân
-              </p>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>Voucher được dùng 14 ngày qua</h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Mỗi cột là số lượt quét / nhập mã thành công tại quầy trong ngày</p>
             </div>
-            <span className="badge badge-orange">+22% Tháng này</span>
+            <span className="badge badge-orange">{usedLast14} lượt</span>
           </div>
-
-          {/* SVG Smooth Curve Chart */}
-          <div style={{ width: '100%', height: '220px', position: 'relative', marginTop: '10px' }}>
-            <svg viewBox="0 0 600 200" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
-              <defs>
-                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#FF5722" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#FF5722" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Grid Lines */}
-              <line x1="0" y1="40" x2="600" y2="40" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4" />
-              <line x1="0" y1="90" x2="600" y2="90" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4" />
-              <line x1="0" y1="140" x2="600" y2="140" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="4" />
-
-              {/* Fill Area */}
-              <path
-                d="M 0,160 Q 75,150 150,110 T 300,70 T 450,120 T 600,30 L 600,180 L 0,180 Z"
-                fill="url(#chartGradient)"
-              />
-
-              {/* Stroke Line */}
-              <path
-                d="M 0,160 Q 75,150 150,110 T 300,70 T 450,120 T 600,30"
-                fill="none"
-                stroke="#FF5722"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-              />
-
-              {/* Data Points */}
-              <circle cx="150" cy="110" r="5" fill="#FF5722" stroke="#fff" strokeWidth="2.5" />
-              <circle cx="300" cy="70" r="5" fill="#FF5722" stroke="#fff" strokeWidth="2.5" />
-              <circle cx="450" cy="120" r="5" fill="#FF5722" stroke="#fff" strokeWidth="2.5" />
-              <circle cx="600" cy="30" r="6" fill="#FF5722" stroke="#fff" strokeWidth="3" />
-            </svg>
-
-            {/* X-Axis labels */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
-              <span>01/10</span>
-              <span>08/10</span>
-              <span>16/10</span>
-              <span>23/10</span>
-              <span>30/10</span>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '180px' }}>
+            {perDay.map((d) => (
+              <div key={d.day} title={`${d.day}: ${d.count} lượt`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', gap: '4px' }}>
+                {d.count > 0 && <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-primary)' }}>{d.count}</span>}
+                <div style={{ width: '100%', maxWidth: '28px', height: `${Math.max(d.count > 0 ? 8 : 2, (d.count / maxPerDay) * 140)}px`, borderRadius: '6px 6px 2px 2px', backgroundColor: d.count > 0 ? '#FF5722' : '#E2E8F0' }} />
+              </div>
+            ))}
           </div>
+          <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+            {perDay.map((d, i) => (
+              <span key={d.day} style={{ flex: 1, textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{i % 2 === 0 ? d.day : ''}</span>
+            ))}
+          </div>
+          {usedLast14 === 0 && (
+            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '10px' }}>
+              Chưa có lượt dùng nào. Tạo "Ưu đãi hẹn cafe" để sinh viên rủ nhau tới quán.
+            </p>
+          )}
         </div>
 
-        {/* Right Activities List */}
         <div className="portal-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
-              Hoạt động gần đây
-            </h3>
-            <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: '700', cursor: 'pointer' }}>
-              Xem tất cả
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '4px', backgroundColor: '#EF4444', marginTop: '6px' }} />
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  2 cặp sinh viên vừa chọn quán
-                </p>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  Sau khi match trên app UNI-MATE • Vài phút trước
-                </p>
-              </div>
+          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '14px' }}>Lượt dùng gần đây</h3>
+          {redemptions.length === 0 ? (
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Chưa có sinh viên nào dùng voucher tại quán.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {redemptions.slice(0, 6).map((r) => (
+                <div key={r._id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '4px', backgroundColor: r.method === 'qr' ? '#10B981' : '#8B5CF6', marginTop: '6px', flexShrink: 0 }} />
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                      {r.userId?.fullName || 'Khách nhập mã chung'} · {r.voucherId?.title || r.voucherId?.code || 'Voucher'}
+                    </p>
+                    <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      {r.method === 'qr' ? 'Quét mã trong ví' : 'Nhập mã'} • {new Date(r.createdAt).toLocaleString('vi-VN')}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '4px', backgroundColor: '#8B5CF6', marginTop: '6px' }} />
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  5 voucher đã dùng thành công
-                </p>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  Chiến dịch: "Hẹn hò cuối tuần giảm 20%" • 2 giờ trước
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '4px', backgroundColor: '#F59E0B', marginTop: '6px' }} />
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  Đánh giá mới 5 sao ⭐
-                </p>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  "Không gian yên tĩnh, đồ uống ngon và wifi rất mạnh!" • Hôm qua, 18:30
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '4px', backgroundColor: '#3B82F6', marginTop: '6px' }} />
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                  Chiến dịch mới được duyệt
-                </p>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  Chiến dịch "Sinh viên tháng 10" đã bắt đầu chạy • 2 ngày trước
-                </p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

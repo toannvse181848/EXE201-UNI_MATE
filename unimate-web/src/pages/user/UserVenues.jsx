@@ -70,39 +70,30 @@ export default function UserVenues() {
       );
 
       if (realData.length > 0) {
-        const formatted = realData.map((v, idx) => {
+        const formatted = realData.map((v) => {
           // Chuẩn hóa danh sách ảnh (nhiều ảnh để vuốt)
+          // Chỉ dùng ảnh thật của quán; chưa có ảnh nào thì 1 ảnh minh hoạ chung
           const venueImages =
             Array.isArray(v.images) && v.images.length > 0
               ? v.images
-              : v.image
-              ? [
-                  v.image,
-                  'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
-                  'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=800',
-                ]
-              : [
-                  idx % 2 === 0
-                    ? 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800'
-                    : 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
-                  'https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=800',
-                  'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800',
-                ];
+              : [v.image || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800'];
 
           return {
             id: v._id,
             name: v.name,
             address: v.address,
-            phone: v.phone || '0901 234 567',
-            description: v.description || 'Không gian học tập và kết nối lý tưởng dành cho sinh viên.',
-            distance: `${(Math.random() * 2 + 0.3).toFixed(1)} km`,
+            // Chỉ thông tin quán đã điền — không tự đặt số điện thoại, khoảng cách
+            phone: v.phone || '',
+            description: v.description || '',
+            area: v.district || '',
             image: venueImages[0],
             images: venueImages,
-            rating: v.rating || 4.8,
-            reviews: v.reviewCount || 120 + idx * 25,
+            // Chưa có hệ thống đánh giá thật → chưa hiện số sao / số đánh giá
+            rating: v.reviewsCount > 0 ? v.rating : null,
+            reviews: v.reviewsCount || 0,
             priceRange: formatPriceRange(v.priceRange),
-            tags: v.tags?.length > 0 ? v.tags : ['Yên tĩnh', 'Học bài', 'Có voucher SV'],
-            hours: v.openingHours || v.openHours || '07:00 - 23:00',
+            tags: v.tags || [],
+            hours: v.openHours || '',
             voucher: voucherByVenue[v._id]?.title || null,
             voucherId: voucherByVenue[v._id]?._id || null,
             voucherCode: voucherByVenue[v._id]?.code || null,
@@ -171,7 +162,7 @@ export default function UserVenues() {
       venue.address.toLowerCase().includes(searchTerm.toLowerCase());
     if (activeFilter === 'Tất cả') return matchesSearch;
     if (activeFilter === 'Có Voucher SV') return matchesSearch && venue.voucher;
-    if (activeFilter === 'Mở 24/7') return matchesSearch && venue.hours.includes('24/7');
+    if (activeFilter === 'Mở 24/7') return matchesSearch && (venue.hours || '').includes('24/7');
     if (activeFilter === 'Yên tĩnh') return matchesSearch && venue.tags.includes('Yên tĩnh');
     return matchesSearch;
   });
@@ -344,11 +335,15 @@ export default function UserVenues() {
                         zIndex: 4,
                       }}
                     >
-                      <Star size={13} fill="#F59E0B" color="#F59E0B" />
-                      <span>{venue.rating}</span>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>
-                        ({venue.reviews})
-                      </span>
+                      {venue.rating != null ? (
+                        <>
+                          <Star size={13} fill="#F59E0B" color="#F59E0B" />
+                          <span>{venue.rating}</span>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>({venue.reviews})</span>
+                        </>
+                      ) : (
+                        <span>Quán mới</span>
+                      )}
                     </div>
 
                     <div
@@ -429,7 +424,7 @@ export default function UserVenues() {
                 >
                   <MapPin size={14} color="#FF5722" />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {venue.address} • <strong>{venue.distance}</strong>
+                    {venue.address}{venue.area && !venue.address?.includes(venue.area) ? <> • <strong>{venue.area}</strong></> : null}
                   </span>
                 </div>
 
@@ -583,7 +578,9 @@ export default function UserVenues() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#FEF3C7', padding: '4px 10px', borderRadius: '8px' }}>
                   <Star size={14} fill="#F59E0B" color="#F59E0B" />
                   <span style={{ fontSize: '13px', fontWeight: '800', color: '#D97706' }}>
-                    {selectedVenueModal.rating} ({selectedVenueModal.reviews} đánh giá)
+                    {selectedVenueModal.rating != null
+                      ? `${selectedVenueModal.rating} (${selectedVenueModal.reviews} đánh giá)`
+                      : 'Chưa có đánh giá'}
                   </span>
                 </div>
               </div>
@@ -610,10 +607,12 @@ export default function UserVenues() {
                   <Clock size={16} color="#10B981" />
                   <span>{selectedVenueModal.hours}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  <Phone size={16} color="#6366F1" />
-                  <span>{selectedVenueModal.phone}</span>
-                </div>
+                {selectedVenueModal.phone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    <Phone size={16} color="#6366F1" />
+                    <span>{selectedVenueModal.phone}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                   <Coffee size={16} color="#F59E0B" />
                   <span>{selectedVenueModal.priceRange}</span>
