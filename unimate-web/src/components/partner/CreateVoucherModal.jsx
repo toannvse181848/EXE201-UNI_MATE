@@ -49,6 +49,44 @@ const sectionTitle = { fontSize: '12px', fontWeight: '800', color: 'var(--text-m
 // Ưu tiên chi nhánh đã được admin duyệt (voucher hiện cho sinh viên ngay)
 const defaultVenue = (venues) => venues.find((v) => v.status === 'approved') || venues[0];
 
+const errorHint = { fontSize: '12px', color: '#B91C1C', marginTop: '6px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' };
+const fixBtn = { background: 'none', border: 'none', padding: 0, color: '#C2410C', fontWeight: '800', fontSize: '12px', textDecoration: 'underline', cursor: 'pointer' };
+
+/** Ô chỉ nhận chữ số, đơn vị (% hoặc đ) gắn cố định bên phải để quán không nhầm */
+function UnitInput({ unit, value, onChange, placeholder, invalid }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', border: `1.5px solid ${invalid ? '#EF4444' : 'var(--border-color)'}`, borderRadius: '8px', overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
+      <input
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => onChange(onlyDigits(e.target.value))}
+        placeholder={placeholder}
+        style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: 'none', outline: 'none', fontSize: '14px', fontWeight: '700' }}
+      />
+      <span style={{ padding: '10px 12px', backgroundColor: '#F1F5F9', color: 'var(--text-secondary)', fontWeight: '800', fontSize: '14px', borderLeft: '1px solid var(--border-color)' }}>
+        {unit}
+      </span>
+    </div>
+  );
+}
+
+function QuickPicks({ values, format, onPick }) {
+  return (
+    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+      {values.map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onPick(v)}
+          style={{ padding: '3px 10px', borderRadius: '999px', border: '1px solid var(--border-color)', backgroundColor: '#F8FAFC', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+        >
+          {format(v)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const initialForm = (venues, kind = 'normal') => ({
   kind,
   venueId: defaultVenue(venues)?._id || defaultVenue(venues)?.id || '',
@@ -91,6 +129,12 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
       }),
     [form.discountType, form.discountPercent, form.maxDiscount, form.discountAmount, form.giftItem, form.minBill]
   );
+
+  // Báo ngay khi gõ: % ngoài 1–100, hoặc số tiền dưới 1.000đ (thường là gõ nhầm % vào ô tiền)
+  const percentTooBig = form.discountPercent !== '' && !(Number(form.discountPercent) >= 1 && Number(form.discountPercent) <= 100);
+  const amountTooSmall = form.discountAmount !== '' && Number(form.discountAmount) < 1000;
+  const switchToAmount = (value) => setForm((prev) => ({ ...prev, discountType: 'amount', discountAmount: value, discountPercent: '' }));
+  const switchToPercent = (value) => setForm((prev) => ({ ...prev, discountType: 'percent', discountPercent: value, discountAmount: '' }));
 
   if (!open) return null;
 
@@ -243,19 +287,54 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
             {form.discountType === 'percent' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={labelStyle}>Giảm (%) *</label>
-                  <input style={field} inputMode="numeric" value={form.discountPercent} onChange={(e) => set('discountPercent', onlyDigits(e.target.value).slice(0, 3))} placeholder="VD: 20" />
+                  <label style={labelStyle}>Giảm bao nhiêu phần trăm? *</label>
+                  <UnitInput
+                    unit="%"
+                    invalid={percentTooBig}
+                    value={form.discountPercent}
+                    onChange={(v) => set('discountPercent', v.slice(0, 9))}
+                    placeholder="VD: 20"
+                  />
+                  <QuickPicks values={[10, 15, 20, 30, 50]} format={(v) => `${v}%`} onPick={(v) => set('discountPercent', String(v))} />
+                  {percentTooBig && (
+                    <div style={errorHint}>
+                      Phần trăm chỉ từ 1 đến 100.
+                      {Number(form.discountPercent) >= 1000 && (
+                        <button type="button" onClick={() => switchToAmount(form.discountPercent)} style={fixBtn}>
+                          Ý bạn là giảm {groupDigits(form.discountPercent)}đ? Bấm để đổi
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <label style={labelStyle}>Giảm tối đa (đ)</label>
-                  <input style={field} inputMode="numeric" value={groupDigits(form.maxDiscount)} onChange={(e) => set('maxDiscount', onlyDigits(e.target.value))} placeholder="Để trống = không giới hạn" />
+                  <label style={labelStyle}>Giảm tối đa</label>
+                  <UnitInput unit="đ" value={groupDigits(form.maxDiscount)} onChange={(v) => set('maxDiscount', v)} placeholder="Để trống = không giới hạn" />
+                  <div style={hint}>VD: giảm 20% nhưng không quá 30.000đ</div>
                 </div>
               </div>
             )}
             {form.discountType === 'amount' && (
               <div>
-                <label style={labelStyle}>Số tiền giảm (đ) *</label>
-                <input style={field} inputMode="numeric" value={groupDigits(form.discountAmount)} onChange={(e) => set('discountAmount', onlyDigits(e.target.value))} placeholder="VD: 15.000" />
+                <label style={labelStyle}>Giảm bao nhiêu tiền? *</label>
+                <UnitInput
+                  unit="đ"
+                  invalid={amountTooSmall}
+                  value={groupDigits(form.discountAmount)}
+                  onChange={(v) => set('discountAmount', v)}
+                  placeholder="VD: 15.000"
+                />
+                <QuickPicks values={[10000, 15000, 20000, 30000, 50000]} format={(v) => `${groupDigits(String(v))}đ`} onPick={(v) => set('discountAmount', String(v))} />
+                {amountTooSmall && (
+                  <div style={errorHint}>
+                    Số tiền giảm tối thiểu 1.000đ.
+                    {Number(form.discountAmount) <= 100 && (
+                      <button type="button" onClick={() => switchToPercent(form.discountAmount)} style={fixBtn}>
+                        Ý bạn là giảm {form.discountAmount}%? Bấm để đổi
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {form.discountType === 'gift' && (
