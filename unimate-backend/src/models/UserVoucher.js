@@ -41,6 +41,12 @@ const userVoucherSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Nhận qua buổi "Rủ cafe" nào (null = tự lưu từ danh sách voucher)
+    meetupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Meetup',
+      default: null,
+    },
   },
   { timestamps: true }
 );

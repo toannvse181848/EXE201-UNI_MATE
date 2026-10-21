@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../src/constants/colors';
 import { useVenues } from '../src/hooks/useVenues';
-import { matchApi } from '../src/api/matchApi';
+import { meetupApi } from '../src/api/meetupApi';
 
+
+// Giờ hẹn chọn nhanh (không bắt buộc); "Tối nay" ẩn khi đã quá 19h
+const at = (dayOffset, hour) => {
+  const d = new Date();
+  d.setDate(d.getDate() + dayOffset);
+  d.setHours(hour, 0, 0, 0);
+  return d;
+};
+const nextSaturday = () => {
+  const offset = (6 - new Date().getDay() + 7) % 7 || 7;
+  return at(offset, 9);
+};
+const TIME_PRESETS = [
+  { id: 'none', label: 'Chưa chốt giờ', get: () => null },
+  { id: 'tonight', label: 'Tối nay 19:00', get: () => at(0, 19) },
+  { id: 'tomorrow_morning', label: 'Mai 9:00', get: () => at(1, 9) },
+  { id: 'tomorrow_afternoon', label: 'Mai 15:00', get: () => at(1, 15) },
+  { id: 'weekend', label: 'Thứ 7 9:00', get: () => nextSaturday() },
+];
 
 const FILTERS = [
   { id: 'all', label: 'Tất cả' },
@@ -28,38 +47,55 @@ export default function SelectPlaceScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [activeFilter, setActiveFilter] = useState('all');
+  const [timePreset, setTimePreset] = useState('none');
+  const [quota, setQuota] = useState(null);
+  const [sendingId, setSendingId] = useState(null);
   const { venues, loading } = useVenues();
 
   // chat-room truyền buddyName, màn match truyền partnerName
   const partnerName = params.partnerName || params.buddyName || 'bạn của bạn';
   const matchId = params.matchId;
 
-  const filteredVenues =
-    activeFilter === 'all'
-      ? venues
-      : venues.filter((v) => v.category === activeFilter);
+  useEffect(() => {
+    if (!matchId) return;
+    meetupApi.getQuota().then((res) => setQuota(res.data?.data || null)).catch(() => {});
+  }, [matchId]);
+
+  const presets = TIME_PRESETS.filter((p) => p.id !== 'tonight' || new Date().getHours() < 19);
+
+  // Quán trả Gói Đối tác đứng đầu, rồi tới quán có ưu đãi hẹn cafe
+  const filteredVenues = (activeFilter === 'all' ? venues : venues.filter((v) => v.category === activeFilter))
+    .slice()
+    .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured) || Number(Boolean(b.meetupReward)) - Number(Boolean(a.meetupReward)));
 
   const handleSelectVenue = async (venue) => {
-    // Lưu quán được đề xuất vào cặp kết bạn (nếu mở từ phòng chat)
-    if (matchId) {
-      try {
-        await matchApi.proposeVenue(matchId, venue.id);
-      } catch (err) {
-        Alert.alert('Không thể gửi lời mời', err.message);
-        return;
-      }
+    if (!matchId) {
+      // Mở từ nơi không có hội thoại: về danh sách tin nhắn để chọn bạn
+      router.push('/(tabs)/chat');
+      return;
     }
-
-    // Navigate to Chat and pass place invite info
-    router.push({
-      pathname: '/(tabs)/chat',
-      params: {
-        venueName: venue.name,
-        venueAddress: venue.address,
-        voucherBadge: venue.voucherBadge,
-        partnerName: partnerName,
-      },
-    });
+    if (sendingId) return;
+    setSendingId(venue.id);
+    try {
+      const scheduledAt = presets.find((p) => p.id === timePreset)?.get() || null;
+      await meetupApi.create({ matchId, venueId: venue.id, scheduledAt: scheduledAt ? scheduledAt.toISOString() : undefined });
+      if (params.returnTo === 'chat') {
+        router.back();
+      } else {
+        router.replace({ pathname: '/chat-room', params: { matchId, buddyName: partnerName } });
+      }
+    } catch (err) {
+      if (err.code === 'MEETUP_QUOTA') {
+        Alert.alert('Hết lượt rủ cafe tuần này', err.message, [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Nâng cấp Premium', onPress: () => router.push('/checkout?plan=premium_monthly') },
+        ]);
+      } else {
+        Alert.alert('Không gửi được lời mời', err.message);
+      }
+    } finally {
+      setSendingId(null);
+    }
   };
 
   const handleViewVenueDetail = (venue) => {
@@ -80,7 +116,7 @@ export default function SelectPlaceScreen() {
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
-          <Text style={styles.headerTitle}>Chọn địa điểm hẹn</Text>
+          <Text style={styles.headerTitle}>Rủ đi cafe</Text>
           <Text style={styles.headerSubtitle}>với {partnerName}</Text>
         </View>
         <TouchableOpacity
@@ -111,6 +147,27 @@ export default function SelectPlaceScreen() {
         </ScrollView>
       </View>
 
+      {Boolean(matchId) && (
+        <View style={styles.timeWrapper}>
+          <Text style={styles.timeLabel}>Giờ hẹn</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
+            {presets.map((p) => {
+              const isActive = timePreset === p.id;
+              return (
+                <TouchableOpacity key={p.id} onPress={() => setTimePreset(p.id)} style={[styles.filterChip, isActive && styles.filterChipActive]}>
+                  <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{p.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {quota && !quota.isPremium && (
+            <Text style={styles.quotaText}>
+              Còn {quota.remaining}/{quota.limit} lượt rủ cafe trong 7 ngày · Premium không giới hạn
+            </Text>
+          )}
+        </View>
+      )}
+
       {/* Venues List */}
       <ScrollView
         contentContainerStyle={styles.listContent}
@@ -120,7 +177,7 @@ export default function SelectPlaceScreen() {
           <ActivityIndicator color={COLORS.primary} style={{ marginTop: 32 }} />
         ) : (
           <Text style={styles.sectionHeader}>
-            {filteredVenues.length} quán đối tác UNI-MATE có ưu đãi gần bạn
+            {filteredVenues.length} quán đối tác · bạn ấy đồng ý là chốt hẹn
           </Text>
         )}
 
@@ -133,9 +190,17 @@ export default function SelectPlaceScreen() {
             >
               <Image source={{ uri: item.image }} style={styles.venueImage} />
               <View style={styles.voucherPill}>
-                <Ionicons name="pricetag" size={13} color={COLORS.white} />
-                <Text style={styles.voucherPillText}>{item.voucherBadge}</Text>
+                <Ionicons name={item.meetupReward ? 'gift' : 'pricetag'} size={13} color={COLORS.white} />
+                <Text style={styles.voucherPillText}>
+                  {item.meetupReward ? `Hẹn ở đây, cả hai nhận: ${item.meetupReward.title}` : item.voucherBadge}
+                </Text>
               </View>
+              {item.isFeatured && (
+                <View style={styles.featuredPill}>
+                  <Ionicons name="sparkles" size={11} color="#B45309" />
+                  <Text style={styles.featuredPillText}>Nổi bật</Text>
+                </View>
+              )}
               <View style={styles.distancePill}>
                 <Ionicons name="location" size={12} color={COLORS.white} />
                 <Text style={styles.distancePillText}>{item.distance}</Text>
@@ -177,9 +242,14 @@ export default function SelectPlaceScreen() {
                   style={styles.selectBtn}
                   onPress={() => handleSelectVenue(item)}
                   activeOpacity={0.8}
+                  disabled={Boolean(sendingId)}
                 >
-                  <Ionicons name="paper-plane" size={15} color={COLORS.white} style={{ marginRight: 6 }} />
-                  <Text style={styles.selectBtnText}>Chọn quán này & Chat</Text>
+                  {sendingId === item.id ? (
+                    <ActivityIndicator size="small" color={COLORS.white} style={{ marginRight: 6 }} />
+                  ) : (
+                    <Ionicons name="paper-plane" size={15} color={COLORS.white} style={{ marginRight: 6 }} />
+                  )}
+                  <Text style={styles.selectBtnText}>{matchId ? 'Mời đi quán này' : 'Xem tin nhắn'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -191,6 +261,29 @@ export default function SelectPlaceScreen() {
 }
 
 const styles = StyleSheet.create({
+  timeWrapper: {
+    backgroundColor: COLORS.surface,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+    gap: 6,
+  },
+  timeLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, paddingHorizontal: 16 },
+  quotaText: { fontSize: 12, color: COLORS.textSecondary, paddingHorizontal: 16 },
+  featuredPill: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  featuredPillText: { fontSize: 11, fontWeight: '800', color: '#B45309' },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -294,6 +387,7 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   voucherPill: {
+    maxWidth: '68%',
     position: 'absolute',
     top: 12,
     left: 12,
@@ -306,6 +400,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   voucherPillText: {
+    flexShrink: 1,
     color: COLORS.white,
     fontSize: 12,
     fontWeight: '700',

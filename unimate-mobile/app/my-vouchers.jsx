@@ -102,6 +102,11 @@ export default function MyVouchersScreen() {
           </View>
         </View>
 
+        {Boolean(item.meetupId || v.meetupReward) && (
+          <Text style={{ alignSelf: 'flex-start', marginBottom: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: '#FFEDD5', color: '#C2410C', fontSize: 11, fontWeight: '800' }}>
+            🤝 Ưu đãi hẹn cafe
+          </Text>
+        )}
         <Text style={styles.voucherTitle} numberOfLines={2}>
           {v.title || 'Ưu đãi sinh viên'}
         </Text>

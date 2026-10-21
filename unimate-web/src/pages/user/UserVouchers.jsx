@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Ticket,
@@ -101,6 +101,8 @@ export default function UserVouchers() {
       isUnlimited: Boolean(v.isUnlimited),
       coinCost: Number(v.coinCost) || 0,
       qrPayload: isWalletItem ? raw.qrPayload : null,
+      // Nhận qua buổi "Rủ cafe" (ưu đãi hẹn cafe của quán)
+      fromMeetup: Boolean(isWalletItem && (raw.meetupId || v.meetupReward)),
       title: v.title || 'Voucher',
       brand: venue?.name || '—',
       logo: '🎟️',
@@ -135,6 +137,9 @@ export default function UserVouchers() {
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
             Xuất trình mã QR tại quán cafe để nhân viên đối tác quét và áp dụng giảm giá trực tiếp.
+          </p>
+          <p style={{ fontSize: '13px', color: '#C2410C', marginTop: '6px', fontWeight: '600' }}>
+            🤝 Mẹo: vào <Link to="/user/messages" style={{ color: '#C2410C' }}>Tin nhắn</Link>, bấm "Rủ đi cafe" với bạn đã kết bạn. Bạn ấy đồng ý là cả hai nhận thêm ưu đãi hẹn cafe của quán.
           </p>
         </div>
 
@@ -307,6 +312,11 @@ export default function UserVouchers() {
                   <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: vch.codeType === 'unique' ? '#EDE9FE' : '#F1F5F9', color: vch.codeType === 'unique' ? '#6D28D9' : '#475569' }}>
                     {vch.codeType === 'unique' ? 'Mã riêng' : 'Mã chung'}
                   </span>
+                  {vch.fromMeetup && (
+                    <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#FFEDD5', color: '#C2410C' }}>
+                      🤝 Ưu đãi hẹn cafe
+                    </span>
+                  )}
                   <span style={{ fontSize: '13px', fontWeight: '800', color: '#1E293B', letterSpacing: '0.5px' }}>
                     Mã: <code style={{ backgroundColor: '#F8FAFC', padding: '1px 6px', borderRadius: '4px', border: '1px solid #E2E8F0', color: '#EA580C' }}>{vch.displayCode || vch.code}</code>
                   </span>

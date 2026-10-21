@@ -16,6 +16,7 @@ import {
   Sparkles,
   MapPin,
   Calendar,
+  CalendarCheck,
   BookOpen,
   Edit3,
   Coffee,
@@ -1364,6 +1365,24 @@ export default function UserProfile() {
                       gap: '10px',
                     }}
                   >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#FCE7F3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Heart size={14} color="#DB2777" />
+                      </div>
+                      <div>
+                        <strong>Xem ai đã thích bạn:</strong> Biết ngay ai đã thả tim và kết bạn chỉ với 1 chạm.
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#FFEDD5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <CalendarCheck size={14} color="#EA580C" />
+                      </div>
+                      <div>
+                        <strong>Rủ cafe không giới hạn:</strong> Tài khoản miễn phí rủ được 3 lần mỗi tuần. Mỗi buổi hẹn được chốt, cả hai nhận ưu đãi của quán.
+                      </div>
+                    </div>
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#334155' }}>
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <CheckCircle2 size={15} color="#0284C7" />

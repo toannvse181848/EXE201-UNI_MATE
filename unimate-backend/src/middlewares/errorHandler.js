@@ -73,7 +73,7 @@ const errorHandler = (err, req, res, next) => {
     }
   }
 
-  res.status(statusCode).json({ success: false, message });
+  res.status(statusCode).json({ success: false, message, ...(err.errorCode ? { code: err.errorCode } : {}) });
 };
 
 module.exports = { notFound, errorHandler };

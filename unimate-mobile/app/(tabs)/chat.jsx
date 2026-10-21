@@ -46,6 +46,9 @@ export default function ChatScreen() {
   const [conversations, setConversations] = useState([]);
   const [sentLikes, setSentLikes] = useState([]);
   const [receivedLikes, setReceivedLikes] = useState([]);
+  // Tài khoản miễn phí chỉ biết số người đã thích mình (xem là ai là quyền lợi Premium)
+  const [receivedLocked, setReceivedLocked] = useState(false);
+  const [receivedCount, setReceivedCount] = useState(0);
   const [groups, setGroups] = useState([]);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [createGroupName, setCreateGroupName] = useState('');
@@ -88,7 +91,10 @@ export default function ChatScreen() {
         setSentLikes(sentRes.value.data?.data || []);
       }
       if (receivedRes.status === 'fulfilled') {
-        setReceivedLikes(receivedRes.value.data?.data || []);
+        const body = receivedRes.value.data || {};
+        setReceivedLikes(body.data || []);
+        setReceivedLocked(Boolean(body.locked));
+        setReceivedCount(body.count ?? (body.data || []).length);
       }
       if (groupRes.status === 'fulfilled') {
         setGroups(groupRes.value.data?.data || []);
@@ -449,9 +455,9 @@ export default function ChatScreen() {
           onPress={() => setActiveTab('received')}
         >
           <Text style={[styles.tabLabel, activeTab === 'received' && styles.tabLabelActive]}>
-            Thích bạn ({receivedLikes.length})
+            Thích bạn ({receivedCount})
           </Text>
-          {receivedLikes.length > 0 && <View style={[styles.badgeDot, { backgroundColor: '#10B981' }]} />}
+          {receivedCount > 0 && <View style={[styles.badgeDot, { backgroundColor: '#10B981' }]} />}
         </TouchableOpacity>
       </View>
 
@@ -629,8 +635,26 @@ export default function ChatScreen() {
           />
         )
       ) : (
-        // TAB 3: DANH SÁCH NHỮNG NGƯỜI ĐÃ THÍCH MÌNH
-        receivedLikes.length === 0 ? (
+        // TAB 3: DANH SÁCH NHỮNG NGƯỜI ĐÃ THÍCH MÌNH (Premium mới xem được là ai)
+        receivedLocked ? (
+          <View style={styles.center}>
+            <Ionicons name="lock-closed" size={56} color="#F59E0B" />
+            <Text style={styles.emptyTitle}>
+              {receivedCount > 0 ? `${receivedCount} bạn đã thích bạn` : 'Chưa có lời thích mới'}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {receivedCount > 0
+                ? 'Nâng cấp Premium để xem họ là ai và kết bạn ngay. Hoặc lướt trang Khám phá, những bạn này đang được xếp lên đầu.'
+                : 'Thành viên Premium xem được ngay ai đã thích mình.'}
+            </Text>
+            <TouchableOpacity
+              style={{ marginTop: 16, backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 }}
+              onPress={() => router.push('/checkout?plan=premium_monthly')}
+            >
+              <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 14 }}>Xem ai thích bạn với Premium</Text>
+            </TouchableOpacity>
+          </View>
+        ) : receivedLikes.length === 0 ? (
           <View style={styles.center}>
             <Ionicons name="sparkles-outline" size={64} color={COLORS.textMuted} />
             <Text style={styles.emptyTitle}>Chưa có lời thích mới</Text>

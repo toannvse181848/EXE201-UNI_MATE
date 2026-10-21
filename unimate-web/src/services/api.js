@@ -32,6 +32,9 @@ client.interceptors.response.use(
     const wrapped = new Error(message);
     // Không có response = lỗi mạng hoặc timeout (vd: server Render free đang khởi động)
     wrapped.isNetworkError = !error.response;
+    // Mã lỗi riêng của backend (VD: 'MEETUP_QUOTA' = hết lượt rủ cafe miễn phí)
+    wrapped.code = error.response?.data?.code || null;
+    wrapped.status = error.response?.status || null;
     return Promise.reject(wrapped);
   }
 );
@@ -262,6 +265,28 @@ export const matchApi = {
   },
   getReceivedLikes: async () => {
     const res = await client.get('/api/matches/received-likes');
+    return res.data;
+  },
+};
+
+// === RỦ CAFE (hẹn gặp tại quán đối tác) ===
+export const meetupApi = {
+  getQuota: async () => {
+    const res = await client.get('/api/meetups/quota');
+    return res.data;
+  },
+  // { matchId, venueId, scheduledAt? }
+  create: async (payload) => {
+    const res = await client.post('/api/meetups', payload);
+    return res.data;
+  },
+  // action: 'accept' | 'decline'
+  respond: async (meetupId, action) => {
+    const res = await client.post(`/api/meetups/${meetupId}/respond`, { action });
+    return res.data;
+  },
+  cancel: async (meetupId) => {
+    const res = await client.post(`/api/meetups/${meetupId}/cancel`);
     return res.data;
   },
 };

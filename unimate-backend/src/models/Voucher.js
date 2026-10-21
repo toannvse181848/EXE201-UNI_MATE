@@ -74,6 +74,11 @@ const voucherSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Ưu đãi hẹn cafe: không hiện trong danh sách voucher, chỉ tự tặng cho 2 sinh viên khi chốt hẹn tại quán
+    meetupReward: {
+      type: Boolean,
+      default: false,
+    },
     usedCount: {
       type: Number,
       default: 0,

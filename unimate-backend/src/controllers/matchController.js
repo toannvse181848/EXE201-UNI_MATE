@@ -66,7 +66,16 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
     };
   });
 
-  const deck = sortByRank(scoredCandidates).slice(0, DECK_SIZE);
+  // Người đã thích mình được xếp lên đầu (không đánh dấu ai) để dễ kết bạn;
+  // biết chính xác ai đã thích mình là quyền lợi Premium (GET /received-likes)
+  const likerIds = new Set(
+    (await Match.find({ user2: currentUserId, user1Action: 'like', user2Action: 'pending' }).distinct('user1')).map(String)
+  );
+  const ranked = sortByRank(scoredCandidates);
+  const deck = [
+    ...ranked.filter((c) => likerIds.has(String(c._id))),
+    ...ranked.filter((c) => !likerIds.has(String(c._id))),
+  ].slice(0, DECK_SIZE);
 
   res.status(200).json({
     success: true,
@@ -295,9 +304,15 @@ const getReceivedLikes = catchAsync(async (req, res) => {
       };
     });
 
+  // Quyền lợi Premium: xem ai đã thích mình. Tài khoản miễn phí chỉ biết số lượng.
+  if (!isPremiumActive(req.user.studentProfile)) {
+    return res.status(200).json({ success: true, count: data.length, locked: true, data: [] });
+  }
+
   res.status(200).json({
     success: true,
     count: data.length,
+    locked: false,
     data,
   });
 });

@@ -26,7 +26,11 @@ client.interceptors.response.use(
   (error) => {
     const message =
       error.response?.data?.message || 'Lỗi kết nối. Vui lòng thử lại.';
-    return Promise.reject(new Error(message));
+    const wrapped = new Error(message);
+    // Mã lỗi riêng của backend (VD: 'MEETUP_QUOTA' = hết lượt rủ cafe miễn phí)
+    wrapped.code = error.response?.data?.code || null;
+    wrapped.status = error.response?.status || null;
+    return Promise.reject(wrapped);
   }
 );
 

@@ -18,8 +18,8 @@ const {
   generateVoucherTemplate,
   parseDateValue,
 } = require('../utils/voucherSpreadsheetParser');
-const { extractDistrict } = require('../utils/addressUtils');
 const { isPremiumActive } = require('../utils/subscription');
+const { onMeetupVoucherRedeemed } = require('./meetupController');
 
 
 // ─── PUBLIC / STUDENT ────────────────────────────────────────────────────────
@@ -33,7 +33,12 @@ const getPublicVouchers = catchAsync(async (req, res) => {
     $or: [{ isUnlimited: true }, { quantity: { $gt: 0 } }],
   };
 
-  if (venueId) filter.venueId = venueId;
+  // Chỉ voucher của quán đã được admin duyệt; ưu đãi hẹn cafe không bày ở đây (chỉ nhận khi chốt hẹn)
+  const approvedVenueIds = await Venue.find({ status: 'approved' }).distinct('_id');
+  filter.venueId = venueId
+    ? { $in: approvedVenueIds.filter((id) => String(id) === String(venueId)) }
+    : { $in: approvedVenueIds };
+  filter.meetupReward = { $ne: true };
   if (code) filter.code = String(code).toUpperCase().trim();
 
   const vouchers = await Voucher.find(filter)
@@ -58,6 +63,12 @@ const claimVoucher = catchAsync(async (req, res) => {
   if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn');
   if (voucher.codeType === 'shared' && !voucher.isUnlimited && voucher.usedCount >= voucher.quantity) {
     throw new ApiError(400, 'Voucher đã hết số lượng');
+  }
+  if (voucher.meetupReward) {
+    throw new ApiError(400, 'Ưu đãi này chỉ nhận được khi bạn rủ bạn bè đi cafe và cả hai chốt hẹn tại quán');
+  }
+  if (!(await Venue.exists({ _id: voucher.venueId, status: 'approved' }))) {
+    throw new ApiError(400, 'Quán của voucher này chưa được duyệt');
   }
   if (voucher.premiumOnly && !isPremiumActive(req.user.studentProfile)) {
     throw new ApiError(403, 'Voucher này chỉ dành cho thành viên Premium. Nâng cấp Premium để nhận nhé!');
@@ -157,7 +168,7 @@ const getMyWallet = catchAsync(async (req, res) => {
   const wallet = await UserVoucher.find({ userId })
     .populate({
       path: 'voucherId',
-      select: 'title code codeType discountPercent discountAmount validUntil minBill terms isActive',
+      select: 'title code codeType discountPercent discountAmount validUntil minBill terms isActive meetupReward',
       populate: { path: 'venueId', select: 'name address image' },
     })
     .sort({ claimedAt: -1 });
@@ -301,6 +312,7 @@ const verifyVoucher = catchAsync(async (req, res) => {
 /** Partner: Quét QR để đối soát & tiêu voucher của sinh viên */
 const redeemVoucher = catchAsync(async (req, res) => {
   const { voucher, userVoucher } = await findRedeemTarget(req);
+  let meetupCompleted = false;
 
   if (userVoucher) {
     // Cập nhật có điều kiện để 2 lần quét cùng lúc không tiêu voucher 2 lần
@@ -310,6 +322,7 @@ const redeemVoucher = catchAsync(async (req, res) => {
     );
     if (!marked) throw new ApiError(400, 'Voucher này đã được sử dụng');
     await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } });
+    meetupCompleted = Boolean(await onMeetupVoucherRedeemed(req, userVoucher));
   } else if (voucher.isUnlimited) {
     await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } });
   } else {
@@ -348,6 +361,8 @@ const redeemVoucher = catchAsync(async (req, res) => {
     message: 'Đối soát & áp dụng voucher thành công! 🎉',
     data: {
       coinAwarded,
+      // Cả hai sinh viên của buổi "Rủ cafe" đã dùng ưu đãi tại quán
+      meetupCompleted,
       id: redemption._id,
       code: voucher.code,
       title: voucher.title,
@@ -417,28 +432,13 @@ const createVoucher = catchAsync(async (req, res) => {
     throw new ApiError(400, 'Vui lòng nhập mã voucher');
   }
 
-  let venue = null;
-  if (venueId) {
-    venue = await Venue.findById(venueId);
-  }
-
-  // Nếu không truyền venueId hoặc không tìm thấy theo id, tự động lấy venue của chính partner
+  // Voucher phải gắn với quán của chính đối tác. Quán chưa duyệt vẫn tạo trước được,
+  // nhưng sinh viên chỉ thấy voucher sau khi admin duyệt quán.
+  const venue = venueId
+    ? await Venue.findById(venueId).catch(() => null)
+    : await Venue.findOne({ partnerId: req.user._id }).sort({ createdAt: 1 });
   if (!venue) {
-    venue = await Venue.findOne({ partnerId: req.user._id });
-  }
-
-  // Nếu partner vẫn chưa tạo venue nào, khởi tạo nhanh 1 cơ sở mặc định để có thể phát hành voucher ngay
-  if (!venue) {
-    const defaultAddr = req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương';
-    venue = await Venue.create({
-      name: req.user.partnerProfile?.businessName || req.user.fullName || 'Địa điểm đối tác UNI-MATE',
-      partnerId: req.user._id,
-      address: defaultAddr,
-      district: extractDistrict(defaultAddr),
-      description: 'Quán đối tác liên kết của UNI-MATE dành cho sinh viên.',
-      phone: req.user.phone || '0901234567',
-      status: 'approved',
-    });
+    throw new ApiError(400, 'Bạn cần thêm quán ở mục "Quản lý địa điểm" trước khi phát hành voucher');
   }
 
 
@@ -481,7 +481,9 @@ const createVoucher = catchAsync(async (req, res) => {
     usedCount: 0,
     codeType: isUnique ? 'unique' : 'shared',
     isUnlimited: !isUnique && Boolean(req.body.isUnlimited),
-    premiumOnly: Boolean(req.body.premiumOnly),
+    meetupReward: Boolean(req.body.meetupReward),
+    // Ưu đãi hẹn cafe tặng cho mọi buổi hẹn tại quán, không giới hạn theo Premium
+    premiumOnly: !req.body.meetupReward && Boolean(req.body.premiumOnly),
     // Mã riêng: số lượng tự tính khi nạp danh sách mã (POST /api/vouchers/:id/codes)
     ...(isUnique ? { quantity: 0 } : {}),
   });
@@ -629,25 +631,12 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
     throw new ApiError(400, 'Không tìm thấy dòng voucher hợp lệ nào để nhập');
   }
 
-  // Xác định cơ sở của quán
-  let venue = null;
-  if (venueId) {
-    venue = await Venue.findById(venueId);
-  }
+  // Xác định cơ sở của quán (phải là quán của chính đối tác, không tự tạo quán mới)
+  const venue = venueId
+    ? await Venue.findById(venueId).catch(() => null)
+    : await Venue.findOne({ partnerId: req.user._id }).sort({ createdAt: 1 });
   if (!venue) {
-    venue = await Venue.findOne({ partnerId: req.user._id });
-  }
-  if (!venue) {
-    const defaultAddr = req.user.partnerProfile?.address || 'Khu đô thị ĐHQG TP.HCM, Dĩ An, Bình Dương';
-    venue = await Venue.create({
-      name: req.user.partnerProfile?.businessName || req.user.fullName || 'Địa điểm đối tác UNI-MATE',
-      partnerId: req.user._id,
-      address: defaultAddr,
-      district: extractDistrict(defaultAddr),
-      description: 'Quán đối tác liên kết của UNI-MATE dành cho sinh viên.',
-      phone: req.user.phone || '0901234567',
-      status: 'approved',
-    });
+    throw new ApiError(400, 'Bạn cần thêm quán ở mục "Quản lý địa điểm" trước khi nhập voucher');
   }
 
 

@@ -82,6 +82,7 @@ export default function DiscoverScreen() {
         router.push({
           pathname: '/match',
           params: {
+            matchId: res.data?.data?._id,
             matchedName: currentProfile.name,
             matchedPhoto: currentProfile.photo,
             matchedUniversity: currentProfile.university,

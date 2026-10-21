@@ -6,6 +6,7 @@ const { extractDistrict } = require('../utils/addressUtils');
 const { escapeRegex } = require('../middlewares/security');
 const { generateSecret, buildQrContent } = require('../utils/venueCheckin');
 const { isPartnerPlanActive } = require('../utils/subscription');
+const { findMeetupRewards, toRewardSummary } = require('../utils/meetupRewards');
 
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
@@ -56,10 +57,12 @@ const getVenues = catchAsync(async (req, res) => {
     .populate('partnerId', 'fullName partnerProfile.planExpiresAt')
     .sort({ rating: -1, createdAt: -1 });
 
+  // Ưu đãi hẹn cafe đang chạy của từng quán: hiện trong khung "Rủ cafe" để sinh viên chọn quán
+  const meetupRewards = await findMeetupRewards(venues.map((v) => v._id));
   const data = sanitizeVenueDistricts(venues).map((venue) => {
     const isFeatured = isPartnerPlanActive(venue.partnerId?.partnerProfile);
     if (venue.partnerId) delete venue.partnerId.partnerProfile;
-    return { ...venue, isFeatured };
+    return { ...venue, isFeatured, meetupReward: toRewardSummary(meetupRewards.get(String(venue._id))) };
   });
   // Quyền lợi Gói Đối tác: quán đang trả phí đứng đầu danh sách (sort ổn định, giữ thứ tự rating)
   data.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured));

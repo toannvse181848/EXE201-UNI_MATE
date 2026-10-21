@@ -146,7 +146,7 @@ export default function ProfileScreen() {
   const handleUpgradePremium = () => {
     Alert.alert(
       'Nâng cấp Premium nhận Tích Xanh',
-      'Đặc quyền thành viên:\n✓ Tích xanh xác thực uy tín bên cạnh tên\n✓ Được xếp sớm hơn khi sinh viên khác tìm bạn học\n✓ Mở khoá voucher cafe chỉ dành cho Premium\n\nGói 1 tháng: 49.000đ hoặc đổi 800 UniCoin.\nGói 1 năm: 399.000đ.',
+      'Đặc quyền thành viên:\n✓ Xem ai đã thích bạn, kết bạn 1 chạm\n✓ Rủ cafe không giới hạn (miễn phí: 3 lần/tuần)\n✓ Tích xanh xác thực uy tín bên cạnh tên\n✓ Được xếp sớm hơn khi sinh viên khác tìm bạn học\n✓ Mở khoá voucher cafe chỉ dành cho Premium\n\nGói 1 tháng: 49.000đ hoặc đổi 800 UniCoin.\nGói 1 năm: 399.000đ.',
       [
         {
           text: 'Chuyển khoản',

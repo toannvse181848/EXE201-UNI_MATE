@@ -118,11 +118,12 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
     const s = get(uv.userId);
     if (!s) continue;
     s.vouchersClaimed += 1;
-    if (uv.status === 'used') s.vouchersRedeemed += 1;
     markActive(uv.userId, uv.claimedAt || uv.createdAt);
   }
   for (const r of data.redemptions) {
-    // Lượt đổi bằng QR đã được đếm qua UserVoucher 'used'; ở đây chỉ ghi nhận ngày sinh viên ra quán
+    // Mỗi lượt quán quét voucher trong ví sinh viên = 1 lần sinh viên dùng voucher tại quán.
+    // Đếm theo lượt quét (không theo trạng thái voucher) vì ưu đãi hẹn cafe có thể được cấp lại nhiều lần.
+    if (get(r.userId)) get(r.userId).vouchersRedeemed += 1;
     markActive(r.userId, r.createdAt);
   }
   for (const s of stats.values()) {
@@ -254,8 +255,9 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
     if (!studentId(uv.userId)) continue;
     const claimedAt = uv.claimedAt || uv.createdAt;
     if (weekOf(claimedAt)) weekOf(claimedAt).vouchersClaimed += 1;
-    const usedAt = uv.usedAt || uv.updatedAt;
-    if (uv.status === 'used' && weekOf(usedAt)) weekOf(usedAt).vouchersRedeemed += 1;
+  }
+  for (const r of data.redemptions) {
+    if (studentId(r.userId) && weekOf(r.createdAt)) weekOf(r.createdAt).vouchersRedeemed += 1;
   }
   for (const o of data.orders) {
     if (!realIds.has(String(o.userId))) continue;

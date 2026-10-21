@@ -21,6 +21,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../src/constants/colors';
 import { Avatar } from '../src/components/Avatar';
 import { MessageAttachment, isVenueMessage } from '../src/components/MessageAttachment';
+import { MeetupCard, isMeetupMessage } from '../src/components/MeetupCard';
+import { meetupApi } from '../src/api/meetupApi';
 import { chatApi } from '../src/api/chatApi';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -37,6 +39,8 @@ export default function ChatRoomScreen() {
   const buddyAvatar = params.buddyAvatar || null;
 
   const [messages, setMessages] = useState([]);
+  // Thẻ "Rủ đi cafe" đang được trả lời / huỷ
+  const [busyMeetupId, setBusyMeetupId] = useState(null);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -237,6 +241,23 @@ export default function ChatRoomScreen() {
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Trả lời / huỷ lời mời đi cafe ngay trên thẻ trong chat
+  const handleMeetupAction = async (meetupId, action) => {
+    if (!meetupId || busyMeetupId) return;
+    setBusyMeetupId(String(meetupId));
+    try {
+      const res = action === 'cancel' ? await meetupApi.cancel(meetupId) : await meetupApi.respond(meetupId, action);
+      const updated = res.data?.data?.message;
+      if (updated) setMessages((prev) => prev.map((m) => (m._id === updated._id ? updated : m)));
+      if (action === 'accept' && res.data?.message) Alert.alert('Đã chốt hẹn ☕', res.data.message);
+    } catch (err) {
+      Alert.alert('Không thực hiện được', err.message);
+      fetchMessages(false);
+    } finally {
+      setBusyMeetupId(null);
+    }
+  };
+
   const renderItem = ({ item }) => {
     const isMe =
       item.sender?._id?.toString() === currentUserId ||
@@ -281,8 +302,21 @@ export default function ChatRoomScreen() {
           {/* Video, tài liệu, thẻ gợi ý quán */}
           <MessageAttachment item={item} isMe={isMe} />
 
-          {/* Hiển thị văn bản nếu có (thẻ quán đã đủ thông tin nên ẩn chữ dự phòng) */}
-          {Boolean(item.text) && !isVenueMessage(item) && (
+          {/* Thẻ rủ đi cafe */}
+          {isMeetupMessage(item) && (
+            <MeetupCard
+              meetup={item.meetup}
+              isMine={isMe}
+              buddyName={buddyName}
+              busy={busyMeetupId === String(item.meetup.meetupId)}
+              onRespond={(action) => handleMeetupAction(item.meetup.meetupId, action)}
+              onCancel={() => handleMeetupAction(item.meetup.meetupId, 'cancel')}
+              onOpenWallet={() => router.push('/my-vouchers')}
+            />
+          )}
+
+          {/* Hiển thị văn bản nếu có (thẻ quán / thẻ rủ cafe đã đủ thông tin nên ẩn chữ dự phòng) */}
+          {Boolean(item.text) && !isVenueMessage(item) && !isMeetupMessage(item) && (
             <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextOther]}>
               {item.text}
             </Text>
@@ -346,7 +380,7 @@ export default function ChatRoomScreen() {
           onPress={() =>
             router.push({
               pathname: '/select-place',
-              params: { matchId, buddyName },
+              params: { matchId, buddyName, returnTo: 'chat' },
             })
           }
         >
@@ -372,6 +406,7 @@ export default function ChatRoomScreen() {
             data={messages}
             keyExtractor={(item) => item._id || item.createdAt}
             renderItem={renderItem}
+            extraData={busyMeetupId}
             contentContainerStyle={styles.listContent}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
@@ -438,7 +473,7 @@ export default function ChatRoomScreen() {
             onPress={() =>
               router.push({
                 pathname: '/select-place',
-                params: { matchId, buddyName },
+                params: { matchId, buddyName, returnTo: 'chat' },
               })
             }
           >

@@ -1,8 +1,10 @@
 class ApiError extends Error {
-  constructor(statusCode, message) {
+  // errorCode: mã lỗi để client xử lý riêng (VD: 'MEETUP_QUOTA' → mời nâng cấp Premium)
+  constructor(statusCode, message, errorCode = null) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = true;
+    this.errorCode = errorCode;
   }
 }
 

@@ -20,8 +20,9 @@ Database production: `unimate_v2` trên cluster `unimate-cluster` (MongoDB Atlas
 | `users` | Tài khoản sinh viên, quán, admin; ngày đăng ký; nguồn biết đến (`acquisition`); lịch sử UniCoin (`studentProfile.coinLog`) | Số đăng ký, kênh, onboarding, check-in quán |
 | `matches` | Lượt thả tim và kết bạn giữa 2 sinh viên | Dùng tính năng chính, kích hoạt |
 | `messages`, `groupmessages` | Tin nhắn 1-1 và nhóm | Dùng tính năng chính, ngày hoạt động |
-| `uservouchers` | Voucher sinh viên đã lưu vào ví (`saved` / `used`) | Lưu voucher, đổi voucher tại quán |
-| `redemptions` | Lượt quán quét QR áp voucher | Ngày sinh viên ra quán |
+| `uservouchers` | Voucher sinh viên đã lưu vào ví, kể cả ưu đãi hẹn cafe nhận qua "Rủ cafe" | Lưu voucher |
+| `redemptions` | Lượt quán quét QR áp voucher | Dùng voucher tại quán, ngày sinh viên ra quán |
+| `meetups` | Lời "Rủ cafe" giữa 2 sinh viên: chờ trả lời, đã chốt, đã gặp tại quán | (chưa đưa vào trang OC3) |
 | `orders` | Đơn mua gói (`pending` / `paid` / `cancelled`), số tiền, ngày thanh toán | Người trả phí, doanh thu |
 | `venues` | Quán và trạng thái duyệt | Quán đối tác hoạt động |
 | `useractivities` | Mỗi người 1 dòng cho mỗi ngày có mở app, ghi rõ web hay mobile | Tỷ lệ quay lại, người hoạt động mỗi tuần |

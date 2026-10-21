@@ -22,6 +22,8 @@ export default function QRScanner() {
   const [scanResult, setScanResult] = useState(null);
   const [scanError, setScanError] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
+  // Voucher vừa quét là ưu đãi hẹn cafe và cả hai bạn trong buổi hẹn đã dùng
+  const [meetupCompleted, setMeetupCompleted] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -88,9 +90,10 @@ export default function QRScanner() {
     if (!scanResult || redeeming) return;
     setRedeeming(true);
     try {
-      await voucherApi.redeemVoucher(scanResult.payload);
+      const res = await voucherApi.redeemVoucher(scanResult.payload);
       // Quán quét QR áp voucher = sinh viên thực sự ra quán
       trackEvent('voucher_redeem');
+      setMeetupCompleted(Boolean(res?.data?.meetupCompleted));
       setConfirmed(true);
       loadHistory();
     } catch (err) {
@@ -105,6 +108,7 @@ export default function QRScanner() {
     setInputCode('');
     setScanResult(null);
     setConfirmed(false);
+    setMeetupCompleted(false);
   };
 
   return (
@@ -243,6 +247,11 @@ export default function QRScanner() {
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
                       MÃ: {scanResult.code}
                     </span>
+                    {confirmed && meetupCompleted && (
+                      <div style={{ fontSize: '12.5px', color: '#1D4ED8', fontWeight: '700', marginTop: '4px' }}>
+                        🤝 Cặp hẹn cafe đã đủ 2 người, buổi hẹn được ghi nhận!
+                      </div>
+                    )}
                   </div>
                 </div>
 

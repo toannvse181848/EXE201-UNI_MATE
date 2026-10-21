@@ -72,11 +72,13 @@ export default function PartnerScanner() {
     setRedeeming(true);
     try {
       const payload = toPayload(inputCode);
-      await voucherApi.redeemVoucher(payload);
+      const res = await voucherApi.redeemVoucher(payload);
 
       Alert.alert(
         'Check-in Thành công! 🎉',
-        'Voucher đã được xác nhận sử dụng thành công cho sinh viên.'
+        res.data?.data?.meetupCompleted
+          ? 'Voucher đã được xác nhận. Cặp hẹn cafe đã đủ 2 người, buổi hẹn được ghi nhận 🤝'
+          : 'Voucher đã được xác nhận sử dụng thành công cho sinh viên.'
       );
 
       setInputCode('');

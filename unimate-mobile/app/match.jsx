@@ -31,6 +31,7 @@ export default function MatchScreen() {
     router.push({
       pathname: '/select-place',
       params: {
+        matchId: params.matchId,
         partnerName: matchedName,
         partnerPhoto: matchedPhoto,
       },

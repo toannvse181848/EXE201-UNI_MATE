@@ -28,6 +28,10 @@ export const toVenueCard = (venue, voucher = null) => {
     voucherId: voucher?._id || null,
     voucherCode: voucher?.code || null,
     voucherValidUntil: voucher?.validUntil || null,
+    // Quán đang trả Gói Đối tác (xếp đầu, có nhãn Nổi bật)
+    isFeatured: Boolean(venue.isFeatured),
+    // Ưu đãi hẹn cafe: cả hai bạn nhận khi chốt hẹn ở quán này
+    meetupReward: venue.meetupReward || null,
     tags: venue.tags || [],
     category: venue.category || 'other',
     description: venue.description || '',
@@ -58,6 +62,8 @@ export const toWalletVoucher = (item) => {
     validUntil: voucher.validUntil || null,
     venueName: venue.name || 'Quán đối tác UNI-MATE',
     image: venue.image || DEFAULT_VENUE_IMAGE,
+    // Nhận qua buổi "Rủ cafe"
+    fromMeetup: Boolean(item.meetupId || voucher.meetupReward),
   };
 };
 

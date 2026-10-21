@@ -39,6 +39,7 @@ export default function VoucherManagement() {
     codeType: 'shared', // 'shared' | 'unique'
     isUnlimited: false,
     premiumOnly: false,
+    meetupReward: false,
     coinCost: 0,
     type: 'Phần trăm (%)',
     value: '',
@@ -78,6 +79,7 @@ export default function VoucherManagement() {
         codeType: v.codeType || 'shared',
         isUnlimited: Boolean(v.isUnlimited),
         premiumOnly: Boolean(v.premiumOnly),
+        meetupReward: Boolean(v.meetupReward),
         coinCost: Number(v.coinCost) || 0,
         type: v.discountPercent ? 'Phần trăm (%)' : (v.discountAmount ? 'Tiền mặt (VNĐ)' : 'Quà tặng'),
         value: v.discountPercent ? `${v.discountPercent}%` : (v.discountAmount ? `${v.discountAmount.toLocaleString()}đ` : v.title),
@@ -145,7 +147,9 @@ export default function VoucherManagement() {
         code: newVoucher.code.toUpperCase().trim(),
         codeType: newVoucher.codeType,
         isUnlimited: Boolean(newVoucher.isUnlimited),
-        premiumOnly: Boolean(newVoucher.premiumOnly),
+        meetupReward: Boolean(newVoucher.meetupReward),
+        // Ưu đãi hẹn cafe tặng cho mọi buổi hẹn, không giới hạn Premium
+        premiumOnly: !newVoucher.meetupReward && Boolean(newVoucher.premiumOnly),
         coinCost: Number(newVoucher.coinCost) || 0,
         quantity: newVoucher.isUnlimited ? null : (Number(newVoucher.total) || 500),
         validUntil: parsedDate.toISOString(),
@@ -161,6 +165,7 @@ export default function VoucherManagement() {
         codeType: 'shared',
         isUnlimited: false,
         premiumOnly: false,
+        meetupReward: false,
         coinCost: 0,
         type: 'Phần trăm (%)',
         value: '',
@@ -412,6 +417,21 @@ export default function VoucherManagement() {
                         }}
                       >
                         Premium
+                      </span>
+                    )}
+                    {item.meetupReward && (
+                      <span
+                        style={{
+                          marginLeft: '6px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          backgroundColor: '#FFEDD5',
+                          color: '#C2410C',
+                        }}
+                      >
+                        Hẹn cafe
                       </span>
                     )}
                   </td>
@@ -693,11 +713,39 @@ export default function VoucherManagement() {
                         checked={newVoucher.isUnlimited}
                         onChange={(e) => setNewVoucher({ ...newVoucher, isUnlimited: e.target.checked })}
                       />
-                      <span>Không giới hạn số lượng (áp dụng cho quán của thầy)</span>
+                      <span>Không giới hạn số lượng</span>
                     </label>
                   )}
                 </div>
               </div>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #FDBA74',
+                  backgroundColor: '#FFF7ED',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={newVoucher.meetupReward}
+                  onChange={(e) => setNewVoucher({ ...newVoucher, meetupReward: e.target.checked, premiumOnly: e.target.checked ? false : newVoucher.premiumOnly })}
+                  style={{ marginTop: '2px' }}
+                />
+                <span>
+                  <strong>Ưu đãi hẹn cafe (khuyến nghị)</strong>
+                  <br />
+                  <span style={{ fontSize: '12px', color: '#9A3412' }}>
+                    Không hiện trong danh sách voucher. Khi 2 sinh viên rủ nhau đến quán bạn và chốt hẹn trên UNI-MATE, mỗi người tự nhận 1 ưu đãi này. Quán được giới thiệu khách đi theo cặp.
+                  </span>
+                </span>
+              </label>
 
               <label
                 style={{
@@ -715,6 +763,7 @@ export default function VoucherManagement() {
                 <input
                   type="checkbox"
                   checked={newVoucher.premiumOnly}
+                  disabled={newVoucher.meetupReward}
                   onChange={(e) => setNewVoucher({ ...newVoucher, premiumOnly: e.target.checked })}
                   style={{ marginTop: '2px' }}
                 />

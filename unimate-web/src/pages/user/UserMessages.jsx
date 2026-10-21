@@ -18,7 +18,6 @@ import {
   Users,
   ExternalLink,
   ChevronRight,
-  MapPin,
   Award,
   ArrowLeft,
   Image as ImageIcon,
@@ -34,7 +33,9 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { chatApi, matchApi, groupChatApi, venueApi, API_BASE_URL } from '../../services/api';
+import { chatApi, matchApi, groupChatApi, meetupApi, API_BASE_URL } from '../../services/api';
+import MeetupCard from '../../components/user/MeetupCard';
+import MeetupInviteModal from '../../components/user/MeetupInviteModal';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarUrl } from '../../constants/avatar';
 import { UNREAD_CHANGED_EVENT } from '../../constants/events';
@@ -279,6 +280,9 @@ export default function UserMessages() {
   const [conversations, setConversations] = useState([]);
   const [sentLikes, setSentLikes] = useState([]);
   const [receivedLikes, setReceivedLikes] = useState([]);
+  // Tài khoản miễn phí chỉ biết số người đã thích mình (xem là ai là quyền lợi Premium)
+  const [receivedLocked, setReceivedLocked] = useState(false);
+  const [receivedCount, setReceivedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -345,12 +349,9 @@ export default function UserMessages() {
   // Modal danh sách thành viên nhóm
   const [showGroupMembersModal, setShowGroupMembersModal] = useState(false);
 
-  // Modal chọn quán để gợi ý cho bạn đang chat
-  const [showVenuePicker, setShowVenuePicker] = useState(false);
-  const [venueOptions, setVenueOptions] = useState([]);
-  const [loadingVenues, setLoadingVenues] = useState(false);
-  const [venueSearch, setVenueSearch] = useState('');
-  const [sendingVenueId, setSendingVenueId] = useState(null);
+  // "Rủ đi cafe": khung chọn quán + thẻ lời mời đang được trả lời
+  const [showMeetupModal, setShowMeetupModal] = useState(false);
+  const [busyMeetupId, setBusyMeetupId] = useState(null);
 
   // Đóng emoji picker (1-1 và nhóm) khi click ra ngoài
   useCloseOnClickOutside(showEmojiPicker, setShowEmojiPicker, [emojiPickerRef, emojiButtonRef]);
@@ -402,6 +403,8 @@ export default function UserMessages() {
       let realReceived = [];
       if (receivedRes.status === 'fulfilled' && receivedRes.value?.data) {
         realReceived = receivedRes.value.data;
+        setReceivedLocked(Boolean(receivedRes.value.locked));
+        setReceivedCount(receivedRes.value.count ?? realReceived.length);
       }
 
       setConversations(realConvs);
@@ -682,59 +685,50 @@ export default function UserMessages() {
   };
 
   // Rủ đi cafe nhanh
-  const handleQuickCoffeeInvite = () => {
-    const inviteText =
-      '☕ Chiều mai bạn có rảnh ra quán cafe gần trường ngồi học chung cày deadline không? Mình đang có voucher giảm giá nè!';
-    setInputText(inviteText);
+  // Thêm / cập nhật một tin nhắn (thẻ rủ cafe) trong khung chat và bản xem trước hội thoại
+  const upsertMessage = (savedMsg) => {
+    if (!savedMsg) return;
+    setMessages((prev) =>
+      prev.some((m) => m._id === savedMsg._id)
+        ? prev.map((m) => (m._id === savedMsg._id ? savedMsg : m))
+        : [...prev, savedMsg]
+    );
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.matchId === savedMsg.matchId &&
+        (!c.lastMessage?.createdAt || new Date(c.lastMessage.createdAt) <= new Date(savedMsg.createdAt))
+          ? {
+              ...c,
+              lastMessage: {
+                text: savedMsg.text,
+                type: savedMsg.type,
+                isFromMe: String(savedMsg.sender?._id || savedMsg.sender) === currentUserId,
+                createdAt: savedMsg.createdAt,
+              },
+            }
+          : c
+      )
+    );
   };
 
-  // Mở modal chọn quán (tải danh sách quán lần đầu)
-  const openVenuePicker = async () => {
-    setVenueSearch('');
-    setShowVenuePicker(true);
-    if (venueOptions.length > 0) return;
-    setLoadingVenues(true);
+  // Trả lời / huỷ lời mời đi cafe ngay trên thẻ trong khung chat
+  const handleMeetupAction = async (meetupId, action) => {
+    if (!meetupId || busyMeetupId) return;
+    setBusyMeetupId(meetupId);
     try {
-      const res = await venueApi.getPublicVenues();
-      setVenueOptions(res.data || []);
-    } catch (err) {
-      console.log('Lỗi tải danh sách quán:', err.message);
-    } finally {
-      setLoadingVenues(false);
-    }
-  };
-
-  // Gửi thẻ gợi ý quán cho bạn đang chat
-  const handleSendVenue = async (venue) => {
-    if (!selectedMatchId || sendingVenueId) return;
-    setSendingVenueId(venue._id);
-    try {
-      const res = await chatApi.sendMessage(selectedMatchId, { type: 'venue', venueId: venue._id });
-      trackEvent('message_send', { message_type: 'venue' });
-      const savedMsg = res.data;
-      if (savedMsg) {
-        setMessages((prev) => [...prev, savedMsg]);
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.matchId === selectedMatchId
-              ? { ...c, lastMessage: { text: savedMsg.text, type: 'venue', isFromMe: true, createdAt: savedMsg.createdAt } }
-              : c
-          )
-        );
+      const res = action === 'cancel' ? await meetupApi.cancel(meetupId) : await meetupApi.respond(meetupId, action);
+      if (res.data?.message) upsertMessage(res.data.message);
+      if (action === 'accept') {
+        trackEvent('meetup_accept', { reward_granted: res.data?.rewardGranted || 0 });
+        if (res.message) alert(res.message);
       }
-      setShowVenuePicker(false);
     } catch (err) {
-      alert(`Không thể gửi quán: ${err.message}`);
+      alert(err.message);
+      if (selectedMatchId) loadMessages(selectedMatchId, true);
     } finally {
-      setSendingVenueId(null);
+      setBusyMeetupId(null);
     }
   };
-
-  const filteredVenueOptions = venueOptions.filter((v) => {
-    const q = venueSearch.trim().toLowerCase();
-    if (!q) return true;
-    return v.name?.toLowerCase().includes(q) || v.address?.toLowerCase().includes(q);
-  });
 
   // ─── GROUP CHAT HANDLERS ──────────────────────────────────────────────────
 
@@ -1246,7 +1240,7 @@ export default function UserMessages() {
             }}
           >
             <span>Thích bạn</span>
-            {receivedLikes.length > 0 && (
+            {receivedCount > 0 && (
               <span
                 style={{
                   backgroundColor: '#E91E63',
@@ -1257,7 +1251,7 @@ export default function UserMessages() {
                   borderRadius: '10px',
                 }}
               >
-                {receivedLikes.length}
+                {receivedCount}
               </span>
             )}
           </button>
@@ -1681,11 +1675,27 @@ export default function UserMessages() {
                   paddingLeft: '4px',
                 }}
               >
-                Những bạn học này đã gửi lời thích đến bạn. Hãy bấm thích lại để
-                kết nối ngay!
+                {receivedLocked
+                  ? 'Có bạn học đã thả tim bạn. Thích lại là kết bạn ngay!'
+                  : 'Những bạn học này đã gửi lời thích đến bạn. Hãy bấm thích lại để kết nối ngay!'}
               </div>
 
-              {filteredReceivedLikes.length === 0 ? (
+              {receivedLocked ? (
+                <div style={{ padding: '28px 18px', textAlign: 'center', borderRadius: '14px', background: 'linear-gradient(135deg, #FFF7ED, #FEF3C7)', border: '1px solid #FDE68A' }}>
+                  <Crown size={34} color="#F59E0B" style={{ margin: '0 auto 10px' }} />
+                  <p style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {receivedCount > 0 ? `${receivedCount} bạn đã thích bạn` : 'Chưa có lời thích mới'}
+                  </p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: 1.5 }}>
+                    {receivedCount > 0
+                      ? 'Nâng cấp Premium để xem họ là ai và kết bạn ngay. Hoặc lướt trang Khám phá, những bạn này đang được xếp lên đầu.'
+                      : 'Thành viên Premium xem được ngay ai đã thích mình.'}
+                  </p>
+                  <Link to="/user/profile?upgrade=monthly" style={{ display: 'inline-block', padding: '9px 16px', borderRadius: '10px', backgroundColor: '#FF5722', color: '#FFFFFF', fontWeight: '800', fontSize: '13px', textDecoration: 'none' }}>
+                    Xem ai thích bạn với Premium
+                  </Link>
+                </div>
+              ) : filteredReceivedLikes.length === 0 ? (
                 <div
                   style={{
                     padding: '40px 20px',
@@ -2049,10 +2059,11 @@ export default function UserMessages() {
               </div>
             </div>
 
-            {/* Actions: Nút rủ đi cafe & Xem địa điểm */}
+            {/* Rủ đi cafe: chọn quán đối tác, bạn ấy đồng ý là chốt hẹn và cả hai nhận ưu đãi */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button
-                onClick={handleQuickCoffeeInvite}
+                type="button"
+                onClick={() => setShowMeetupModal(true)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -2069,29 +2080,7 @@ export default function UserMessages() {
                 }}
               >
                 <Coffee size={16} />
-                <span>Rủ đi Cafe ☕</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={openVenuePicker}
-                title="Gửi gợi ý quán cho bạn đang chat"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 12px',
-                  borderRadius: '10px',
-                  backgroundColor: '#F1F5F9',
-                  color: 'var(--text-secondary)',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-              >
-                <MapPin size={14} />
-                <span>Chọn quán</span>
+                <span>Rủ đi cafe</span>
               </button>
             </div>
           </div>
@@ -2346,8 +2335,20 @@ export default function UserMessages() {
                         </div>
                       )}
 
-                      {/* Text caption / body (thẻ quán đã hiển thị đủ thông tin nên ẩn chữ dự phòng) */}
-                      {msg.text && !(msg.type === 'venue' && msg.venue) && <div>{msg.text}</div>}
+                      {/* Thẻ rủ đi cafe */}
+                      {msg.type === 'meetup' && msg.meetup && (
+                        <MeetupCard
+                          meetup={msg.meetup}
+                          isMine={isMe}
+                          buddyName={activeConversation?.buddy?.fullName}
+                          busy={busyMeetupId === msg.meetup.meetupId}
+                          onRespond={(action) => handleMeetupAction(msg.meetup.meetupId, action)}
+                          onCancel={() => handleMeetupAction(msg.meetup.meetupId, 'cancel')}
+                        />
+                      )}
+
+                      {/* Text caption / body (thẻ quán / thẻ rủ cafe đã hiển thị đủ thông tin nên ẩn chữ dự phòng) */}
+                      {msg.text && !(msg.type === 'venue' && msg.venue) && !(msg.type === 'meetup' && msg.meetup) && <div>{msg.text}</div>}
 
                       <div
                         style={{
@@ -3058,82 +3059,14 @@ export default function UserMessages() {
         </div>
       )}
 
-      {/* ====== MODAL CHỌN QUÁN GỢI Ý CHO BẠN ====== */}
-      {showVenuePicker && (
-        <div
-          onClick={() => setShowVenuePicker(false)}
-          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', zIndex: 99998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', animation: 'fadeIn 0.15s ease-out' }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', width: '100%', maxWidth: '460px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}
-          >
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '17px', fontWeight: '900', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <MapPin size={20} color="#FF5722" /> Gợi ý quán cho {activeConversation?.buddy?.fullName || 'bạn'}
-              </h3>
-              <button onClick={() => setShowVenuePicker(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
-            </div>
-
-            <div style={{ padding: '14px 24px 0' }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  value={venueSearch}
-                  onChange={(e) => setVenueSearch(e.target.value)}
-                  placeholder="Tìm theo tên quán hoặc địa chỉ..."
-                  autoFocus
-                  style={{ width: '100%', padding: '10px 14px 10px 36px', borderRadius: '12px', border: '1.5px solid var(--border-color)', fontSize: '13.5px', outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 24px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {loadingVenues ? (
-                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
-                  <Loader2 size={22} className="spinner" />
-                </div>
-              ) : filteredVenueOptions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', backgroundColor: '#F8FAFC', borderRadius: '12px', fontSize: '13px' }}>
-                  Không tìm thấy quán phù hợp
-                </div>
-              ) : (
-                filteredVenueOptions.map((venue) => {
-                  const isSendingThis = sendingVenueId === venue._id;
-                  const thumb = venue.images?.[0] || venue.image;
-                  return (
-                    <button
-                      key={venue._id}
-                      type="button"
-                      onClick={() => handleSendVenue(venue)}
-                      disabled={Boolean(sendingVenueId)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', border: '1.5px solid var(--border-color)', backgroundColor: '#FFFFFF', cursor: sendingVenueId ? 'wait' : 'pointer', textAlign: 'left', width: '100%', transition: 'border-color 0.15s' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#FF5722')}
-                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-color)')}
-                    >
-                      {thumb ? (
-                        <img src={thumb} alt={venue.name} style={{ width: '52px', height: '52px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }} />
-                      ) : (
-                        <div style={{ width: '52px', height: '52px', borderRadius: '10px', backgroundColor: '#FFF3E0', color: '#FF5722', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Coffee size={22} />
-                        </div>
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--text-primary)' }}>{venue.name}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{venue.address}</div>
-                      </div>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '800', color: '#FF5722', flexShrink: 0 }}>
-                        {isSendingThis ? <Loader2 size={14} className="spinner" /> : <Send size={14} />} Gửi
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ====== MODAL RỦ ĐI CAFE ====== */}
+      <MeetupInviteModal
+        open={showMeetupModal}
+        onClose={() => setShowMeetupModal(false)}
+        matchId={selectedMatchId}
+        buddyName={activeConversation?.buddy?.fullName}
+        onInvited={upsertMessage}
+      />
 
       {/* ====== MODAL TẠO NHÓM ====== */}
       {showCreateGroupModal && (
