@@ -10,6 +10,9 @@ const { findMeetupRewards, toRewardSummary } = require('../utils/meetupRewards')
 const { composeVenueName } = require('../utils/venueNaming');
 const { visibleVenueFilter, findVisibleVenue } = require('../utils/visibility');
 const User = require('../models/User');
+const Redemption = require('../models/Redemption');
+const VenueCheckin = require('../models/VenueCheckin');
+const Meetup = require('../models/Meetup');
 
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
@@ -94,6 +97,8 @@ const getVenueById = catchAsync(async (req, res) => {
   if (!venue) {
     throw new ApiError(404, 'Không tìm thấy địa điểm');
   }
+  // Đếm lượt xem cho trang hiệu quả của quán (không chờ)
+  Venue.updateOne({ _id: venue._id }, { $inc: { viewCount: 1 } }).catch(() => {});
 
   const obj = toPublicVenue(venue.toObject());
   obj.district = extractDistrict(obj.address, obj.district);
@@ -348,7 +353,88 @@ const regenerateCheckinQr = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * GET /api/venues/my/insights?days=30 — hiệu quả UNI-MATE mang lại cho quán (lý do gia hạn Gói Đối tác):
+ * sinh viên tới quán (quét ví + check-in), buổi hẹn cafe, lượt xem trang quán; tổng và theo từng chi nhánh.
+ */
+const getPartnerInsights = catchAsync(async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const partnerId = req.user._id;
+
+  const venues = await Venue.find({ partnerId }).select('name status viewCount');
+  const venueIds = venues.map((v) => v._id);
+
+  const byVenue = (rows) => new Map(rows.map((r) => [String(r._id), r]));
+  const [redeemRows, checkinRows, meetupRows, studentsFromRedeem, studentsFromCheckin] = await Promise.all([
+    Redemption.aggregate([
+      { $match: { partnerId, createdAt: { $gte: since } } },
+      { $group: { _id: '$venueId', total: { $sum: 1 }, viaWallet: { $sum: { $cond: [{ $eq: ['$method', 'qr'] }, 1, 0] } } } },
+    ]),
+    VenueCheckin.aggregate([
+      { $match: { partnerId, createdAt: { $gte: since } } },
+      { $group: { _id: '$venueId', total: { $sum: 1 } } },
+    ]),
+    Meetup.aggregate([
+      { $match: { venueId: { $in: venueIds }, createdAt: { $gte: since } } },
+      {
+        $group: {
+          _id: '$venueId',
+          invited: { $sum: 1 },
+          agreed: { $sum: { $cond: [{ $in: ['$status', ['accepted', 'completed', 'no_show']] }, 1, 0] } },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+        },
+      },
+    ]),
+    Redemption.distinct('userId', { partnerId, userId: { $ne: null }, createdAt: { $gte: since } }),
+    VenueCheckin.distinct('userId', { partnerId, createdAt: { $gte: since } }),
+  ]);
+
+  const redeemMap = byVenue(redeemRows);
+  const checkinMap = byVenue(checkinRows);
+  const meetupMap = byVenue(meetupRows);
+
+  const perVenue = venues.map((v) => {
+    const key = String(v._id);
+    const m = meetupMap.get(key) || {};
+    return {
+      venueId: v._id,
+      name: v.name,
+      status: v.status,
+      views: v.viewCount || 0,
+      redemptions: redeemMap.get(key)?.total || 0,
+      checkins: checkinMap.get(key)?.total || 0,
+      meetupsInvited: m.invited || 0,
+      meetupsAgreed: m.agreed || 0,
+      meetupsCompleted: m.completed || 0,
+    };
+  });
+
+  const sum = (key) => perVenue.reduce((acc, v) => acc + v[key], 0);
+  const uniqueStudents = new Set([...studentsFromRedeem, ...studentsFromCheckin].map(String)).size;
+
+  res.status(200).json({
+    success: true,
+    data: {
+      days,
+      totals: {
+        uniqueStudents,
+        redemptions: sum('redemptions'),
+        walletRedemptions: redeemRows.reduce((acc, r) => acc + r.viaWallet, 0),
+        checkins: sum('checkins'),
+        meetupsInvited: sum('meetupsInvited'),
+        meetupsAgreed: sum('meetupsAgreed'),
+        meetupsCompleted: sum('meetupsCompleted'),
+        // Lượt xem tính từ khi có tính năng đếm, không lọc theo số ngày
+        views: sum('views'),
+      },
+      perVenue,
+    },
+  });
+});
+
 module.exports = {
+  getPartnerInsights,
   getCheckinQr,
   regenerateCheckinQr,
   getVenues,

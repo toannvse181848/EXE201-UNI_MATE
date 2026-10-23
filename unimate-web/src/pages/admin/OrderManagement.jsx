@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { orderApi, userApi } from '../../services/api';
+import UnmatchedPayments from '../../components/admin/UnmatchedPayments';
 
 export default function OrderManagement() {
   const [orders, setOrders] = useState([]);
@@ -174,6 +175,9 @@ export default function OrderManagement() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Tiền về nhưng chưa khớp đơn: chỉ hiện khi có */}
+      <UnmatchedPayments onResolved={fetchOrders} />
+
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>

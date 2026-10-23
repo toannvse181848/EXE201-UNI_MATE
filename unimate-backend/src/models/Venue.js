@@ -97,6 +97,11 @@ const venueSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Số lượt sinh viên mở trang chi tiết quán (số liệu hiệu quả cho chủ quán)
+    viewCount: {
+      type: Number,
+      default: 0,
+    },
     // Secret in trong mã QR check-in dán tại quán (xem utils/venueCheckin.js)
     checkinSecret: {
       type: String,

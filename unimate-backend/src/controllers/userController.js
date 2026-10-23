@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { getBlockedUserIds } = require('../utils/blocking');
 const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
@@ -6,7 +7,7 @@ const { composeVenueName } = require('../utils/venueNaming');
 const { cloudinary, getUploadedFileUrl } = require('../config/cloudinary');
 const { escapeRegex } = require('../middlewares/security');
 const { getPlan, resolvePlanId } = require('../config/plans');
-const { activatePlan, canBuyPlan } = require('../utils/subscription');
+const { activatePlan, activatePlanForUser, canBuyPlan } = require('../utils/subscription');
 const { toPublicStudent } = require('../utils/publicProfile');
 const {
   maskEmail,
@@ -30,7 +31,7 @@ const getSuggestedStudents = catchAsync(async (req, res) => {
   };
 
   if (currentUserId) {
-    query._id = { $ne: currentUserId };
+    query._id = { $nin: [currentUserId, ...(await getBlockedUserIds(currentUserId))] };
   }
 
   const students = await User.find(query)
@@ -264,14 +265,14 @@ const buyPremium = catchAsync(async (req, res) => {
     );
   }
 
-  activatePlan(deducted, planId);
-  await deducted.save({ validateBeforeSave: false });
+  // Chỉ ghi các trường của gói, không lưu đè cả hồ sơ (coin vừa trừ ở trên không bị ghi lại)
+  const { user: upgraded } = await activatePlanForUser(deducted._id, planId);
 
   res.status(200).json({
     success: true,
     message: `Chúc mừng bạn đã nâng cấp thành công gói Premium (${planId === 'premium_yearly' ? '1 Năm' : '1 Tháng'})! Tài khoản đã được cấp tích xanh xác thực.`,
     data: {
-      user: deducted.toPublicJSON(),
+      user: upgraded.toPublicJSON(),
     },
   });
 });

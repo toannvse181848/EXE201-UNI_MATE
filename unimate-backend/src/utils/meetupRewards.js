@@ -5,13 +5,14 @@ const VoucherCode = require('../models/VoucherCode');
 const { describeVoucherValue } = require('./voucherFormat');
 const Venue = require('../models/Venue');
 const { visibleVenueFilter } = require('./visibility');
+const { hasSharedStock, reserveSharedSlot, releaseSharedSlot } = require('./voucherStock');
 
 /** Voucher còn lượt để phát: mã riêng thì còn mã trống, mã chung thì chưa dùng hết số lượng */
 const hasStock = async (voucher) => {
   if (voucher.codeType === 'unique') {
     return Boolean(await VoucherCode.exists({ voucherId: voucher._id, userId: null }));
   }
-  return voucher.isUnlimited || voucher.usedCount < voucher.quantity;
+  return hasSharedStock(voucher);
 };
 
 /**
@@ -72,9 +73,10 @@ const grantMeetupVoucher = async (voucher, userId, meetupId) => {
       { returnDocument: 'after', sort: { _id: 1 } }
     );
     if (!reservedCode) return null;
-  } else if (!voucher.isUnlimited && voucher.usedCount >= voucher.quantity) {
+  } else if (!(await reserveSharedSlot(voucher))) {
     return null;
   }
+  const reservedSlot = voucher.codeType !== 'unique';
 
   const fields = {
     status: 'saved',
@@ -99,6 +101,7 @@ const grantMeetupVoucher = async (voucher, userId, meetupId) => {
         await VoucherCode.updateOne({ _id: reservedCode._id }, { userId: null, assignedAt: null });
         reservedCode = null;
       }
+      if (reservedSlot) await releaseSharedSlot(voucher);
       userVoucher = await UserVoucher.findOneAndUpdate({ userId, voucherId: voucher._id }, { meetupId }, { returnDocument: 'after' });
     }
   }

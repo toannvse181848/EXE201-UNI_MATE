@@ -1,4 +1,5 @@
 const Match = require('../models/Match');
+const Meetup = require('../models/Meetup');
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
@@ -6,8 +7,22 @@ const { computeMatchScore, commonInterests, sortByRank } = require('../utils/mat
 const { isPremiumActive } = require('../utils/subscription');
 const { isVenueVisible } = require('../utils/visibility');
 const { toPublicStudent } = require('../utils/publicProfile');
+const { saveLocationFromQuery } = require('../utils/userLocation');
 
 const DECK_SIZE = 30;
+
+/** Bản ghi tương tác giữa 2 người (theo cả 2 chiều) */
+const findPair = (a, b) =>
+  Match.findOne({
+    $or: [
+      { user1: a, user2: b },
+      { user1: b, user2: a },
+    ],
+  });
+
+/** Huỷ các lời mời / buổi hẹn còn mở của cặp này (khi huỷ kết bạn hoặc chặn) */
+const cancelOpenMeetups = (matchId) =>
+  Meetup.updateMany({ matchId, status: { $in: ['proposed', 'accepted'] } }, { status: 'cancelled' });
 
 // Sinh viên: Lấy danh sách bạn học để quẹt thẻ khám phá
 const getDiscoveryDeck = catchAsync(async (req, res) => {
@@ -34,19 +49,44 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
     }
   });
 
+  // Bị chặn hoặc đã chặn thì không bao giờ thấy nhau (kể cả khi người kia chưa từng quẹt)
+  const blocked = await Match.find({
+    $or: [{ user1: currentUserId }, { user2: currentUserId }],
+    status: 'blocked',
+  }).select('user1 user2');
+  blocked.forEach((m) => {
+    excludedIds.add(m.user1.toString());
+    excludedIds.add(m.user2.toString());
+  });
+
   const me = await User.findById(currentUserId);
 
-  // Tìm các sinh viên khác chưa từng được currentUserId quẹt
-  const candidates = await User.find({
+  // Lưu vị trí hiện tại nếu client gửi kèm (?lat=&lng=) để tính khoảng cách thật
+  await saveLocationFromQuery(me, req.query);
+
+  // Tìm các sinh viên khác chưa từng được currentUserId quẹt.
+  // Lấy 2 nhóm rồi mới xếp hạng: cùng trường trước, phần còn lại theo người hoạt động gần đây
+  // (trước đây lấy 100 người đầu theo thứ tự trong DB nên người đăng ký sau gần như không được gợi ý).
+  const baseFilter = {
     _id: { $nin: Array.from(excludedIds) },
     role: { $in: ['student', 'user'] },
     status: 'active',
-  })
-    .select('fullName avatar studentProfile')
-    .limit(100); // lấy rộng rồi xếp hạng, để người dùng Premium không bị bỏ sót trước khi xếp
+  };
+  const myUniversity = me?.studentProfile?.university;
+  const sameSchool = myUniversity
+    ? await User.find({ ...baseFilter, 'studentProfile.university': myUniversity })
+        .select('fullName avatar studentProfile lastActiveAt')
+        .sort({ lastActiveAt: -1 })
+        .limit(100)
+    : [];
+  const others = await User.find({ ...baseFilter, _id: { $nin: [...excludedIds, ...sameSchool.map((u) => String(u._id))] } })
+    .select('fullName avatar studentProfile lastActiveAt')
+    .sort({ lastActiveAt: -1 })
+    .limit(100);
+  const candidates = [...sameSchool, ...others];
 
   const scoredCandidates = candidates.map((them) => {
-    const matchPercentage = me ? computeMatchScore(me, them) : 80;
+    const matchPercentage = me ? computeMatchScore(me, them) : 0;
     const commonTags = me
       ? commonInterests(
           me.studentProfile?.interests || [],
@@ -57,16 +97,20 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
     return { ...toPublicStudent(them), matchPercentage, commonTags };
   });
 
-  // Người đã thích mình được xếp lên đầu (không đánh dấu ai) để dễ kết bạn;
-  // biết chính xác ai đã thích mình là quyền lợi Premium (GET /received-likes)
-  const likerIds = new Set(
-    (await Match.find({ user2: currentUserId, user1Action: 'like', user2Action: 'pending' }).distinct('user1')).map(String)
-  );
   const ranked = sortByRank(scoredCandidates);
-  const deck = [
-    ...ranked.filter((c) => likerIds.has(String(c._id))),
-    ...ranked.filter((c) => !likerIds.has(String(c._id))),
-  ].slice(0, DECK_SIZE);
+  // Biết ai đã thích mình là quyền lợi Premium (GET /received-likes), nên chỉ Premium mới được
+  // xếp những người đó lên đầu. Tài khoản miễn phí giữ thứ tự theo điểm, không đoán được ai thích mình.
+  let deck = ranked;
+  if (isPremiumActive(req.user.studentProfile)) {
+    const likerIds = new Set(
+      (await Match.find({ user2: currentUserId, user1Action: 'like', user2Action: 'pending' }).distinct('user1')).map(String)
+    );
+    deck = [
+      ...ranked.filter((c) => likerIds.has(String(c._id))),
+      ...ranked.filter((c) => !likerIds.has(String(c._id))),
+    ];
+  }
+  deck = deck.slice(0, DECK_SIZE);
 
   res.status(200).json({
     success: true,
@@ -87,17 +131,19 @@ const swipe = catchAsync(async (req, res) => {
   if (targetUserId.toString() === currentUserId.toString()) {
     throw new ApiError(400, 'Không thể tự quẹt chính mình');
   }
+  const target = await User.exists({ _id: targetUserId, role: { $in: ['student', 'user'] }, status: 'active' }).catch(() => null);
+  if (!target) throw new ApiError(404, 'Không tìm thấy sinh viên này');
 
   // Kiểm tra xem đã có bản ghi tương tác giữa 2 người chưa (theo cả 2 chiều)
-  let existingMatch = await Match.findOne({
-    $or: [
-      { user1: currentUserId, user2: targetUserId },
-      { user1: targetUserId, user2: currentUserId },
-    ],
-  });
+  let existingMatch = await findPair(currentUserId, targetUserId);
 
   let isMatch = false;
   let matchRecord = null;
+
+  if (existingMatch && ['blocked', 'matched'].includes(existingMatch.status)) {
+    // Đã chặn nhau: không quẹt lại được. Đã là bạn: huỷ kết bạn qua API riêng, không quẹt đè.
+    throw new ApiError(400, existingMatch.status === 'blocked' ? 'Không thể tương tác với người này' : 'Hai bạn đã kết bạn rồi');
+  }
 
   if (existingMatch) {
     // Đã có bản ghi trước đó
@@ -311,7 +357,80 @@ const getReceivedLikes = catchAsync(async (req, res) => {
   });
 });
 
+// POST /api/matches/:matchId/unmatch — huỷ kết bạn: mất hội thoại, không gợi ý lại cho nhau
+const unmatch = catchAsync(async (req, res) => {
+  const me = req.user._id;
+  const match = await Match.findOneAndUpdate(
+    { _id: req.params.matchId, status: 'matched', $or: [{ user1: me }, { user2: me }] },
+    { status: 'passed', unmatchedBy: me },
+    { returnDocument: 'after' }
+  ).catch(() => null);
+  if (!match) throw new ApiError(404, 'Không tìm thấy bạn bè này');
+  await cancelOpenMeetups(match._id);
+  res.status(200).json({ success: true, message: 'Đã huỷ kết bạn', data: { matchId: match._id } });
+});
+
+// POST /api/matches/block — { targetUserId }: chặn một sinh viên (đã kết bạn hay chưa đều được)
+const blockUser = catchAsync(async (req, res) => {
+  const me = req.user._id;
+  const { targetUserId } = req.body;
+  if (!targetUserId || String(targetUserId) === String(me)) throw new ApiError(400, 'Người dùng không hợp lệ');
+  const target = await User.exists({ _id: targetUserId, role: { $in: ['student', 'user'] } }).catch(() => null);
+  if (!target) throw new ApiError(404, 'Không tìm thấy sinh viên này');
+
+  let match = await findPair(me, targetUserId);
+  if (match?.status === 'blocked') {
+    return res.status(200).json({ success: true, message: 'Bạn đã chặn người này', data: { matchId: match._id } });
+  }
+  if (match) {
+    match.status = 'blocked';
+    match.blockedBy = me;
+    await match.save();
+  } else {
+    match = await Match.create({ user1: me, user2: targetUserId, user1Action: 'pass', status: 'blocked', blockedBy: me });
+  }
+  await cancelOpenMeetups(match._id);
+  res.status(200).json({
+    success: true,
+    message: 'Đã chặn. Hai bạn sẽ không thấy nhau và không nhắn tin được nữa.',
+    data: { matchId: match._id },
+  });
+});
+
+// GET /api/matches/blocked — danh sách người mình đã chặn
+const getBlockedUsers = catchAsync(async (req, res) => {
+  const blocked = await Match.find({ status: 'blocked', blockedBy: req.user._id })
+    .populate('user1', 'fullName avatar')
+    .populate('user2', 'fullName avatar')
+    .sort({ updatedAt: -1 });
+  const data = blocked.map((m) => {
+    const other = String(m.user1?._id) === String(req.user._id) ? m.user2 : m.user1;
+    return { matchId: m._id, user: other ? { id: other._id, fullName: other.fullName, avatar: other.avatar } : null };
+  });
+  res.status(200).json({ success: true, count: data.length, data });
+});
+
+// DELETE /api/matches/block/:userId — bỏ chặn (không tự kết bạn lại, phải quẹt lại từ đầu)
+const unblockUser = catchAsync(async (req, res) => {
+  const me = req.user._id;
+  const match = await Match.findOne({
+    status: 'blocked',
+    blockedBy: me,
+    $or: [
+      { user1: me, user2: req.params.userId },
+      { user1: req.params.userId, user2: me },
+    ],
+  }).catch(() => null);
+  if (!match) throw new ApiError(404, 'Bạn chưa chặn người này');
+  await Match.deleteOne({ _id: match._id });
+  res.status(200).json({ success: true, message: 'Đã bỏ chặn' });
+});
+
 module.exports = {
+  unmatch,
+  blockUser,
+  getBlockedUsers,
+  unblockUser,
   getDiscoveryDeck,
   swipe,
   getMyMatches,

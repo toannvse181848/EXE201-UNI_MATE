@@ -72,10 +72,14 @@ const userSchema = new mongoose.Schema(
       checkinStreak: { type: Number, default: 0 },
       dailyEarned: { type: Number, default: 0 },
       lastEarnDate: { type: Date, default: null },
+      // Ngày (giờ VN, dạng 2026-10-23) của bộ đếm dailyEarned và của lần điểm danh gần nhất
+      earnDay: { type: String, default: null },
+      lastCheckinDay: { type: String, default: null },
       venueCheckinsToday: [{
         venueId: { type: String },
         venueName: { type: String },
         date: { type: Date },
+        day: { type: String }, // giờ VN
         coinEarned: { type: Number },
       }],
       coinLog: [{

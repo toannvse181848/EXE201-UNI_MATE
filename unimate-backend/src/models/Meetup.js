@@ -15,7 +15,8 @@ const meetupSchema = new mongoose.Schema(
     scheduledAt: { type: Date, default: null },
     status: {
       type: String,
-      enum: ['proposed', 'accepted', 'declined', 'cancelled', 'completed'],
+      // expired: lời mời không được trả lời kịp; no_show: đã chốt nhưng quá giờ hẹn chưa thấy tới quán
+      enum: ['proposed', 'accepted', 'declined', 'cancelled', 'completed', 'expired', 'no_show'],
       default: 'proposed',
     },
     // Ưu đãi hẹn cafe của quán đã tặng cho cả hai khi chốt hẹn (null = quán chưa có ưu đãi)

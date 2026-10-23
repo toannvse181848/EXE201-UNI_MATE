@@ -44,6 +44,28 @@ const activatePlan = (user, plan, durationDays) => {
   return user.studentProfile.premiumExpiresAt;
 };
 
+/**
+ * Kích hoạt gói và ghi thẳng vào database, chỉ $set các trường của gói.
+ * Không lưu đè cả studentProfile như user.save(): coin vừa được cộng / trừ ở request khác không bị mất.
+ * @returns { user, expiresAt } (user đã có gói mới), hoặc null nếu không tìm thấy user
+ */
+const activatePlanForUser = async (userId, plan, durationDays) => {
+  const User = require('../models/User');
+  const user = await User.findById(userId);
+  if (!user) return null;
+  const expiresAt = activatePlan(user, plan, durationDays);
+  const $set =
+    getPlan(plan)?.role === 'partner'
+      ? { 'partnerProfile.plan': user.partnerProfile.plan, 'partnerProfile.planExpiresAt': user.partnerProfile.planExpiresAt }
+      : {
+          'studentProfile.isPremium': true,
+          'studentProfile.premiumPlan': user.studentProfile.premiumPlan,
+          'studentProfile.premiumExpiresAt': user.studentProfile.premiumExpiresAt,
+        };
+  await User.updateOne({ _id: userId }, { $set });
+  return { user, expiresAt };
+};
+
 /** Kiểm tra role của user có được mua gói này không */
 const canBuyPlan = (user, plan) => {
   const planInfo = getPlan(plan);
@@ -63,4 +85,4 @@ const isPremiumActive = (studentProfile) =>
 const isPartnerPlanActive = (partnerProfile) =>
   Boolean(partnerProfile?.planExpiresAt && new Date(partnerProfile.planExpiresAt).getTime() > Date.now());
 
-module.exports = { activatePlan, canBuyPlan, isPremiumActive, isPartnerPlanActive };
+module.exports = { activatePlan, activatePlanForUser, canBuyPlan, isPremiumActive, isPartnerPlanActive };

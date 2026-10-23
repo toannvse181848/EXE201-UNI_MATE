@@ -11,6 +11,8 @@ const STATUS = {
   completed: { label: 'Đã gặp tại quán', color: '#1D4ED8', bg: '#DBEAFE' },
   declined: { label: 'Đã từ chối', color: '#64748B', bg: '#F1F5F9' },
   cancelled: { label: 'Đã huỷ', color: '#64748B', bg: '#F1F5F9' },
+  expired: { label: 'Hết hạn', color: '#64748B', bg: '#F1F5F9' },
+  no_show: { label: 'Không diễn ra', color: '#64748B', bg: '#F1F5F9' },
 };
 
 const formatMeetupTime = (value) =>
@@ -87,12 +89,24 @@ export function MeetupCard({ meetup, isMine, buddyName, busy, onRespond, onCance
                 <Text style={styles.btnPrimaryText}>Mở ví voucher</Text>
               </TouchableOpacity>
             )}
-            <Text style={styles.muted}>Tới quán, mỗi người đưa mã QR trong ví cho quán quét để dùng ưu đãi.</Text>
+            <Text style={styles.muted}>
+              {meetup.rewardTitle
+                ? 'Tới quán, mỗi người đưa mã QR trong ví cho quán quét để dùng ưu đãi (hoặc cả hai cùng quét QR check-in của quán).'
+                : 'Tới quán, cả hai cùng quét mã QR check-in dán tại quán trong ngày để được tính là đã gặp.'}
+            </Text>
           </>
         )}
 
         {meetup.status === 'completed' && (
           <Text style={styles.doneText}>Hai bạn đã gặp nhau tại quán. Mỗi người được thưởng UniCoin 🎉</Text>
+        )}
+
+        {meetup.status === 'expired' && (
+          <Text style={styles.muted}>Lời mời không được trả lời trong 48 giờ nên đã hết hạn.</Text>
+        )}
+
+        {meetup.status === 'no_show' && (
+          <Text style={styles.muted}>Đã quá giờ hẹn mà chưa ghi nhận hai bạn tới quán.</Text>
         )}
       </View>
     </View>

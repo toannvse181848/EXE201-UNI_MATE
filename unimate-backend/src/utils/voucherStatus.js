@@ -3,6 +3,7 @@ const UserVoucher = require('../models/UserVoucher');
 const VoucherCode = require('../models/VoucherCode');
 const Redemption = require('../models/Redemption');
 const { withVoucherLabels } = require('./voucherFormat');
+const { hasSharedStock, issuedOf } = require('./voucherStock');
 
 /**
  * Trạng thái voucher — MỘT cách tính duy nhất cho trang sinh viên, trang quán và trang admin.
@@ -33,7 +34,7 @@ const getVoucherStatus = (voucher, { partnerStatus, freeCodes, now = Date.now() 
   if (voucher.validUntil && new Date(voucher.validUntil).getTime() < now) return 'expired';
   if (voucher.codeType === 'unique') {
     if (freeCodes !== undefined && freeCodes <= 0) return 'sold_out';
-  } else if (!voucher.isUnlimited && voucher.usedCount >= voucher.quantity) {
+  } else if (!hasSharedStock(voucher)) {
     return 'sold_out';
   }
   return 'active';
@@ -95,6 +96,8 @@ const annotateVouchers = async (vouchers) => {
       redeemedByQr: used.qr || 0,
       redeemedByCode: used.code || 0,
       freeCodes: v.codeType === 'unique' ? freeMap.get(key) || 0 : null,
+      // Mã chung: số lượt còn phát được (null = không giới hạn / mã riêng)
+      remainingCount: v.codeType === 'unique' || v.isUnlimited ? null : Math.max(0, v.quantity - issuedOf(v)),
     };
   });
 };

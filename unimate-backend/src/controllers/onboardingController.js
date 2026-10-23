@@ -55,20 +55,25 @@ const savePreferences = catchAsync(async (req, res) => {
 //    Thuật toán Weighted Hybrid Matching — tính điểm tương đồng
 // =============================================================
 
+const { getBlockedUserIds } = require('../utils/blocking');
+const { saveLocationFromQuery } = require('../utils/userLocation');
 const { computeMatchScore, commonInterests, sortByRank } = require('../utils/matchingAlgorithm');
 const { isPremiumActive } = require('../utils/subscription');
+const { publicBio } = require('../utils/publicProfile');
 
 
 const getRecommendations = catchAsync(async (req, res) => {
   const currentUserId = req.user._id;
   const me = await User.findById(currentUserId);
   if (!me) throw new ApiError(404, 'Người dùng không tồn tại');
+  // Vị trí hiện tại (?lat=&lng=) để tính khoảng cách thật
+  await saveLocationFromQuery(me, req.query);
 
   const limit = parseInt(req.query.limit, 10) || 20;
 
   // Lấy tất cả sinh viên (loại trừ bản thân)
   const candidates = await User.find({
-    _id: { $ne: currentUserId },
+    _id: { $nin: [currentUserId, ...(await getBlockedUserIds(currentUserId))] },
     role: { $in: ['student', 'user'] },
     status: 'active',
   })
@@ -108,7 +113,7 @@ const getRecommendations = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     count: top.length,
-    algorithm: 'Weighted Hybrid (Jaccard + Objective + Academic + Habit)',
+    algorithm: 'Weighted Hybrid (Jaccard + Objective + Academic + Habit + Distance)',
     data: top,
   });
 });

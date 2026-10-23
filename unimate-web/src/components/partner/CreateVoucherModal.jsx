@@ -102,6 +102,7 @@ const initialForm = (venues, kind = 'normal') => ({
   codeType: 'shared',
   quantity: '100',
   isUnlimited: false,
+  walletOnly: false,
   coinCost: '0',
   expiry: endOfYear(),
 });
@@ -176,6 +177,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
         description: form.description.trim(),
         codeType: form.codeType,
         isUnlimited: form.codeType === 'shared' && form.isUnlimited,
+        walletOnly: form.codeType === 'shared' && form.walletOnly,
         quantity: Number(form.quantity) || 0,
         coinCost: form.kind === 'meetup' ? 0 : Number(form.coinCost) || 0,
         premiumOnly: form.kind === 'premium',
@@ -380,6 +382,9 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
                     <input style={{ ...field, backgroundColor: form.isUnlimited ? '#F1F5F9' : '#FFFFFF' }} inputMode="numeric" disabled={form.isUnlimited} value={form.isUnlimited ? '' : form.quantity} onChange={(e) => set('quantity', onlyDigits(e.target.value))} placeholder={form.isUnlimited ? 'Không giới hạn' : '100'} />
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '6px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={form.isUnlimited} onChange={(e) => set('isUnlimited', e.target.checked)} /> Không giới hạn
+                    </label>
+                    <label title="Thu ngân không gõ được mã chung; sinh viên phải đưa QR trong ví" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={form.walletOnly} onChange={(e) => set('walletOnly', e.target.checked)} /> Chỉ quét QR trong ví
                     </label>
                   </>
                 )}

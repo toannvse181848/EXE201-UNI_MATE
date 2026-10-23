@@ -105,6 +105,18 @@ const voucherSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Mã chung: số lượt đã phát (lưu vào ví + gõ mã tại quầy), dùng để so với quantity (utils/voucherStock.js)
+    issuedCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Chỉ áp dụng khi quét QR trong ví sinh viên: thu ngân không gõ được mã chung,
+    // tránh mã lan ra ngoài app và biết chắc ai đã dùng
+    walletOnly: {
+      type: Boolean,
+      default: false,
+    },
     validUntil: {
       type: Date,
       required: [true, 'Hạn sử dụng là bắt buộc'],

@@ -7,6 +7,8 @@ import usePremiumPlans, { PREMIUM_PLAN_LABEL, formatVnd } from '../../hooks/useP
 import { getAvatarUrl } from '../../constants/avatar';
 import PaymentSuccess from '../../components/PaymentSuccess';
 import OrderHistory from '../../components/OrderHistory';
+import BlockedUsersCard from '../../components/user/BlockedUsersCard';
+import MyReportsCard from '../../components/user/MyReportsCard';
 import {
   GraduationCap,
   ShieldCheck,
@@ -879,6 +881,12 @@ export default function UserProfile() {
           </div>
         </div>
       </div>
+
+      {/* ===== NGƯỜI ĐÃ CHẶN ===== */}
+      <BlockedUsersCard />
+
+      {/* ===== BÁO CÁO ĐÃ GỬI ===== */}
+      <MyReportsCard />
 
       {/* ===== CHANGE PASSWORD SECTION ===== */}
       <div

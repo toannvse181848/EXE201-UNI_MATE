@@ -34,6 +34,16 @@ const reportSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Hành động admin đã làm với đối tượng bị báo cáo (hiện cho người báo cáo biết kết quả)
+    actionTaken: {
+      type: String,
+      enum: ['suspend_user', 'pause_voucher', 'hide_venue', null],
+      default: null,
+    },
+    resolvedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

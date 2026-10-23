@@ -5,7 +5,7 @@
  * - 25% Objective Compatibility
  * - 20% Academic Alignment (University + Major)
  * - 10% Study Habits (Time Slots + Space Preference)
- * - 10% Distance Preference
+ * - 10% Distance (vị trí thật so với bán kính mong muốn)
  */
 
 const jaccardSimilarity = (a = [], b = []) => {
@@ -73,29 +73,45 @@ const WEIGHTS = {
   distance:   0.10,
 };
 
+/** Khoảng cách (km) giữa 2 toạ độ GeoJSON [lng, lat]; null nếu thiếu toạ độ */
+const distanceKm = (locA, locB) => {
+  const a = locA?.coordinates;
+  const b = locB?.coordinates;
+  if (!Array.isArray(a) || a.length !== 2 || !Array.isArray(b) || b.length !== 2) return null;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLng = toRad(b[0] - a[0]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+};
+
+/**
+ * Điểm khoảng cách theo vị trí thật: trong bán kính mong muốn (lấy bán kính nhỏ hơn của 2 người) = 1,
+ * xa gấp đôi bán kính trở lên = 0. Thiếu vị trí của một trong hai → 0.5 (không biết, không cộng không trừ).
+ */
+const distanceScore = (me = {}, them = {}) => {
+  const km = distanceKm(me.location, them.location);
+  if (km === null) return 0.5;
+  const radius = Math.max(1, Math.min(me.distancePreference || 5, them.distancePreference || 5));
+  if (km <= radius) return 1;
+  return Math.max(0, 1 - (km - radius) / radius);
+};
+
+/**
+ * % hợp nhau 0–99, hiển thị đúng điểm thật (trước đây bị ép vào 50–99% nên ai cũng "hợp" ít nhất 50%).
+ */
 const computeMatchScore = (me, them) => {
   const me_sp  = me?.studentProfile  || {};
   const th_sp  = them?.studentProfile || {};
 
-  const s_interests = jaccardSimilarity(me_sp.interests || [], th_sp.interests || []);
-  const s_objective = objectiveScore(me_sp.objectives || [], th_sp.objectives || []);
-  const s_academic  = academicScore(me_sp, th_sp);
-  const s_habit     = habitScore(me_sp.studyHabits, th_sp.studyHabits);
-
-  const myDist   = me_sp.distancePreference  || 5;
-  const theirDist = th_sp.distancePreference || 5;
-  const s_distance = Math.min(myDist, theirDist) >= 5 ? 1 : 0.6;
-
   const rawScore =
-    WEIGHTS.interests * s_interests +
-    WEIGHTS.objective * s_objective +
-    WEIGHTS.academic  * s_academic  +
-    WEIGHTS.habit     * s_habit     +
-    WEIGHTS.distance  * s_distance;
+    WEIGHTS.interests * jaccardSimilarity(me_sp.interests || [], th_sp.interests || []) +
+    WEIGHTS.objective * objectiveScore(me_sp.objectives || [], th_sp.objectives || []) +
+    WEIGHTS.academic  * academicScore(me_sp, th_sp) +
+    WEIGHTS.habit     * habitScore(me_sp.studyHabits, th_sp.studyHabits) +
+    WEIGHTS.distance  * distanceScore(me_sp, th_sp);
 
-  // Đảm bảo điểm nằm trong khoảng 50 - 99% để tạo động lực kết nối tích cực
-  const scaled = Math.round(50 + rawScore * 48);
-  return Math.min(Math.max(scaled, 50), 99);
+  return Math.min(Math.max(Math.round(rawScore * 100), 0), 99);
 };
 
 const commonInterests = (a = [], b = []) => {

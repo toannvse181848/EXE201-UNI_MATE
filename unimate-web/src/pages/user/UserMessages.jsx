@@ -38,6 +38,7 @@ import { chatApi, matchApi, groupChatApi, meetupApi, API_BASE_URL } from '../../
 import MeetupCard from '../../components/user/MeetupCard';
 import MeetupInviteModal from '../../components/user/MeetupInviteModal';
 import ReportUserModal from '../../components/user/ReportUserModal';
+import FriendActionsModal from '../../components/user/FriendActionsModal';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarUrl } from '../../constants/avatar';
 import { UNREAD_CHANGED_EVENT } from '../../constants/events';
@@ -358,6 +359,8 @@ export default function UserMessages() {
   const [showMeetupModal, setShowMeetupModal] = useState(false);
   // Báo cáo người đang chat với ban quản trị
   const [showReportModal, setShowReportModal] = useState(false);
+  // Huỷ kết bạn / chặn người đang chat
+  const [showFriendActions, setShowFriendActions] = useState(false);
   const [busyMeetupId, setBusyMeetupId] = useState(null);
 
   // Đóng emoji picker (1-1 và nhóm) khi click ra ngoài
@@ -2098,6 +2101,14 @@ export default function UserMessages() {
               >
                 <Flag size={16} />
               </button>
+              <button
+                type="button"
+                onClick={() => setShowFriendActions(true)}
+                title="Huỷ kết bạn hoặc chặn"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#FFFFFF', color: '#94A3B8', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+              >
+                <MoreVertical size={16} />
+              </button>
             </div>
           </div>
 
@@ -3081,6 +3092,21 @@ export default function UserMessages() {
         onClose={() => setShowReportModal(false)}
         targetId={activeConversation?.buddy?.id}
         targetName={activeConversation?.buddy?.fullName}
+      />
+
+      {/* ====== MODAL HUỶ KẾT BẠN / CHẶN ====== */}
+      <FriendActionsModal
+        open={showFriendActions}
+        onClose={() => setShowFriendActions(false)}
+        matchId={activeConversation?.matchId}
+        targetId={activeConversation?.buddy?.id}
+        targetName={activeConversation?.buddy?.fullName}
+        onDone={() => {
+          const removedId = activeConversation?.matchId;
+          setConversations((prev) => prev.filter((c) => c.matchId !== removedId));
+          setSelectedMatchId(null);
+          setMessages([]);
+        }}
       />
 
       {/* ====== MODAL RỦ ĐI CAFE ====== */}

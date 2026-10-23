@@ -24,6 +24,7 @@ import { MessageAttachment, isVenueMessage } from '../src/components/MessageAtta
 import { MeetupCard, isMeetupMessage } from '../src/components/MeetupCard';
 import { meetupApi } from '../src/api/meetupApi';
 import { chatApi } from '../src/api/chatApi';
+import { matchApi } from '../src/api/matchApi';
 import { reportApi, USER_REPORT_REASONS } from '../src/api/reportApi';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -361,6 +362,46 @@ export default function ChatRoomScreen() {
     }
   };
 
+  // Huỷ kết bạn / chặn: xác nhận rồi quay về danh sách hội thoại
+  const runFriendAction = async (action) => {
+    try {
+      if (action === 'block') await matchApi.block(buddyId);
+      else await matchApi.unmatch(matchId);
+      Alert.alert(
+        action === 'block' ? 'Đã chặn' : 'Đã huỷ kết bạn',
+        action === 'block'
+          ? 'Hai bạn sẽ không thấy nhau và không nhắn tin được nữa. Bỏ chặn trong tab Hồ sơ.'
+          : 'Hội thoại đã được xoá khỏi danh sách.'
+      );
+      router.back();
+    } catch (err) {
+      Alert.alert('Không thực hiện được', err.message || 'Vui lòng thử lại');
+    }
+  };
+
+  const openFriendActions = () => {
+    Alert.alert(buddyName, 'Chọn thao tác', [
+      {
+        text: 'Huỷ kết bạn',
+        onPress: () =>
+          Alert.alert('Huỷ kết bạn?', `Hội thoại với ${buddyName} sẽ biến mất, lời rủ cafe đang mở bị huỷ.`, [
+            { text: 'Quay lại', style: 'cancel' },
+            { text: 'Huỷ kết bạn', style: 'destructive', onPress: () => runFriendAction('unmatch') },
+          ]),
+      },
+      {
+        text: 'Chặn',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert('Chặn người này?', `${buddyName} không được báo là bị chặn.`, [
+            { text: 'Quay lại', style: 'cancel' },
+            { text: 'Chặn', style: 'destructive', onPress: () => runFriendAction('block') },
+          ]),
+      },
+      { text: 'Đóng', style: 'cancel' },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Top Header */}
@@ -416,6 +457,16 @@ export default function ChatRoomScreen() {
             accessibilityLabel="Báo cáo người dùng"
           >
             <Ionicons name="flag-outline" size={18} color="#DC2626" />
+          </TouchableOpacity>
+        )}
+        {Boolean(buddyId) && (
+          <TouchableOpacity
+            style={styles.reportBtn}
+            onPress={openFriendActions}
+            activeOpacity={0.7}
+            accessibilityLabel="Huỷ kết bạn hoặc chặn"
+          >
+            <Ionicons name="ellipsis-vertical" size={18} color={COLORS.textMuted} />
           </TouchableOpacity>
         )}
       </View>

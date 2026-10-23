@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PartnerInsights from '../../components/partner/PartnerInsights';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye,
@@ -145,6 +146,9 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Hiệu quả UNI-MATE mang lại cho quán */}
+      <PartnerInsights />
 
       {/* Tăng trưởng khách hàng (Growth & Monetization Banner) */}
       <div

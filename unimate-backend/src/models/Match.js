@@ -24,11 +24,24 @@ const matchSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'matched', 'passed'],
+      // blocked: một bên đã chặn bên kia → ẩn khỏi khám phá, khoá chat và rủ cafe cả hai chiều
+      enum: ['pending', 'matched', 'passed', 'blocked'],
       default: 'pending',
     },
     matchedAt: {
       type: Date,
+      default: null,
+    },
+    // Người đã chặn (khi status = blocked); chỉ người này bỏ chặn được
+    blockedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    // Người đã huỷ kết bạn (status matched → passed)
+    unmatchedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
       default: null,
     },
     proposedVenue: {

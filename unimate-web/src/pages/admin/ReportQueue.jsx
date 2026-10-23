@@ -22,6 +22,25 @@ const STATUS_BADGE = {
   dismissed: { label: 'Đã bỏ qua', color: '#64748B', bg: '#E2E8F0' },
 };
 
+// Hành động kèm khi xử lý, theo loại đối tượng bị báo cáo. done(target) = đối tượng đã ở trạng thái đó rồi
+const TARGET_ACTION = {
+  user: {
+    label: 'Khoá tài khoản bị báo cáo',
+    confirm: (name) => `Khoá tài khoản "${name}"? Người này sẽ không đăng nhập được nữa.`,
+    done: (target) => target?.status === 'suspended' || target?.role === 'admin',
+  },
+  voucher: {
+    label: 'Tạm dừng voucher',
+    confirm: (name) => `Tạm dừng voucher "${name}"? Sinh viên sẽ không lưu / dùng được nữa.`,
+    done: (target) => target?.status === 'paused',
+  },
+  venue: {
+    label: 'Ẩn quán, chờ duyệt lại',
+    confirm: (name) => `Ẩn quán "${name}"? Quán và voucher của quán sẽ biến mất với sinh viên cho tới khi duyệt lại.`,
+    done: (target) => target?.status === 'pending' || target?.status === 'rejected',
+  },
+};
+
 const btn = (bg, color, border = 'transparent') => ({
   display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '10px',
   border: `1px solid ${border}`, backgroundColor: bg, color, fontSize: '12.5px', fontWeight: '700', cursor: 'pointer',
@@ -53,11 +72,11 @@ export default function ReportQueue() {
   }, []);
 
   // Gọi API rồi mới cập nhật danh sách (không giả vờ thành công khi lỗi)
-  const handleAction = async (report, status, { suspendTarget = false } = {}) => {
-    if (suspendTarget && !window.confirm(`Khoá tài khoản "${report.target?.name}"? Người này sẽ không đăng nhập được nữa.`)) return;
+  const handleAction = async (report, status, { targetAction = false } = {}) => {
+    if (targetAction && !window.confirm(TARGET_ACTION[report.targetType]?.confirm(report.target?.name))) return;
     setBusyId(report._id);
     try {
-      const res = await reportApi.resolveReport(report._id, status, notes[report._id] || '', suspendTarget);
+      const res = await reportApi.resolveReport(report._id, status, notes[report._id] || '', targetAction);
       setToast({ type: 'success', text: res.message || 'Đã cập nhật báo cáo' });
       await fetchReports();
     } catch (err) {
@@ -170,9 +189,9 @@ export default function ReportQueue() {
                     <button type="button" disabled={isBusy} onClick={() => handleAction(r, 'resolved')} style={btn('#ECFDF5', '#047857')}>
                       <CheckCircle size={14} /> Đã xử lý
                     </button>
-                    {r.targetType === 'user' && !targetSuspended && r.target?.role !== 'admin' && (
-                      <button type="button" disabled={isBusy} onClick={() => handleAction(r, 'resolved', { suspendTarget: true })} style={btn('#FEF2F2', '#B91C1C')}>
-                        <ShieldOff size={14} /> Khoá tài khoản bị báo cáo
+                    {TARGET_ACTION[r.targetType] && r.target?.name !== 'Đã bị xoá' && !TARGET_ACTION[r.targetType].done(r.target) && (
+                      <button type="button" disabled={isBusy} onClick={() => handleAction(r, 'resolved', { targetAction: true })} style={btn('#FEF2F2', '#B91C1C')}>
+                        <ShieldOff size={14} /> {TARGET_ACTION[r.targetType].label}
                       </button>
                     )}
                     {isBusy && <Loader2 size={16} className="animate-spin" />}

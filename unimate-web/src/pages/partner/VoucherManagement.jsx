@@ -75,7 +75,8 @@ export default function VoucherManagement() {
         condition: describeVoucher(v).conditionLabel,
         branch: v.venueId?.name || '',
         total: v.isUnlimited ? 'Không giới hạn' : (v.quantity || 500),
-        issued: v.claimedCount || 0,
+        // Mã chung: lượt đã phát = lưu vào ví + gõ mã tại quầy (cùng số backend dùng để tính hết lượt)
+        issued: v.codeType === 'unique' ? v.claimedCount || 0 : v.issuedCount ?? v.claimedCount ?? 0,
         // Lượt dùng thật tại quầy (bản ghi quét), cùng số với trang admin
         used: (v.redeemedByQr || 0) + (v.redeemedByCode || 0),
         expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : 'Không thời hạn',

@@ -11,6 +11,7 @@ const {
   updateVenueStatus,
   getCheckinQr,
   regenerateCheckinQr,
+  getPartnerInsights,
 } = require('../controllers/venueController');
 const { protect, authorize } = require('../middlewares/auth');
 const { uploadVenueImages: uploadImages } = require('../config/cloudinary');
@@ -21,6 +22,8 @@ router.get('/:id', getVenueById);
 
 // Partner routes
 router.get('/my/list', protect, authorize('partner'), getMyVenues);
+// Hiệu quả UNI-MATE mang lại: sinh viên tới quán, buổi hẹn cafe, lượt xem
+router.get('/my/insights', protect, authorize('partner'), getPartnerInsights);
 router.post(
   '/images',
   protect,

@@ -4,6 +4,8 @@ import client from './client';
 export const reportApi = {
   // { targetType: 'user' | 'venue' | 'voucher', targetId, reason, description? }
   create: (payload) => client.post('/api/reports', payload),
+  // Báo cáo mình đã gửi và kết quả xử lý
+  getMy: () => client.get('/api/reports/my'),
 };
 
 // Mã lý do khớp với backend (reportController.REPORT_REASONS)

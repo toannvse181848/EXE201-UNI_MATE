@@ -4,6 +4,7 @@ const {
   createReport,
   getAllReports,
   resolveReport,
+  getMyReports,
 } = require('../controllers/reportController');
 const { protect, authorize } = require('../middlewares/auth');
 
@@ -11,6 +12,8 @@ router.use(protect);
 
 // Student/User: Tạo báo cáo
 router.post('/', createReport);
+// Báo cáo mình đã gửi và kết quả xử lý
+router.get('/my', getMyReports);
 
 // Admin: Xem tất cả báo cáo
 router.get('/', authorize('admin'), getAllReports);

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { getCoinStatus, dailyCheckin, venueCheckin } = require('../controllers/coinController');
-const { protect } = require('../middlewares/auth');
+const { protect, authorize } = require('../middlewares/auth');
 
-router.use(protect);
+router.use(protect, authorize('student'));
 
 // GET  /api/coins/status        — trạng thái coin + lịch sử
 router.get('/status', getCoinStatus);

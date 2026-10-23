@@ -9,4 +9,9 @@ export const matchApi = {
     client.post('/api/matches/propose-venue', { matchId, venueId }),
   getSentLikes: () => client.get('/api/matches/sent-likes'),
   getReceivedLikes: () => client.get('/api/matches/received-likes'),
+  // Huỷ kết bạn / chặn
+  unmatch: (matchId) => client.post(`/api/matches/${matchId}/unmatch`),
+  block: (targetUserId) => client.post('/api/matches/block', { targetUserId }),
+  getBlocked: () => client.get('/api/matches/blocked'),
+  unblock: (userId) => client.delete(`/api/matches/block/${userId}`),
 };

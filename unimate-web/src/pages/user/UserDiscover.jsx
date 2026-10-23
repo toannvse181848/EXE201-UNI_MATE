@@ -20,6 +20,27 @@ import { getAvatarUrl, DEFAULT_AVATAR } from '../../constants/avatar';
 import { useAuth } from '../../context/AuthContext';
 
 
+/**
+ * Vị trí hiện tại để gợi ý theo khoảng cách thật. Chỉ lấy khi người dùng đã cho phép định vị
+ * (không bật hộp xin quyền khi mở trang); lỗi / chưa cho phép → null, gợi ý vẫn chạy bình thường.
+ */
+const getCurrentCoords = async () => {
+  try {
+    if (!navigator.geolocation || !navigator.permissions) return null;
+    const perm = await navigator.permissions.query({ name: 'geolocation' });
+    if (perm.state !== 'granted') return null;
+    return await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 4000, maximumAge: 10 * 60 * 1000 }
+      );
+    });
+  } catch {
+    return null;
+  }
+};
+
 export default function UserDiscover() {
   const { user } = useAuth();
   const myUniversity = user?.university || '';
@@ -42,7 +63,7 @@ export default function UserDiscover() {
 
       // Ưu tiên gọi API Thuật toán Matching Weighted Hybrid
       try {
-        const recoRes = await onboardingApi.getRecommendations(30);
+        const recoRes = await onboardingApi.getRecommendations(30, await getCurrentCoords());
         if (recoRes?.data && Array.isArray(recoRes.data) && recoRes.data.length > 0) {
           realData = recoRes.data;
           isAlgorithm = true;

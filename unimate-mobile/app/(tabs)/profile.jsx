@@ -19,6 +19,7 @@ import { COLORS } from '../../src/constants/colors';
 import { useAuth } from '../../src/context/AuthContext';
 import { userApi, buildAvatarFormData } from '../../src/api/userApi';
 import { matchApi } from '../../src/api/matchApi';
+import { reportApi } from '../../src/api/reportApi';
 import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -47,6 +48,49 @@ export default function ProfileScreen() {
   const { user, logout, changePassword, updateUser } = useAuth();
   const router = useRouter();
   const [pwModal, setPwModal] = useState(false);
+  // Danh sách người đã chặn (null = đóng modal)
+  const [blockedList, setBlockedList] = useState(null);
+  const [unblockingId, setUnblockingId] = useState(null);
+
+  const openBlocked = async () => {
+    try {
+      const res = await matchApi.getBlocked();
+      setBlockedList(res.data?.data || []);
+    } catch (err) {
+      Alert.alert('Không tải được danh sách', err.message || 'Vui lòng thử lại');
+    }
+  };
+
+  // Báo cáo vi phạm đã gửi và kết quả ban quản trị xử lý
+  const showMyReports = async () => {
+    try {
+      const res = await reportApi.getMy();
+      const list = res.data?.data || [];
+      if (list.length === 0) {
+        Alert.alert('Báo cáo đã gửi', 'Bạn chưa gửi báo cáo nào.');
+        return;
+      }
+      const lines = list.slice(0, 8).map((r) => {
+        const extra = [r.result, r.adminNote ? `Ban quản trị: ${r.adminNote}` : null].filter(Boolean).join('\n   ');
+        return `• ${r.targetName} — ${r.statusLabel}${extra ? `\n   ${extra}` : ''}`;
+      });
+      Alert.alert('Báo cáo đã gửi', lines.join('\n\n'));
+    } catch (err) {
+      Alert.alert('Không tải được báo cáo', err.message || 'Vui lòng thử lại');
+    }
+  };
+
+  const handleUnblock = async (userId) => {
+    setUnblockingId(userId);
+    try {
+      await matchApi.unblock(userId);
+      setBlockedList((prev) => (prev || []).filter((b) => b.user?.id !== userId));
+    } catch (err) {
+      Alert.alert('Không bỏ chặn được', err.message || 'Vui lòng thử lại');
+    } finally {
+      setUnblockingId(null);
+    }
+  };
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -393,6 +437,20 @@ export default function ProfileScreen() {
           />
           <View style={styles.menuDivider} />
           <MenuItem
+            icon="ban-outline"
+            label="Người đã chặn"
+            sublabel="Xem và bỏ chặn"
+            onPress={openBlocked}
+          />
+          <View style={styles.menuDivider} />
+          <MenuItem
+            icon="flag-outline"
+            label="Báo cáo đã gửi"
+            sublabel="Xem kết quả ban quản trị xử lý"
+            onPress={showMyReports}
+          />
+          <View style={styles.menuDivider} />
+          <MenuItem
             icon="shield-checkmark-outline"
             label="Chính sách & Bảo mật"
             onPress={() => Alert.alert('Chính sách', 'UNI-MATE cam kết bảo vệ dữ liệu sinh viên.')}
@@ -406,6 +464,45 @@ export default function ProfileScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* Người đã chặn */}
+      <Modal visible={blockedList !== null} animationType="slide" transparent onRequestClose={() => setBlockedList(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconBox}>
+                <Ionicons name="ban-outline" size={22} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.modalTitle}>Người đã chặn</Text>
+                <Text style={styles.modalSubtitle}>Bỏ chặn thì phải kết bạn lại từ đầu.</Text>
+              </View>
+              <TouchableOpacity onPress={() => setBlockedList(null)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={20} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            {(blockedList || []).length === 0 ? (
+              <Text style={styles.modalSubtitle}>Bạn chưa chặn ai.</Text>
+            ) : (
+              (blockedList || []).map((b) => (
+                <View key={b.matchId} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10 }}>
+                  <Avatar name={b.user?.fullName} uri={b.user?.avatar} size={36} />
+                  <Text style={{ flex: 1, marginLeft: 10, fontWeight: '700', color: COLORS.text }} numberOfLines={1}>
+                    {b.user?.fullName || 'Người dùng'}
+                  </Text>
+                  <TouchableOpacity onPress={() => handleUnblock(b.user?.id)} disabled={unblockingId === b.user?.id}>
+                    {unblockingId === b.user?.id ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Bỏ chặn</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Password Change Modal */}
       <Modal visible={pwModal} animationType="slide" transparent>

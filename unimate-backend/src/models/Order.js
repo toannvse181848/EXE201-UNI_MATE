@@ -37,6 +37,8 @@ const orderSchema = new mongoose.Schema(
       default: null,
     },
     cancelledAt: { type: Date, default: null },
+    // Đơn tự huỷ vì quá hạn chờ thanh toán: tiền về muộn vẫn được tự kích hoạt gói
+    autoCancelled: { type: Boolean, default: false },
     // Ghi chú của admin, VD: mã giao dịch ngân hàng
     note: { type: String, trim: true, default: '' },
     // client_id GA4 của trình duyệt lúc tạo đơn, để báo purchase về đúng người mua

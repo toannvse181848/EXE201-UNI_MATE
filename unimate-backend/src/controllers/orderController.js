@@ -5,7 +5,8 @@ const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { PLANS, getPlan, resolvePlanId } = require('../config/plans');
-const { activatePlan, canBuyPlan } = require('../utils/subscription');
+const { activatePlanForUser, canBuyPlan } = require('../utils/subscription');
+const Payment = require('../models/Payment');
 const { isValidGaClientId, trackPurchase } = require('../utils/analytics');
 const {
   maskEmail,
@@ -180,27 +181,28 @@ const getAllOrders = catchAsync(async (req, res) => {
   });
 });
 
+/** Điều kiện đơn còn nhận thanh toán: đang chờ, hoặc đã tự huỷ vì quá hạn (tiền về muộn) */
+const PAYABLE = { $or: [{ status: 'pending' }, { status: 'cancelled', autoCancelled: true }] };
+
 /**
  * Chuyển đơn "pending" → "paid" và kích hoạt gói cho người mua.
- * Dùng chung cho admin xác nhận tay và webhook ngân hàng (SePay).
- * Trả về null nếu đơn không còn ở trạng thái chờ (đã xác nhận / đã huỷ).
+ * Dùng chung cho admin xác nhận tay, webhook ngân hàng (SePay) và gán giao dịch lạc vào đơn.
+ * Trả về null nếu đơn không còn nhận thanh toán (đã xác nhận / admin đã huỷ).
  */
 const markOrderPaid = async (code, { confirmedBy = null, note = '' } = {}) => {
   // Cập nhật có điều kiện để xác nhận 2 lần (bấm 2 lần / webhook gửi lại) không kích hoạt gói 2 lần
   const order = await Order.findOneAndUpdate(
-    { code, status: 'pending' },
-    { status: 'paid', paidAt: new Date(), confirmedBy, note },
+    { code, ...PAYABLE },
+    { status: 'paid', paidAt: new Date(), confirmedBy, note, cancelledAt: null, autoCancelled: false },
     { returnDocument: 'after' }
   );
   if (!order) return null;
 
-  const buyer = await User.findById(order.userId);
-  if (!buyer) throw new ApiError(404, 'Người mua không còn tồn tại');
-  const expiresAt = activatePlan(buyer, order.plan, order.durationDays);
-  await buyer.save({ validateBeforeSave: false });
+  const activated = await activatePlanForUser(order.userId, order.plan, order.durationDays);
+  if (!activated) throw new ApiError(404, 'Người mua không còn tồn tại');
   // Không chờ GA4 trả lời
   trackPurchase(order);
-  return { order, buyer, expiresAt };
+  return { order, buyer: activated.user, expiresAt: activated.expiresAt };
 };
 
 /** PATCH /api/orders/admin/:code/confirm — xác nhận đã nhận tiền, kích hoạt gói { note } */
@@ -238,6 +240,7 @@ const isValidSepayKey = (authHeader) => {
 
 /**
  * POST /api/orders/webhook/sepay — SePay báo có tiền vào tài khoản nhận tiền.
+ * Mọi giao dịch tiền vào đều được ghi vào Payment (kể cả không khớp đơn) để admin đối soát.
  * Tìm mã đơn trong nội dung CK, đủ tiền thì tự xác nhận đơn (không cần admin duyệt tay).
  * Luôn trả { success: true } với giao dịch hợp lệ để SePay không gửi lại.
  * Cấu hình: SEPAY_WEBHOOK_KEY (trùng API Key khai báo trên SePay, header "Authorization: Apikey <key>").
@@ -247,29 +250,97 @@ const sepayWebhook = catchAsync(async (req, res) => {
     return res.status(401).json({ success: false, message: 'Sai API key' });
   }
 
-  const { id, transferType, transferAmount, code, content, description, referenceCode } = req.body || {};
+  const { id, transferType, transferAmount, code, content, description, referenceCode, transactionDate } = req.body || {};
   if (transferType !== 'in') return res.status(200).json({ success: true, message: 'Bỏ qua giao dịch tiền ra' });
 
+  const sepayId = String(id ?? referenceCode ?? '');
+  if (!sepayId) return res.status(200).json({ success: true, message: 'Thiếu mã giao dịch' });
+  if (await Payment.exists({ sepayId })) {
+    return res.status(200).json({ success: true, message: 'Giao dịch đã được ghi nhận trước đó' });
+  }
+
+  const amount = Number(transferAmount) || 0;
   const matched = String(code || '').match(ORDER_CODE_PATTERN)
     || String(content || '').match(ORDER_CODE_PATTERN)
     || String(description || '').match(ORDER_CODE_PATTERN);
-  if (!matched) return res.status(200).json({ success: true, message: 'Không có mã đơn trong nội dung' });
+  const orderCode = matched ? matched[0].toUpperCase() : null;
+  const order = orderCode ? await Order.findOne({ code: orderCode }) : null;
 
-  const orderCode = matched[0].toUpperCase();
-  const order = await Order.findOne({ code: orderCode });
-  if (!order || order.status !== 'pending') {
-    return res.status(200).json({ success: true, message: `Đơn ${orderCode} không ở trạng thái chờ thanh toán` });
-  }
-  if (Number(transferAmount) < order.amount) {
-    // Chuyển thiếu: giữ đơn chờ để admin xử lý tay
-    console.warn(`SePay: ${orderCode} nhận ${transferAmount}đ, cần ${order.amount}đ`);
-    return res.status(200).json({ success: true, message: 'Số tiền chưa đủ, chờ admin xử lý' });
+  let status;
+  let message;
+  if (!order) {
+    status = 'unmatched';
+    message = orderCode ? `Không có đơn ${orderCode}` : 'Không có mã đơn trong nội dung';
+  } else if (amount < order.amount) {
+    status = 'underpaid';
+    message = 'Số tiền chưa đủ, chờ admin xử lý';
+  } else {
+    const result = await markOrderPaid(orderCode, {
+      note: `Tự động xác nhận qua SePay #${id}${referenceCode ? ` · ${referenceCode}` : ''}`,
+    });
+    status = result ? 'matched' : 'order_closed';
+    message = result ? `Đã xác nhận ${orderCode}` : `Đơn ${orderCode} đã thanh toán hoặc đã bị huỷ`;
   }
 
-  await markOrderPaid(orderCode, {
-    note: `Tự động xác nhận qua SePay #${id}${referenceCode ? ` · ${referenceCode}` : ''}`,
-  });
-  res.status(200).json({ success: true, message: `Đã xác nhận ${orderCode}` });
+  try {
+    await Payment.create({
+      sepayId,
+      amount,
+      content: String(content || description || code || '').slice(0, 500),
+      referenceCode: referenceCode || null,
+      transactionDate: transactionDate || null,
+      orderCode,
+      status,
+    });
+  } catch (err) {
+    // SePay gửi lại cùng lúc: bản kia đã ghi trước
+    if (err.code !== 11000) throw err;
+  }
+  if (status !== 'matched') console.warn(`SePay #${sepayId}: ${message} (${amount}đ)`);
+  res.status(200).json({ success: true, message });
+});
+
+/** GET /api/orders/admin/payments?status=unresolved — giao dịch SePay, mặc định những cái cần xử lý tay */
+const getPayments = catchAsync(async (req, res) => {
+  const status = req.query.status || 'unresolved';
+  const filter =
+    status === 'all'
+      ? {}
+      : status === 'unresolved'
+        ? { status: { $in: ['underpaid', 'unmatched', 'order_closed'] } }
+        : { status };
+  const payments = await Payment.find(filter).populate('resolvedBy', 'fullName').sort({ createdAt: -1 }).limit(200);
+  res.status(200).json({ success: true, count: payments.length, data: payments });
+});
+
+/**
+ * PATCH /api/orders/admin/payments/:id — admin xử lý giao dịch lạc
+ * { orderCode } → gán vào đơn đó và kích hoạt gói; không gửi orderCode → chỉ đánh dấu đã xử lý (VD: đã hoàn tiền) + note
+ */
+const resolvePayment = catchAsync(async (req, res) => {
+  const payment = await Payment.findById(req.params.id).catch(() => null);
+  if (!payment) throw new ApiError(404, 'Không tìm thấy giao dịch');
+  if (['matched', 'resolved'].includes(payment.status)) throw new ApiError(400, 'Giao dịch này đã được xử lý');
+
+  const note = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 300) : '';
+  const orderCode = typeof req.body.orderCode === 'string' ? req.body.orderCode.trim().toUpperCase() : '';
+  let message = 'Đã đánh dấu giao dịch là đã xử lý';
+
+  if (orderCode) {
+    const result = await markOrderPaid(orderCode, {
+      confirmedBy: req.user._id,
+      note: `Gán giao dịch SePay #${payment.sepayId}${note ? ` · ${note}` : ''}`,
+    });
+    if (!result) throw new ApiError(400, `Đơn ${orderCode} không tồn tại, đã thanh toán hoặc đã bị huỷ tay`);
+    payment.orderCode = orderCode;
+    message = `Đã gán vào đơn ${orderCode} và kích hoạt gói`;
+  }
+
+  payment.status = 'resolved';
+  payment.resolvedBy = req.user._id;
+  payment.note = note;
+  await payment.save();
+  res.status(200).json({ success: true, message, data: payment });
 });
 
 /** PATCH /api/orders/admin/:code/cancel — admin huỷ đơn (VD: không nhận được tiền) */
@@ -332,4 +403,6 @@ module.exports = {
   sepayWebhook,
   adminCancelOrder,
   exportOrders,
+  getPayments,
+  resolvePayment,
 };

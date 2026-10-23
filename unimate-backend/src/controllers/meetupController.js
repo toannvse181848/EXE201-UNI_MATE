@@ -7,20 +7,20 @@ const UserVoucher = require('../models/UserVoucher');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { isPremiumActive } = require('../utils/subscription');
-const { earnCoins } = require('../utils/coinService');
+const { earnCoins, vnDay } = require('../utils/coinService');
 const { findMeetupRewards, grantMeetupVoucher, toRewardSummary } = require('../utils/meetupRewards');
 const { FREE_INVITES_PER_WEEK, INVITE_WINDOW_DAYS, MEETUP_COMPLETE_COIN } = require('../config/meetup');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Số lời mời còn lại trong 7 ngày (Premium: không giới hạn). Lời mời đã huỷ được trả lại lượt. */
+/** Số lời mời còn lại trong 7 ngày (Premium: không giới hạn). Lời mời đã huỷ / hết hạn được trả lại lượt. */
 const getQuotaFor = async (user) => {
   if (isPremiumActive(user.studentProfile)) {
     return { isPremium: true, limit: null, used: null, remaining: null };
   }
   const used = await Meetup.countDocuments({
     proposedBy: user._id,
-    status: { $ne: 'cancelled' },
+    status: { $nin: ['cancelled', 'expired'] },
     createdAt: { $gte: new Date(Date.now() - INVITE_WINDOW_DAYS * DAY_MS) },
   });
   return { isPremium: false, limit: FREE_INVITES_PER_WEEK, used, remaining: Math.max(0, FREE_INVITES_PER_WEEK - used) };
@@ -217,25 +217,62 @@ const onMeetupVoucherRedeemed = async (req, userVoucher) => {
   ]);
   if (total === 0 || used < total) return null;
 
+  return completeMeetup(req, userVoucher.meetupId);
+};
+
+/** Chuyển buổi hẹn accepted → completed (có điều kiện, chỉ 1 lần) và thưởng UniCoin cho cả hai */
+const completeMeetup = async (req, meetupId) => {
   const meetup = await Meetup.findOneAndUpdate(
-    { _id: userVoucher.meetupId, status: 'accepted' },
+    { _id: meetupId, status: 'accepted' },
     { status: 'completed', completedAt: new Date() },
     { returnDocument: 'after' }
   ).populate('venueId', 'name');
   if (!meetup) return null;
 
   for (const userId of [meetup.proposedBy, meetup.invitee]) {
-    const user = await User.findById(userId);
-    if (!user) continue;
-    const coins = earnCoins(user, MEETUP_COMPLETE_COIN, {
+    await earnCoins(userId, MEETUP_COMPLETE_COIN, {
       type: 'meetup_complete',
       description: `Hẹn cafe thành công tại ${meetup.venueId?.name || 'quán đối tác'} 🤝`,
     });
-    if (coins > 0) await user.save({ validateBeforeSave: false });
   }
 
   await syncMeetupMessage(req, meetup, { status: 'completed' });
   return meetup;
 };
 
-module.exports = { getQuota, createMeetup, respondMeetup, cancelMeetup, onMeetupVoucherRedeemed, getQuotaFor };
+/**
+ * Gọi sau khi sinh viên check-in QR tại quán. Buổi hẹn đã chốt tại quán này mà người kia
+ * cũng đã check-in quán này hôm nay → buổi hẹn "đã diễn ra". Dùng được cả khi quán không có ưu đãi hẹn cafe.
+ */
+const onVenueCheckin = async (req, userId, venueId) => {
+  const meetups = await Meetup.find({
+    venueId,
+    status: 'accepted',
+    $or: [{ proposedBy: userId }, { invitee: userId }],
+  });
+  const today = vnDay();
+  for (const meetup of meetups) {
+    const buddyId = String(meetup.proposedBy) === String(userId) ? meetup.invitee : meetup.proposedBy;
+    const buddyCheckedIn = await User.exists({
+      _id: buddyId,
+      'studentProfile.venueCheckinsToday': { $elemMatch: { venueId: String(venueId), day: today } },
+    });
+    if (buddyCheckedIn) {
+      const done = await completeMeetup(req, meetup._id);
+      if (done) return done;
+    }
+  }
+  return null;
+};
+
+module.exports = {
+  getQuota,
+  createMeetup,
+  respondMeetup,
+  cancelMeetup,
+  onMeetupVoucherRedeemed,
+  onVenueCheckin,
+  completeMeetup,
+  syncMeetupMessage,
+  getQuotaFor,
+};

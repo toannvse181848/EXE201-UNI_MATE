@@ -106,6 +106,11 @@ export const venueApi = {
     const res = await client.get('/api/venues/my/list');
     return res.data;
   },
+  // Hiệu quả UNI-MATE mang lại cho quán trong `days` ngày gần nhất
+  getMyInsights: async (days = 30) => {
+    const res = await client.get('/api/venues/my/insights', { params: { days } });
+    return res.data;
+  },
   createVenue: async (data) => {
     const res = await client.post('/api/venues', data);
     return res.data;
@@ -267,6 +272,23 @@ export const matchApi = {
     const res = await client.get('/api/matches/received-likes');
     return res.data;
   },
+  // Huỷ kết bạn / chặn
+  unmatch: async (matchId) => {
+    const res = await client.post(`/api/matches/${matchId}/unmatch`);
+    return res.data;
+  },
+  block: async (targetUserId) => {
+    const res = await client.post('/api/matches/block', { targetUserId });
+    return res.data;
+  },
+  getBlocked: async () => {
+    const res = await client.get('/api/matches/blocked');
+    return res.data;
+  },
+  unblock: async (userId) => {
+    const res = await client.delete(`/api/matches/block/${userId}`);
+    return res.data;
+  },
 };
 
 // === RỦ CAFE (hẹn gặp tại quán đối tác) ===
@@ -366,13 +388,19 @@ export const reportApi = {
     const res = await client.get('/api/reports', { params });
     return res.data;
   },
-  // suspendTarget: khoá luôn tài khoản bị báo cáo (chỉ với báo cáo người dùng)
-  resolveReport: async (id, status, adminNote, suspendTarget = false) => {
+  // targetAction: làm luôn hành động với đối tượng bị báo cáo
+  // (người dùng → khoá tài khoản, voucher → tạm dừng, quán → ẩn chờ duyệt lại)
+  resolveReport: async (id, status, adminNote, targetAction = false) => {
     const res = await client.patch(`/api/reports/${id}`, {
       status,
       adminNote,
-      suspendTarget,
+      targetAction,
     });
+    return res.data;
+  },
+  // Báo cáo mình đã gửi và kết quả xử lý
+  getMyReports: async () => {
+    const res = await client.get('/api/reports/my');
     return res.data;
   },
 };
@@ -478,6 +506,16 @@ export const orderApi = {
     const res = await client.patch(`/api/orders/admin/${encodeURIComponent(code)}/cancel`, { note });
     return res.data;
   },
+  // Giao dịch SePay không khớp đơn: status = 'unresolved' | 'all' | ...
+  getPaymentsAdmin: async (status = 'unresolved') => {
+    const res = await client.get('/api/orders/admin/payments', { params: { status } });
+    return res.data;
+  },
+  // { orderCode?, note? } — có orderCode thì gán vào đơn và kích hoạt gói
+  resolvePaymentAdmin: async (id, payload) => {
+    const res = await client.patch(`/api/orders/admin/payments/${id}`, payload);
+    return res.data;
+  },
   exportOrdersAdmin: async (status = 'paid') => {
     const res = await client.get(`/api/orders/admin/export?status=${encodeURIComponent(status)}`, {
       responseType: 'blob',
@@ -517,8 +555,9 @@ export const onboardingApi = {
     const res = await client.post('/api/onboarding/preferences', data);
     return res.data;
   },
-  getRecommendations: async (limit = 20) => {
-    const res = await client.get(`/api/onboarding/recommendations?limit=${limit}`);
+  // coords = { lat, lng } (không bắt buộc): vị trí hiện tại để tính khoảng cách thật
+  getRecommendations: async (limit = 20, coords = null) => {
+    const res = await client.get('/api/onboarding/recommendations', { params: { limit, ...(coords || {}) } });
     return res.data;
   },
 };

@@ -11,6 +11,8 @@ const {
   sepayWebhook,
   adminCancelOrder,
   exportOrders,
+  getPayments,
+  resolvePayment,
 } = require('../controllers/orderController');
 const { protect, authorize } = require('../middlewares/auth');
 
@@ -27,6 +29,9 @@ router.get('/admin/all', authorize('admin'), getAllOrders);
 router.get('/admin/export', authorize('admin'), exportOrders);
 router.patch('/admin/:code/confirm', authorize('admin'), confirmOrder);
 router.patch('/admin/:code/cancel', authorize('admin'), adminCancelOrder);
+// Giao dịch SePay không khớp đơn (chuyển thiếu, sai nội dung, đơn đã đóng) để đối soát tay
+router.get('/admin/payments', authorize('admin'), getPayments);
+router.patch('/admin/payments/:id', authorize('admin'), resolvePayment);
 
 // ─── NGƯỜI MUA ───────────────────────────────────────────────────────────────
 router.post('/', createOrder);

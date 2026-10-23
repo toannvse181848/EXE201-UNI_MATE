@@ -9,6 +9,8 @@ const STATUS = {
   completed: { label: 'Đã gặp tại quán', color: '#1D4ED8', bg: '#DBEAFE' },
   declined: { label: 'Đã từ chối', color: '#64748B', bg: '#F1F5F9' },
   cancelled: { label: 'Đã huỷ', color: '#64748B', bg: '#F1F5F9' },
+  expired: { label: 'Hết hạn', color: '#64748B', bg: '#F1F5F9' },
+  no_show: { label: 'Không diễn ra', color: '#64748B', bg: '#F1F5F9' },
 };
 
 const actionBtn = (primary) => ({
@@ -102,7 +104,9 @@ export default function MeetupCard({ meetup, isMine, buddyName, busy, onRespond,
               </Link>
             )}
             <div style={{ fontSize: '11px', color: '#64748B' }}>
-              Tới quán, mỗi người đưa mã QR trong ví cho quán quét để dùng ưu đãi.
+              {meetup.rewardTitle
+                ? 'Tới quán, mỗi người đưa mã QR trong ví cho quán quét để dùng ưu đãi (hoặc cả hai cùng quét QR check-in của quán).'
+                : 'Tới quán, cả hai cùng quét mã QR check-in dán tại quán trong ngày để được tính là đã gặp.'}
             </div>
           </>
         )}
@@ -111,6 +115,14 @@ export default function MeetupCard({ meetup, isMine, buddyName, busy, onRespond,
           <div style={{ fontSize: '11.5px', color: '#1D4ED8', fontWeight: '700' }}>
             Hai bạn đã gặp nhau tại quán. Mỗi người được thưởng UniCoin 🎉
           </div>
+        )}
+
+        {meetup.status === 'expired' && (
+          <div style={{ fontSize: '11.5px', color: '#64748B' }}>Lời mời không được trả lời trong 48 giờ nên đã hết hạn.</div>
+        )}
+
+        {meetup.status === 'no_show' && (
+          <div style={{ fontSize: '11.5px', color: '#64748B' }}>Đã quá giờ hẹn mà chưa ghi nhận hai bạn tới quán.</div>
         )}
       </div>
     </div>
