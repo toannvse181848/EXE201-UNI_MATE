@@ -59,14 +59,12 @@ export default function UserDiscover() {
     try {
       setLoading(true);
       let realData = [];
-      let isAlgorithm = false;
 
       // Ưu tiên gọi API Thuật toán Matching Weighted Hybrid
       try {
         const recoRes = await onboardingApi.getRecommendations(30, await getCurrentCoords());
         if (recoRes?.data && Array.isArray(recoRes.data) && recoRes.data.length > 0) {
           realData = recoRes.data;
-          isAlgorithm = true;
         }
       } catch (recoErr) {
         console.log('Chưa đăng nhập hoặc chưa đủ dữ liệu matching, chuyển sang danh sách chung:', recoErr.message);
@@ -82,7 +80,8 @@ export default function UserDiscover() {
         // Chỉ hiển thị thông tin thật người dùng đã điền — không tự đặt tuổi, ảnh, khoảng cách, điểm
         const formatted = realData.map((u) => {
           const profile = u.studentProfile || {};
-          const isReco = isAlgorithm && u.matchPercentage !== undefined;
+          // Cả API gợi ý lẫn danh sách dự phòng đều trả % hợp nhau khi đã đăng nhập
+          const isReco = typeof u.matchPercentage === 'number';
           const university = u.university || profile.university || '';
 
           return {
@@ -446,7 +445,7 @@ export default function UserDiscover() {
                     }}
                   />
                   {/* Match Score Badge */}
-                  {student.matchPercentage && (
+                  {student.matchPercentage != null && (
                     <div
                       style={{
                         position: 'absolute',

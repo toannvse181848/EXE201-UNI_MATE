@@ -102,8 +102,9 @@ export default function HomeScreen() {
     major: s.studentProfile?.major || '',
     // Chưa có ảnh thì dùng ảnh mặc định (trước đây xen ảnh người lạ trên mạng)
     avatar: s.avatar ? getAvatarUrl(s.avatar) : DEFAULT_AVATAR,
-    // Danh sách này không tính % hợp nhau → chỉ gắn nhãn khi đúng là cùng trường
     sameSchool: Boolean(myUniversity && s.studentProfile?.university === myUniversity),
+    // % hợp nhau do backend tính (cùng cách tính với Khám phá); không có thì không hiện
+    matchScore: typeof s.matchPercentage === 'number' ? s.matchPercentage : null,
   }));
 
   return (
@@ -206,11 +207,18 @@ export default function HomeScreen() {
               onPress={() => router.push('/(tabs)/discover')}
             >
               <Image source={{ uri: mate.avatar }} style={styles.mateAvatar} />
-              {mate.sameSchool && (
+              {mate.matchScore != null ? (
                 <View style={styles.matchPill}>
-                  <Ionicons name="school" size={10} color={COLORS.white} />
-                  <Text style={styles.matchPillText}>Cùng trường</Text>
+                  <Ionicons name="sparkles" size={10} color={COLORS.white} />
+                  <Text style={styles.matchPillText}>{mate.matchScore}% Hợp gu</Text>
                 </View>
+              ) : (
+                mate.sameSchool && (
+                  <View style={styles.matchPill}>
+                    <Ionicons name="school" size={10} color={COLORS.white} />
+                    <Text style={styles.matchPillText}>Cùng trường</Text>
+                  </View>
+                )
               )}
               <Text style={styles.mateName} numberOfLines={1}>
                 {mate.name}

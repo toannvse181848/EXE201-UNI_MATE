@@ -9,6 +9,7 @@ const { escapeRegex } = require('../middlewares/security');
 const { getPlan, resolvePlanId } = require('../config/plans');
 const { activatePlan, activatePlanForUser, canBuyPlan } = require('../utils/subscription');
 const { toPublicStudent } = require('../utils/publicProfile');
+const { computeMatchScore, commonInterests } = require('../utils/matchingAlgorithm');
 const {
   maskEmail,
   maskName,
@@ -39,11 +40,22 @@ const getSuggestedStudents = catchAsync(async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(limit);
 
+  const isStudentViewer = ['student', 'user'].includes(req.user?.role);
+
   // Chỉ hồ sơ công khai: trước đây trả cả email, số điện thoại, MSSV của mọi sinh viên
   res.status(200).json({
     success: true,
     count: students.length,
-    data: students.map(toPublicStudent),
+    data: students.map((s) => {
+      const pub = toPublicStudent(s);
+      // Sinh viên đang đăng nhập: kèm % hợp nhau (cùng cách tính với Khám phá) để danh sách nào cũng hiện được
+      if (!isStudentViewer) return pub;
+      return {
+        ...pub,
+        matchPercentage: computeMatchScore(req.user, s),
+        commonTags: commonInterests(req.user.studentProfile?.interests || [], s.studentProfile?.interests || []),
+      };
+    }),
   });
 });
 
