@@ -9,7 +9,13 @@ const saveLocationFromQuery = async (me, query = {}) => {
   const lng = Number(query.lng);
   if (!me || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
   const location = { type: 'Point', coordinates: [lng, lat] };
-  await User.updateOne({ _id: me._id }, { 'studentProfile.location': location });
+  // Lưu vị trí lỗi thì vẫn gợi ý bình thường (chỉ thiếu điểm khoảng cách), không trả 500 cho cả trang
+  try {
+    await User.updateOne({ _id: me._id }, { 'studentProfile.location': location });
+  } catch (err) {
+    console.error('[userLocation] Không lưu được vị trí:', err.message);
+    return;
+  }
   if (!me.studentProfile) me.studentProfile = {};
   me.studentProfile.location = location;
 };

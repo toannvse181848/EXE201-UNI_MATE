@@ -1969,8 +1969,10 @@ export default function UserMessages() {
         >
           {/* Chat Header */}
           <div
+            className="chat-header"
             style={{
               padding: '14px 20px',
+              gap: '10px',
               borderBottom: '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
@@ -1978,7 +1980,7 @@ export default function UserMessages() {
               backgroundColor: '#FFFFFF',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
               {/* Nút quay lại trên mobile */}
               <button
                 className="messages-back-btn"
@@ -1997,7 +1999,7 @@ export default function UserMessages() {
                 <ArrowLeft size={20} />
               </button>
 
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
                 <img
                   src={getAvatarUrl(activeConversation.buddy?.avatar)}
                   alt={activeConversation.buddy?.fullName}
@@ -2023,7 +2025,7 @@ export default function UserMessages() {
                 />
               </div>
 
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div
                   style={{
                     display: 'flex',
@@ -2036,6 +2038,9 @@ export default function UserMessages() {
                       fontSize: '15px',
                       fontWeight: '800',
                       color: 'var(--text-primary)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
                     {activeConversation.buddy?.fullName}
@@ -2045,6 +2050,7 @@ export default function UserMessages() {
                   )}
                 </div>
                 <div
+                  className="chat-header-sub"
                   style={{
                     fontSize: '12px',
                     color: '#FF5722',
@@ -2071,10 +2077,12 @@ export default function UserMessages() {
             </div>
 
             {/* Rủ đi cafe: chọn quán đối tác, bạn ấy đồng ý là chốt hẹn và cả hai nhận ưu đãi */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="chat-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
               <button
                 type="button"
                 onClick={() => setShowMeetupModal(true)}
+                title="Rủ đi cafe"
+                className="chat-header-cafe-btn"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -2091,7 +2099,7 @@ export default function UserMessages() {
                 }}
               >
                 <Coffee size={16} />
-                <span>Rủ đi cafe</span>
+                <span className="chat-header-btn-text" style={{ whiteSpace: 'nowrap' }}>Rủ đi cafe</span>
               </button>
               <button
                 type="button"
@@ -2114,6 +2122,7 @@ export default function UserMessages() {
 
           {/* Dòng chào mừng Match */}
           <div
+            className="chat-welcome"
             style={{
               padding: '10px 20px',
               backgroundColor: '#FFF7ED',
@@ -2138,6 +2147,7 @@ export default function UserMessages() {
           <div
             ref={chatScroll.containerRef}
             onScroll={chatScroll.handleScroll}
+            className="chat-stream"
             style={{
               flex: 1,
               overflowY: 'auto',
@@ -2567,6 +2577,7 @@ export default function UserMessages() {
 
             <form
               onSubmit={handleSendMessage}
+              className="chat-input-form"
               style={{
                 padding: '12px 18px',
                 borderTop: '1px solid var(--border-color)',
@@ -2577,7 +2588,7 @@ export default function UserMessages() {
               }}
             >
               {/* Media Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div className="chat-media-btns" style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
@@ -2680,6 +2691,7 @@ export default function UserMessages() {
                 placeholder={selectedAttachment ? "Thêm chú thích cho file..." : "Nhập tin nhắn trò chuyện với bạn học..."}
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   padding: '11px 16px',
                   borderRadius: '12px',
                   border: '1.5px solid var(--border-color)',
@@ -2691,6 +2703,7 @@ export default function UserMessages() {
 
               <button
                 type="submit"
+                className="chat-send-btn"
                 disabled={(!inputText.trim() && !selectedAttachment) || sending || uploadingMedia}
                 style={{
                   padding: '11px 20px',
@@ -2729,7 +2742,7 @@ export default function UserMessages() {
                   </>
                 ) : (
                   <>
-                    <span>Gửi</span>
+                    <span className="chat-send-text">Gửi</span>
                     <Send size={16} />
                   </>
                 )}
@@ -2744,8 +2757,8 @@ export default function UserMessages() {
           style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#FFFFFF', position: 'relative' }}
         >
           {/* Group Chat Header */}
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="chat-header" style={{ padding: '14px 20px', gap: '10px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
               <button
                 onClick={() => { setSelectedGroupId(null); setGroupMessages([]); setGroupInfo(null); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: '4px' }}
@@ -2757,33 +2770,33 @@ export default function UserMessages() {
                   ? <img src={activeGroup.avatar} alt={activeGroup.name} style={{ width: '100%', height: '100%', borderRadius: '12px', objectFit: 'cover' }} />
                   : <Users size={18} color="#FFFFFF" />}
               </div>
-              <div>
-                <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>{activeGroup.name}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeGroup.name}</div>
                 <div style={{ fontSize: '12px', color: '#7C3AED', fontWeight: '600' }}>{activeGroup.memberCount} thành viên</div>
               </div>
             </div>
             {/* Group action buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="chat-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <button
                 onClick={() => setShowGroupMembersModal(true)}
                 title="Xem thành viên"
                 style={{ background: '#F5F0FF', border: 'none', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#7C3AED', fontSize: '12px', fontWeight: '700' }}
               >
-                <Users size={15} /> Thành viên
+                <Users size={15} /> <span className="chat-header-btn-text">Thành viên</span>
               </button>
               <button
                 onClick={openAddMemberModal}
                 title="Thêm thành viên"
                 style={{ background: '#F5F0FF', border: 'none', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#7C3AED', fontSize: '12px', fontWeight: '700' }}
               >
-                <UserPlus size={15} /> Thêm
+                <UserPlus size={15} /> <span className="chat-header-btn-text">Thêm</span>
               </button>
               <button
                 onClick={handleLeaveGroup}
                 title="Rời nhóm"
                 style={{ background: '#FFF1F2', border: 'none', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#EF4444', fontSize: '12px', fontWeight: '700' }}
               >
-                <LogOut size={15} /> Rời
+                <LogOut size={15} /> <span className="chat-header-btn-text">Rời</span>
               </button>
             </div>
           </div>
@@ -2792,6 +2805,7 @@ export default function UserMessages() {
           <div
             ref={groupChatScroll.containerRef}
             onScroll={groupChatScroll.handleScroll}
+            className="chat-stream"
             style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '8px' }}
           >
             <OlderMessagesBar
@@ -2937,8 +2951,8 @@ export default function UserMessages() {
           <input ref={groupFileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" style={{ display: 'none' }} onChange={(e) => handleGroupFileSelect(e, 'file')} />
 
           {/* Group message input */}
-          <form onSubmit={handleSendGroupMessage} style={{ padding: '12px 18px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <form onSubmit={handleSendGroupMessage} className="chat-input-form" style={{ padding: '12px 18px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF' }}>
+            <div className="chat-media-btns" style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
               <button type="button" onClick={() => groupImageInputRef.current?.click()} title="Gửi hình ảnh" style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <ImageIcon size={16} />
               </button>
@@ -2958,14 +2972,14 @@ export default function UserMessages() {
               onChange={(e) => setGroupInputText(e.target.value)}
               onPaste={(e) => handlePasteAttachment(e, setGroupAttachment)}
               placeholder={`Nhắn tin vào nhóm ${activeGroup.name}...`}
-              style={{ flex: 1, padding: '10px 16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', fontSize: '13.5px', outline: 'none', backgroundColor: '#F8FAFC' }}
+              style={{ flex: 1, minWidth: 0, padding: '10px 16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', fontSize: '13.5px', outline: 'none', backgroundColor: '#F8FAFC' }}
             />
             <button
               type="submit"
               disabled={(!groupInputText.trim() && !groupAttachment) || sendingGroup}
               style={{ padding: '10px 16px', borderRadius: '12px', backgroundColor: (!groupInputText.trim() && !groupAttachment) || sendingGroup ? '#CBD5E1' : '#7C3AED', color: '#FFFFFF', fontWeight: '700', border: 'none', display: 'flex', alignItems: 'center', gap: '6px', cursor: (!groupInputText.trim() && !groupAttachment) || sendingGroup ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: (!groupInputText.trim() && !groupAttachment) || sendingGroup ? 'none' : '0 4px 12px rgba(124,58,237,0.35)' }}
             >
-              {sendingGroup ? <Loader2 size={15} className="spinner" /> : <><span>Gửi</span><Send size={15} /></>}
+              {sendingGroup ? <Loader2 size={15} className="spinner" /> : <><span className="chat-send-text">Gửi</span><Send size={15} /></>}
             </button>
           </form>
         </div>

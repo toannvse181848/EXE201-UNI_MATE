@@ -30,6 +30,7 @@ import {
   FileText,
   KeyRound,
   X,
+  LogOut,
 } from 'lucide-react';
 import { getAvatarUrl, DEFAULT_AVATAR } from '../constants/avatar';
 
@@ -62,6 +63,7 @@ export default function Home() {
         }}
       >
         <div
+          className="home-nav-bar"
           style={{
             maxWidth: '1280px',
             margin: '0 auto',
@@ -69,11 +71,13 @@ export default function Home() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: '12px',
           }}
         >
           {/* Brand Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+          <Link to="/" className="home-nav-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', flexShrink: 0 }}>
             <div
+              className="home-nav-logo"
               style={{
                 width: '42px',
                 height: '42px',
@@ -90,7 +94,7 @@ export default function Home() {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', letterSpacing: '-0.5px' }}>
+                <span className="home-nav-brand-name" style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', letterSpacing: '-0.5px', whiteSpace: 'nowrap' }}>
                   UNI<span style={{ color: '#FF5722' }}>-MATE</span>
                 </span>
                 <span
@@ -144,37 +148,43 @@ export default function Home() {
           </nav>
 
           {/* 🎯 GÓC DẪN TỚI ĐĂNG NHẬP / ĐĂNG KÝ (Top Right Corner) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
             {user ? (
               // Trạng thái đã đăng nhập
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="home-nav-user-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                 <div
+                  className="home-nav-user"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
                     padding: '6px 14px',
                     backgroundColor: '#FFF5F0',
-                    borderRadius: '9999px',
+                    borderRadius: '12px',
                     border: '1px solid #FFCCBC',
+                    minWidth: 0,
                   }}
                 >
                   <img
                     src={getAvatarUrl(user.avatar)}
                     alt={user.name}
-                    style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                    style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#1E293B', lineHeight: '1.2' }}>
+                  <div className="home-nav-user-text" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', minWidth: 0 }}>
+                    <span
+                      className="home-nav-user-name"
+                      style={{ fontSize: '13px', fontWeight: '800', color: '#1E293B', lineHeight: '1.2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}
+                    >
                       {user.name}
                     </span>
-                    <span style={{ fontSize: '10px', color: '#FF5722', fontWeight: '700' }}>
+                    <span className="home-nav-user-role" style={{ fontSize: '10px', color: '#FF5722', fontWeight: '700', whiteSpace: 'nowrap' }}>
                       {user.role === 'admin' ? 'Quản trị viên' : user.role === 'partner' ? 'Đối tác Cafe' : 'Sinh viên'}
                     </span>
                   </div>
                 </div>
 
                 <button
+                  className="home-nav-portal"
                   onClick={() => navigate(getPortalUrl())}
                   style={{
                     display: 'flex',
@@ -186,6 +196,8 @@ export default function Home() {
                     color: '#FFFFFF',
                     fontWeight: '700',
                     fontSize: '13px',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                     boxShadow: '0 4px 14px rgba(255, 87, 34, 0.3)',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -209,15 +221,23 @@ export default function Home() {
                     navigate('/login');
                   }}
                   title="Đăng xuất"
+                  aria-label="Đăng xuất"
+                  className="home-nav-logout"
                   style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
                     fontSize: '12px',
                     color: '#94A3B8',
                     cursor: 'pointer',
                     padding: '8px',
                     fontWeight: '600',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  Đăng xuất
+                  <LogOut size={15} />
+                  <span className="home-nav-logout-text">Đăng xuất</span>
                 </button>
               </div>
             ) : (
