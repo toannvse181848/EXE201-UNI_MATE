@@ -1,6 +1,6 @@
 /**
  * Thống kê số liệu cho báo cáo OC3 — CHỈ ĐỌC, không ghi gì vào database.
- * Cùng cách tính với trang "Số liệu OC3" trong trang admin (src/utils/oc3Metrics.js).
+ * Cùng cách tính với phần phân tích ở trang Tổng quan admin (src/utils/oc3Metrics.js).
  *
  * Cách chạy (trong thư mục unimate-backend):
  *   node scripts/oc3-stats.js --db unimate_v2 --exclude scripts/oc3-exclude.txt
@@ -61,7 +61,7 @@ async function run() {
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
   const db = mongoose.connection.db;
 
-  // Chi phí, lượt tiếp cận, lượt nhấp theo kênh do admin nhập trên trang "Số liệu OC3"
+  // Chi phí, lượt tiếp cận, lượt nhấp theo kênh admin đã nhập (lưu trong settings key oc3)
   const setting = await db.collection('settings').findOne({ key: 'oc3' });
   const metrics = await computeOc3Metrics(db, { excludedEmails, inputs: setting?.value || {} });
   const tables = buildOc3Tables(metrics);

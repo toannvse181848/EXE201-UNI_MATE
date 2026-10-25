@@ -1,6 +1,6 @@
 /**
  * Chuyển số liệu OC3 (utils/oc3Metrics) thành các bảng có tiêu đề tiếng Việt,
- * dùng chung cho CSV của script và file Excel xuất từ trang "Số liệu OC3".
+ * dùng chung cho CSV của script và file Excel xuất từ trang Tổng quan admin.
  */
 const XLSX = require('xlsx');
 

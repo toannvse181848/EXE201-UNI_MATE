@@ -530,21 +530,13 @@ export const adminApi = {
     const res = await client.get('/api/admin/stats');
     return res.data;
   },
-  // Bảng số liệu tổng hợp OC3
+  // Số liệu phân tích ở trang Tổng quan (phễu, quay lại, theo tuần)
   getOc3: async () => {
     const res = await client.get('/api/admin/oc3');
     return res.data;
   },
   exportOc3: async () => {
     const res = await client.get('/api/admin/oc3/export', { responseType: 'blob' });
-    return res.data;
-  },
-  getOc3Settings: async () => {
-    const res = await client.get('/api/admin/oc3/settings');
-    return res.data;
-  },
-  saveOc3Settings: async (data) => {
-    const res = await client.put('/api/admin/oc3/settings', data);
     return res.data;
   },
 };

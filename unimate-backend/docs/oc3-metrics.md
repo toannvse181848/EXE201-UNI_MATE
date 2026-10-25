@@ -1,12 +1,12 @@
 # Số liệu báo cáo OC3: lấy ở đâu, tính thế nào
 
-Tài liệu này giải thích từng con số trong trang **Số liệu OC3** (trang admin, đường dẫn `/admin/oc3`), trong file Excel xuất từ trang đó và trong script `scripts/oc3-stats.js`. Cả ba dùng chung một đoạn code (`src/utils/oc3Metrics.js`) nên luôn ra cùng kết quả.
+Tài liệu này giải thích từng con số trong phần phân tích của trang **Tổng quan Admin** (đường dẫn `/admin/dashboard`, trước đây là trang riêng `/admin/oc3`), trong file Excel xuất từ trang đó và trong script `scripts/oc3-stats.js`. Cả ba dùng chung một đoạn code (`src/utils/oc3Metrics.js`) nên luôn ra cùng kết quả.
 
 ## 1. Xem số liệu ở đâu
 
 | Cách | Dùng khi | Ghi chú |
 |---|---|---|
-| Trang admin `/admin/oc3` | Xem nhanh, chụp ảnh dán vào báo cáo, nhập chi phí theo kênh | Tính lại mỗi lần mở trang |
+| Trang admin `/admin/dashboard` | Xem nhanh, chụp ảnh dán vào báo cáo | Tính lại mỗi lần mở trang |
 | Nút **Xuất Excel** trên trang đó | Nộp minh chứng "file dữ liệu xuất ra" | 7 sheet, email đã che |
 | `node scripts/oc3-stats.js --db unimate_v2 --exclude scripts/oc3-exclude.txt` | Chạy trên máy, xuất CSV | Chỉ đọc database |
 | Google Analytics 4 (`G-E201VWBYGY`) | Lượt truy cập, màn hình, nguồn truy cập trên web | Chỉ có dữ liệu web, từ 18/10/2026 |
@@ -85,11 +85,13 @@ Lấy theo thứ tự ưu tiên, dừng ở nguồn đầu tiên có dữ liệu
 
 Dữ liệu khách quan (UTM, referrer) được ưu tiên hơn câu trả lời tự chọn. Câu tự chọn giúp ghi nhận các kênh không có link, như CLB, sự kiện, bạn bè giới thiệu.
 
-Link có mã theo dõi cho từng kênh nằm cuối trang admin, có nút chép. Dùng đúng link của từng kênh khi đăng bài hoặc in mã QR.
+Link có mã theo dõi có dạng `https://uni-mate-web-beta.vercel.app/?utm_source=<kênh>&utm_medium=<loại>&utm_content=<vị trí>&utm_campaign=unimate` (ví dụ `utm_source=facebook&utm_medium=social&utm_content=group`). Dùng đúng link của từng kênh khi đăng bài hoặc in mã QR.
+
+Từ 25/10/2026, bảng hiệu quả theo kênh, ô nhập số liệu kênh và danh sách link theo dõi đã bỏ khỏi trang admin. Sheet "Theo kênh" và "Kế hoạch - thực tế" trong file Excel vẫn dùng số đã lưu lần cuối trong `settings` (key `oc3`).
 
 | Chỉ số theo kênh | Cách tính |
 |---|---|
-| Lượt tiếp cận, lượt nhấp, chi phí | Nhập tay trên trang admin, cộng dồn từ đầu chiến dịch |
+| Lượt tiếp cận, lượt nhấp, chi phí | Số đã nhập tay trước đây (API `PUT /api/admin/oc3/settings`), cộng dồn từ đầu chiến dịch |
 | CTR | Lượt nhấp ÷ lượt tiếp cận |
 | Chi phí / người dùng hợp lệ | Chi phí ÷ người dùng hợp lệ của kênh |
 | CPA | Chi phí ÷ người trả phí của kênh. Để trống khi kênh chưa nhập chi phí hoặc chưa có khách trả phí |
@@ -124,7 +126,7 @@ Nên đánh dấu `sign_up`, `begin_checkout`, `purchase` là **sự kiện chí
 
 ## 8. Số liệu cần thu từ Facebook và TikTok
 
-Chụp màn hình có hiện rõ khoảng thời gian, mỗi tuần một lần, và nhập tổng cộng dồn vào trang admin.
+Chụp màn hình có hiện rõ khoảng thời gian, mỗi tuần một lần, và ghi tổng cộng dồn vào báo cáo.
 
 | Kênh | Lấy ở đâu | Số liệu |
 |---|---|---|

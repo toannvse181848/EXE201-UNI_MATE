@@ -1,6 +1,6 @@
 /**
  * Số liệu báo cáo OC3, tính trực tiếp từ database — CHỈ ĐỌC.
- * Dùng chung cho trang "Số liệu OC3" của admin và script scripts/oc3-stats.js
+ * Dùng chung cho phần phân tích ở trang Tổng quan admin và script scripts/oc3-stats.js
  * để hai nơi luôn ra cùng một con số. Định nghĩa từng chỉ số: docs/oc3-metrics.md.
  */
 const { maskEmail } = require('./excelExport');
