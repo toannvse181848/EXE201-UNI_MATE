@@ -490,9 +490,14 @@ export default function UserVouchers() {
             <h3 style={{ fontSize: '17px', fontWeight: '900', color: 'var(--text-primary)', marginBottom: '4px' }}>
               {selectedVoucher.title}
             </h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: selectedVoucher.fromMeetup ? '8px' : '20px' }}>
               Đưa mã QR này cho thu ngân quán quét để áp dụng khuyến mãi
             </p>
+            {selectedVoucher.fromMeetup && (
+              <p style={{ fontSize: '12px', color: '#C2410C', fontWeight: '600', marginBottom: '20px' }}>
+                🤝 Ưu đãi hẹn cafe: mỗi bạn đưa mã trong ví của mình, quán quét đủ mã của cả hai thì buổi hẹn được ghi nhận và cả hai được thưởng UniCoin.
+              </p>
+            )}
 
             {/* Mock Dynamic QR Box */}
             <div
@@ -533,7 +538,7 @@ export default function UserVouchers() {
             >
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>
-                  {selectedVoucher.codeType === 'unique' ? 'Mã riêng của bạn' : 'Mã chung ưu đãi'}
+                  Không quét được QR? Đọc mã này cho thu ngân
                 </div>
                 <div style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '1.5px', color: '#0F172A' }}>
                   {selectedVoucher.displayCode || selectedVoucher.code}

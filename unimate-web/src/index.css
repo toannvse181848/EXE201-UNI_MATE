@@ -335,6 +335,13 @@ input, select, textarea {
   gap: 14px;
 }
 
+/* Trang quét QR của quán: camera bên trái, kết quả bên phải */
+.grid-scanner-main {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 24px;
+}
+
 /* Page header action buttons */
 .venue-header-actions {
   display: flex;
@@ -421,7 +428,8 @@ input, select, textarea {
   .grid-2col,
   .grid-upload-btns,
   .grid-addr-district,
-  .grid-venue-main {
+  .grid-venue-main,
+  .grid-scanner-main {
     grid-template-columns: 1fr;
   }
 

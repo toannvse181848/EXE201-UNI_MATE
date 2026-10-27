@@ -279,7 +279,7 @@ Response `200`: `{ "success": true, "total": 12, "data": [ { "_id", "method", "c
 
 `GET /api/vouchers/partner/my-vouchers` và `GET /api/vouchers/admin/all` trả thêm `claimedCount` (số lượt sinh viên đã lưu vào ví).
 
-Response của `/verify` có thêm `assignedCode` (mã riêng của sinh viên, nếu là voucher mã riêng). `remainingCount` là `null` khi voucher không giới hạn lượt. Response của `/redeem` có thêm `coinAwarded`: số UniCoin sinh viên được thưởng (20, vẫn tính trong giới hạn 60/ngày).
+Response của `/verify` có thêm `assignedCode` (mã riêng của sinh viên, nếu là voucher mã riêng) và `fromMeetup` (`true` = ưu đãi hẹn cafe, quán quét đủ mã của cả hai bạn thì buổi hẹn mới được ghi nhận). Ưu đãi hẹn cafe không nhận mã chung gõ tay, phải dùng `UVM-...` hoặc mã riêng trong ví. `remainingCount` là `null` khi voucher không giới hạn lượt. Response của `/redeem` có thêm `coinAwarded`: số UniCoin sinh viên được thưởng (20, vẫn tính trong giới hạn 60/ngày).
 
 ---
 
@@ -386,7 +386,7 @@ Tạo voucher (`POST /api/vouchers`) gửi thêm các field trên. File Excel nh
 Voucher mã riêng:
 - `POST /api/vouchers/:id/codes` — nạp danh sách mã: JSON `{ "codes": ["BT-001", "BT-002"] }` (hoặc chuỗi mỗi mã một dòng), hoặc form-data `file` là Excel/CSV có mã ở cột đầu tiên. Mã trùng sẽ bị bỏ qua.
 - `GET /api/vouchers/:id/codes` — tình trạng từng mã: `available` / `assigned` / `used`, kèm tên sinh viên.
-- Sinh viên nhận voucher thì response có `assignedCode`. Trong ví (`/my-wallet`) mỗi item có `displayCode`, là mã cần hiện cho sinh viên đọc ở quầy.
+- Sinh viên nhận voucher thì response có `assignedCode`. Trong ví (`/my-wallet`) mỗi item có `displayCode`, là mã cần hiện cho sinh viên đọc ở quầy khi không quét được QR: mã riêng nếu có, không thì `qrPayload` (`UVM-...`). Không hiện mã chung, vì gõ mã chung tại quầy không trừ voucher trong ví.
 - Thu ngân gõ mã riêng (VD `BT-001`) vào trang đối soát như gõ mã chung, hệ thống tự tìm đúng voucher của sinh viên.
 
 ## 14. Chat đa phương tiện (Ảnh, Video, File tài liệu)

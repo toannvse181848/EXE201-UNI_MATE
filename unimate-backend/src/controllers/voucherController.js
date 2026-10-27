@@ -185,9 +185,10 @@ const getMyWallet = catchAsync(async (req, res) => {
   const expiredIds = [];
   const enriched = wallet.map((uv) => {
     const obj = uv.toObject();
-    // Mã sinh viên đọc cho thu ngân: mã riêng nếu có, không thì mã chung của quán
-    // Voucher chỉ quét ví: không lộ mã chung, sinh viên đưa QR cho thu ngân
-    obj.displayCode = obj.assignedCode || (obj.voucherId?.walletOnly ? null : obj.voucherId?.code) || null;
+    // Mã sinh viên đọc cho thu ngân khi không quét được QR: mã riêng nếu có, không thì mã UVM-... của chính voucher này.
+    // Không đưa mã chung của quán: thu ngân gõ mã chung thì voucher trong ví không bị trừ, không thưởng coin,
+    // buổi hẹn cafe không được ghi nhận và quán bị trừ thêm 1 lượt.
+    obj.displayCode = obj.assignedCode || obj.qrPayload || null;
     if (obj.voucherId) Object.assign(obj.voucherId, describeVoucherValue(obj.voucherId));
     if (
       obj.status === 'saved' &&
@@ -271,6 +272,10 @@ const findRedeemTarget = async (req) => {
     if (voucher.walletOnly) {
       throw new ApiError(400, 'Voucher này chỉ áp dụng khi quét mã QR trong ví UNI-MATE của sinh viên');
     }
+    // Ưu đãi hẹn cafe gắn với từng bạn trong buổi hẹn: phải quét đúng mã trong ví mỗi người mới ghi nhận được buổi hẹn
+    if (voucher.meetupReward) {
+      throw new ApiError(400, 'Ưu đãi hẹn cafe: quét mã QR (hoặc nhập mã UVM-...) trong ví của từng bạn, không dùng mã chung');
+    }
     if (!hasSharedStock(voucher)) {
       throw new ApiError(400, 'Voucher đã hết số lượng');
     }
@@ -315,6 +320,8 @@ const verifyVoucher = catchAsync(async (req, res) => {
       validUntil: voucher.validUntil,
       venueName: voucher.venueId?.name || null,
       assignedCode: userVoucher?.assignedCode || null,
+      // Voucher nhận qua "Rủ cafe": quét đủ mã của cả hai bạn thì buổi hẹn mới được ghi nhận
+      fromMeetup: Boolean(userVoucher?.meetupId),
       // null = không giới hạn lượt
       // Mã chung: lượt còn phát được (lượt trong ví đã được giữ trước). Mã riêng / không giới hạn: null
       remainingCount: voucher.isUnlimited || voucher.codeType === 'unique' ? null : voucher.quantity - issuedOf(voucher),
