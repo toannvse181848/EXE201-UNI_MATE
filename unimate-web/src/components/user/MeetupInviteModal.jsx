@@ -19,6 +19,7 @@ export default function MeetupInviteModal({ open, onClose, matchId, groupId, bud
   const [sendingId, setSendingId] = useState(null);
   const [error, setError] = useState('');
   const [quotaBlocked, setQuotaBlocked] = useState(false);
+  const [recentRewards, setRecentRewards] = useState({ venueIds: [], days: 0 });
 
   useEffect(() => {
     if (!open) return undefined;
@@ -26,10 +27,18 @@ export default function MeetupInviteModal({ open, onClose, matchId, groupId, bud
     setSearch('');
     setError('');
     setQuotaBlocked(false);
+    setRecentRewards({ venueIds: [], days: 0 });
     meetupApi
       .getQuota()
       .then((res) => !cancelled && setQuota(res.data || null))
       .catch(() => {});
+    // Báo trước quán mà 2 bạn vừa nhận ưu đãi. Lỗi thì bỏ qua: backend vẫn kiểm tra khi gửi lời mời
+    if (matchId) {
+      meetupApi
+        .getRecentRewards(matchId)
+        .then((res) => !cancelled && res.data && setRecentRewards(res.data))
+        .catch(() => {});
+    }
     // Tải lại mỗi lần mở khung: ưu đãi hẹn cafe của quán có thể vừa hết lượt hoặc vừa được tạo
     setLoadingVenues(true);
     venueApi
@@ -45,7 +54,7 @@ export default function MeetupInviteModal({ open, onClose, matchId, groupId, bud
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, matchId]);
 
   if (!open) return null;
 
@@ -161,11 +170,16 @@ export default function MeetupInviteModal({ open, onClose, matchId, groupId, bud
                           )}
                         </div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{venue.address}</div>
-                        {venue.meetupReward && (
+                        {venue.meetupReward && (recentRewards.venueIds.includes(venue._id) ? (
+                          <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+                            Hai bạn đã nhận ưu đãi của quán này trong {recentRewards.days} ngày qua nên hẹn lại sẽ không có voucher
+                          </div>
+                        ) : (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: '700', color: '#C2410C', marginTop: '2px' }}>
                             <Gift size={12} /> Hẹn ở đây, {groupId ? 'mỗi bạn' : 'cả hai'} nhận: {venue.meetupReward.title}
+                            {venue.meetupReward.scheduleLabel ? ` (chỉ dùng ${venue.meetupReward.scheduleLabel})` : ''}
                           </div>
-                        )}
+                        ))}
                       </div>
                       <button
                         type="button"

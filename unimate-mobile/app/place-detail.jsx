@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../src/constants/colors';
 import { venueApi } from '../src/api/venueApi';
 import { voucherApi } from '../src/api/voucherApi';
-import { toVenueCard, formatDaysLeft } from '../src/utils/venueMapper';
+import { toVenueCard, formatDaysLeft, isFreeVoucher } from '../src/utils/venueMapper';
 
 // Mở Google Maps (app nếu có, không thì trình duyệt) tìm theo "tên quán, địa chỉ" — không cần API key
 const openGoogleMaps = (venue) => {
@@ -55,8 +55,10 @@ export default function PlaceDetailScreen() {
     ])
       .then(([venueRes, vouchersRes]) => {
         if (!isMounted) return;
-        const voucher = vouchersRes?.data?.data?.[0] || null;
-        setVenue(toVenueCard(venueRes.data.data, voucher));
+        // Không tự nhận voucher đổi UniCoin / Premium ở đây: bấm "Mã QR" sẽ bị trừ coin mà không được báo trước
+        const vouchers = vouchersRes?.data?.data || [];
+        const voucher = vouchers.find(isFreeVoucher) || null;
+        setVenue({ ...toVenueCard(venueRes.data.data, voucher), hasPaidVoucher: !voucher && vouchers.length > 0 });
       })
       .catch((err) => isMounted && setLoadError(err.message));
     return () => {
@@ -288,7 +290,11 @@ export default function PlaceDetailScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.voucherTitle}>
-                  {venue.voucherId ? venue.voucherBadge : 'Quán chưa có voucher đang chạy'}
+                  {venue.voucherId
+                    ? venue.voucherBadge
+                    : venue.hasPaidVoucher
+                      ? 'Quán có voucher Premium hoặc đổi UniCoin, xem giá trong mục Voucher trên web UNI-MATE'
+                      : 'Quán chưa có voucher đang chạy'}
                 </Text>
                 {venue.voucherId && (
                   <>

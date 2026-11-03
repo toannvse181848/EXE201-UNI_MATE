@@ -121,6 +121,20 @@ const voucherSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'Hạn sử dụng là bắt buộc'],
     },
+    // Ngày trong tuần được dùng (0 = chủ nhật ... 6 = thứ 7), rỗng = mọi ngày. Hệ thống chặn lúc quét.
+    applyDays: {
+      type: [Number],
+      default: [],
+    },
+    // Khung giờ được dùng trong ngày, dạng 'HH:mm' theo giờ Việt Nam, null = cả ngày. Hệ thống chặn lúc quét.
+    applyFrom: {
+      type: String,
+      default: null,
+    },
+    applyTo: {
+      type: String,
+      default: null,
+    },
     isActive: {
       type: Boolean,
       default: true,

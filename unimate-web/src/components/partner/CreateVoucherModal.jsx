@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Coffee, Crown, Gift, Loader2, Ticket, X } from 'lucide-react';
 import { voucherApi } from '../../services/api';
-import { describeVoucher, groupDigits, onlyDigits } from '../../utils/voucher';
+import { DAY_LABELS, DAY_ORDER, describeVoucher, groupDigits, onlyDigits } from '../../utils/voucher';
 
 // Loại voucher quyết định sinh viên thấy voucher ở đâu
 const KINDS = [
@@ -108,9 +108,13 @@ const initialForm = (venues, kind = 'normal') => ({
   codeType: 'shared',
   quantity: '100',
   isUnlimited: false,
-  walletOnly: false,
+  // Mặc định an toàn: gõ mã chung thì không biết ai dùng và một mã dùng lại được nhiều lần
+  walletOnly: true,
   coinCost: '0',
   expiry: endOfYear(),
+  applyDays: [],
+  applyFrom: '',
+  applyTo: '',
 });
 
 /** Form phát hành voucher của quán đối tác */
@@ -133,9 +137,15 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
         discountAmount: Number(form.discountAmount) || 0,
         giftItem: form.giftItem.trim(),
         minBill: Number(form.minBill) || 0,
+        applyDays: form.applyDays,
+        applyFrom: form.applyFrom,
+        applyTo: form.applyTo,
       }),
-    [form.discountType, form.discountPercent, form.maxDiscount, form.discountAmount, form.giftItem, form.minBill]
+    [form.discountType, form.discountPercent, form.maxDiscount, form.discountAmount, form.giftItem, form.minBill, form.applyDays, form.applyFrom, form.applyTo]
   );
+
+  const toggleDay = (day) =>
+    set('applyDays', form.applyDays.includes(day) ? form.applyDays.filter((d) => d !== day) : [...form.applyDays, day]);
 
   // Báo ngay khi gõ: % ngoài 1–100, hoặc số tiền dưới 1.000đ (thường là gõ nhầm % vào ô tiền)
   const percentTooBig = form.discountPercent !== '' && !(Number(form.discountPercent) >= 1 && Number(form.discountPercent) <= 100);
@@ -150,7 +160,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
   const validate = () => {
     if (!venueId) return 'Bạn cần thêm chi nhánh ở mục Quản lý địa điểm trước';
     if (!form.title.trim()) return 'Vui lòng nhập tên chương trình';
-    if (!/^[A-Z0-9_-]{3,30}$/.test(form.code)) return 'Mã voucher gồm 3–30 ký tự: chữ không dấu, số, gạch ngang';
+    if (!/^[A-Z0-9_-]{3,30}$/.test(form.code) || form.code.startsWith('UVM-')) return 'Mã voucher gồm 3–30 ký tự: chữ không dấu, số, gạch ngang, không bắt đầu bằng UVM-';
     if (form.discountType === 'percent') {
       const p = Number(form.discountPercent);
       if (!(p >= 1 && p <= 100)) return 'Phần trăm giảm phải từ 1 đến 100';
@@ -160,6 +170,8 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
     if (form.codeType === 'shared' && !form.isUnlimited && !(Number(form.quantity) >= 1)) return 'Số lượng phát hành phải từ 1 trở lên';
     if (form.kind === 'meetup' && form.codeType === 'shared' && !form.isUnlimited && Number(form.quantity) < 2) return 'Ưu đãi hẹn cafe cần ít nhất 2 lượt: mỗi buổi hẹn tặng cho 2 bạn';
     if (!form.expiry) return 'Vui lòng chọn hạn sử dụng';
+    if (Boolean(form.applyFrom) !== Boolean(form.applyTo)) return 'Vui lòng nhập đủ giờ bắt đầu và giờ kết thúc';
+    if (form.applyFrom && form.applyFrom >= form.applyTo) return 'Giờ kết thúc phải sau giờ bắt đầu';
     return '';
   };
 
@@ -193,6 +205,9 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
         meetupReward: form.kind === 'meetup',
         // Hết hạn vào cuối ngày đã chọn, theo giờ máy của quán
         validUntil: new Date(`${form.expiry}T23:59:59`).toISOString(),
+        applyDays: form.applyDays,
+        applyFrom: form.applyFrom,
+        applyTo: form.applyTo,
       });
       setForm(initialForm(venues));
       onCreated?.();
@@ -296,7 +311,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
             </div>
 
             {form.discountType === 'percent' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 <div>
                   <label style={labelStyle}>Giảm bao nhiêu phần trăm? *</label>
                   <UnitInput
@@ -367,8 +382,36 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
               </div>
             </div>
             <div>
-              <label style={labelStyle}>Điều kiện / ghi chú</label>
-              <textarea style={{ ...field, minHeight: '60px', resize: 'vertical', fontFamily: 'inherit' }} maxLength={500} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="VD: Áp dụng thứ 2 – thứ 6, không cộng dồn khuyến mãi khác" />
+              <label style={labelStyle}>Ngày và giờ áp dụng</label>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {DAY_ORDER.map((day) => {
+                  const active = form.applyDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => toggleDay(day)}
+                      style={{ minWidth: '42px', padding: '6px 10px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', border: `1.5px solid ${active ? 'var(--primary)' : 'var(--border-color)'}`, backgroundColor: active ? 'var(--primary)' : '#FFFFFF', color: active ? '#FFFFFF' : 'var(--text-secondary)' }}
+                    >
+                      {DAY_LABELS[day]}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                <input type="time" aria-label="Giờ bắt đầu" style={field} value={form.applyFrom} onChange={(e) => set('applyFrom', e.target.value)} />
+                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>đến</span>
+                <input type="time" aria-label="Giờ kết thúc" style={field} value={form.applyTo} onChange={(e) => set('applyTo', e.target.value)} />
+              </div>
+              <div style={hint}>
+                Hệ thống tự chặn khi quét ngoài thời gian này (giờ Việt Nam). Để trống = mọi ngày, cả ngày.
+                {form.kind === 'meetup' ? ' Sinh viên chọn giờ hẹn ngoài thời gian này thì buổi hẹn không nhận ưu đãi.' : ''}
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Ghi chú thêm</label>
+              <textarea style={{ ...field, minHeight: '60px', resize: 'vertical', fontFamily: 'inherit' }} maxLength={500} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="VD: Không cộng dồn khuyến mãi khác, áp dụng cho đồ uống" />
               <div style={hint}>Ô này chỉ để sinh viên và thu ngân đọc. Hệ thống không tự chặn theo nội dung ghi ở đây, thu ngân kiểm tra lúc quét.</div>
             </div>
           </div>
@@ -376,7 +419,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
           {/* 4. Phát hành */}
           <div style={section}>
             <div style={sectionTitle}>4. PHÁT HÀNH</div>
-            <div style={{ display: 'grid', gridTemplateColumns: form.kind === 'meetup' ? '1fr 1fr' : '1fr 1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Cách phát mã</label>
                 <select style={field} value={form.codeType} onChange={(e) => set('codeType', e.target.value)}>
@@ -399,6 +442,9 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
                     <label title="Thu ngân không gõ được mã chung; sinh viên phải đưa QR trong ví" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)', cursor: walletOnlyForced ? 'default' : 'pointer' }}>
                       <input type="checkbox" disabled={walletOnlyForced} checked={walletOnlyForced || form.walletOnly} onChange={(e) => set('walletOnly', e.target.checked)} /> Chỉ quét QR trong ví
                     </label>
+                    {!walletOnlyForced && !form.walletOnly && (
+                      <div style={{ ...hint, color: '#B45309' }}>Thu ngân gõ được mã chung: mỗi lần gõ trừ 1 lượt, không biết bạn nào dùng và không thưởng UniCoin.</div>
+                    )}
                     {form.kind === 'meetup' && !form.isUnlimited && <div style={hint}>Mỗi bạn tham gia dùng 1 lượt, mỗi buổi hẹn ít nhất 2 lượt</div>}
                   </>
                 )}

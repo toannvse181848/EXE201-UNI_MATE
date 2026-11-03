@@ -345,8 +345,8 @@ Các bạn cùng buổi hẹn: ${meetupInfo.companions.map((c) => c.fullName).jo
                     </Text>
                   </View>
                   <Text style={styles.historyTime}>
-                    {item.redeemedAt
-                      ? new Date(item.redeemedAt).toLocaleTimeString('vi-VN', {
+                    {item.createdAt
+                      ? new Date(item.createdAt).toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })

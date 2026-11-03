@@ -297,14 +297,21 @@ Response của `/redeem` có thêm:
 
 Buổi hẹn bị huỷ (huỷ hẹn, huỷ kết bạn, chặn) hoặc không diễn ra (`no_show`) thì voucher chưa dùng bị thu hồi khỏi ví và trả lại lượt / mã cho quán. `POST /api/meetups`, `POST /api/meetups/:id/respond` và các API nhóm bên dưới trả `400` kèm `code: "MEETUP_VENUE_CLASH"` khi người liên quan đang có buổi đã chốt có ưu đãi tại cùng quán.
 
+Luật chống lặp ưu đãi: cùng những người đó đã nhận ưu đãi của một quán thì trong 7 ngày không nhận lại, tính chung hẹn 2 người và hẹn nhóm. Có thêm người mới so với buổi trước thì vẫn nhận. Vẫn hẹn được nhưng không có voucher, thẻ hẹn (`meetup.rewardNote`) ghi rõ lý do. Buổi đã huỷ hoặc không diễn ra không tính. Đổi số ngày bằng biến môi trường `MEETUP_REWARD_REPEAT_DAYS`, đặt `0` để tắt khi cần test lặp lại nhiều lần.
+
+`GET /api/meetups/recent-rewards?matchId=` trả `{ "venueIds": [...], "days": 7 }`: những quán 2 bạn đã nhận ưu đãi trong thời gian trên, để khung chọn quán báo trước.
+
+Giờ hẹn nằm ngoài ngày giờ áp dụng của ưu đãi hoặc sau hạn dùng thì buổi hẹn không nhận ưu đãi đó, hệ thống tìm ưu đãi khác của quán còn dùng được.
+
 ### Rủ cả nhóm đi cafe (sinh viên, thành viên nhóm)
 
 - `POST /api/meetups/group` — `{ "groupId", "venueId", "scheduledAt"? }`: tạo lời mời và thẻ `type: "meetup"` trong chat nhóm. Tính vào lượt mời của người rủ.
 - `POST /api/meetups/:id/join`: tham gia. Có từ 2 người là chốt hẹn (`accepted`), mỗi người tham gia nhận 1 voucher, tối đa 8 người mỗi buổi.
-- `POST /api/meetups/:id/leave`: bạn đã tham gia đổi ý, voucher của người đó bị thu hồi. Chỉ còn người rủ thì buổi hẹn quay về `proposed` và voucher của người rủ cũng bị thu hồi.
+- `POST /api/meetups/:id/leave`: bạn đã tham gia đổi ý, voucher của người đó bị thu hồi và lượt vừa trả ưu tiên cho bạn đang tham gia mà chưa có voucher. Chỉ còn người rủ thì buổi hẹn quay về `proposed` và voucher của người rủ cũng bị thu hồi. Bạn vừa rời là người mới duy nhất so với buổi trước thì những bạn còn lại cũng bị thu hồi theo luật chống lặp.
 - `POST /api/meetups/:id/cancel`: buổi hẹn nhóm chỉ người rủ huỷ được.
+- Rời chat nhóm (`DELETE /api/group-chat/:groupId/members/me`): thành viên được tính như rời buổi hẹn, người rủ rời thì buổi hẹn đang mở bị huỷ.
 
-Quán quét từ 2 mã trở lên trong cùng một lần `/redeem` thì buổi hẹn thành `completed`, chỉ người được quét mới được thưởng UniCoin. Bạn đến muộn quét riêng được trong 24 giờ, quá hạn voucher chưa dùng bị thu hồi.
+Quán quét từ 2 mã trở lên trong cùng một lần `/redeem` thì buổi hẹn thành `completed`, chỉ người được quét mới được thưởng UniCoin. Bạn đến muộn quét riêng được trong 24 giờ, quá hạn voucher chưa dùng bị thu hồi. Buổi đã chốt mà không còn bạn nào khác có voucher thì `/verify` trả `400` kèm `code: "MEETUP_NEEDS_BOTH"`.
 
 ---
 
@@ -405,11 +412,15 @@ Field mới của voucher:
 | `codeType` | `shared` (mặc định): 1 mã chung dùng nhiều lượt · `unique`: danh sách mã riêng, mỗi sinh viên nhận 1 mã dùng 1 lần |
 | `isUnlimited` | Mã chung không giới hạn lượt dùng |
 | `coinCost` | Số UniCoin bị trừ khi sinh viên nhận voucher (0 = miễn phí) |
+| `applyDays` | Ngày trong tuần được dùng, `0` = chủ nhật đến `6` = thứ 7. Rỗng = mọi ngày |
+| `applyFrom`, `applyTo` | Khung giờ được dùng, dạng `"14:00"` theo giờ Việt Nam, trong cùng một ngày. `null` = cả ngày |
 
-Tạo voucher (`POST /api/vouchers`) gửi thêm các field trên. File Excel nhập voucher có thêm cột **Loại mã** (Chung / Riêng), **Giá UniCoin**, và cột Số lượng nhận chữ **Không giới hạn**. Tải lại file mẫu để có cột mới.
+Ngoài ngày giờ áp dụng thì `/verify` và `/redeem` trả `400` kèm `code: "VOUCHER_OUT_OF_SCHEDULE"`. Nhãn `conditionLabel` có thêm phần này, `scheduleLabel` là riêng phần ngày giờ.
+
+Tạo voucher (`POST /api/vouchers`) gửi thêm các field trên. Mã voucher và mã riêng không được trùng nhau, gồm 3–30 ký tự chữ không dấu, số, gạch ngang hoặc gạch dưới, không bắt đầu bằng `UVM-`. File Excel nhập voucher có thêm cột **Loại mã** (Chung / Riêng), **Giá UniCoin**, và cột Số lượng nhận chữ **Không giới hạn**. Tải lại file mẫu để có cột mới. Khi nhập file, dòng sai mã, sai mức giảm, sai số lượng hoặc hết hạn bị bỏ qua và trả lý do trong `skipped`; voucher mới mặc định `walletOnly: true`; chế độ `update` giữ nguyên loại mã và quán của voucher đang chạy.
 
 Voucher mã riêng:
-- `POST /api/vouchers/:id/codes` — nạp danh sách mã: JSON `{ "codes": ["BT-001", "BT-002"] }` (hoặc chuỗi mỗi mã một dòng), hoặc form-data `file` là Excel/CSV có mã ở cột đầu tiên. Mã trùng sẽ bị bỏ qua.
+- `POST /api/vouchers/:id/codes` — nạp danh sách mã: JSON `{ "codes": ["BT-001", "BT-002"] }` (hoặc chuỗi mỗi mã một dòng), hoặc form-data `file` là Excel/CSV có mã ở cột đầu tiên. Chỉ nhận voucher loại mã riêng. Mã trùng nằm trong `skippedExisting`, mã sai định dạng nằm trong `skippedInvalid`.
 - `GET /api/vouchers/:id/codes` — tình trạng từng mã: `available` / `assigned` / `used`, kèm tên sinh viên.
 - Sinh viên nhận voucher thì response có `assignedCode`. Trong ví (`/my-wallet`) mỗi item có `displayCode`, là mã cần hiện cho sinh viên đọc ở quầy khi không quét được QR: mã riêng nếu có, không thì `qrPayload` (`UVM-...`). Không hiện mã chung, vì gõ mã chung tại quầy không trừ voucher trong ví.
 - Thu ngân gõ mã riêng (VD `BT-001`) vào trang đối soát như gõ mã chung, hệ thống tự tìm đúng voucher của sinh viên.

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getQuota,
+  getRecentRewards,
   createMeetup,
   createGroupMeetup,
   joinMeetup,
@@ -15,6 +16,7 @@ const { protect, authorize } = require('../middlewares/auth');
 router.use(protect, authorize('student'));
 
 router.get('/quota', getQuota);
+router.get('/recent-rewards', getRecentRewards);
 router.post('/', createMeetup);
 router.post('/group', createGroupMeetup);
 router.post('/:id/respond', respondMeetup);

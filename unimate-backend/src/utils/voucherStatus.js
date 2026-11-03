@@ -3,7 +3,10 @@ const UserVoucher = require('../models/UserVoucher');
 const VoucherCode = require('../models/VoucherCode');
 const Redemption = require('../models/Redemption');
 const { withVoucherLabels } = require('./voucherFormat');
-const { hasSharedStock, issuedOf } = require('./voucherStock');
+const { issuedOf } = require('./voucherStock');
+
+// Ưu đãi hẹn cafe tặng cho ít nhất 2 người nên còn 1 lượt là không phát được nữa
+const minStockOf = (voucher) => (voucher.meetupReward ? 2 : 1);
 
 /**
  * Trạng thái voucher — MỘT cách tính duy nhất cho trang sinh viên, trang quán và trang admin.
@@ -33,8 +36,8 @@ const getVoucherStatus = (voucher, { partnerStatus, freeCodes, now = Date.now() 
   if (!voucher.isActive) return 'paused';
   if (voucher.validUntil && new Date(voucher.validUntil).getTime() < now) return 'expired';
   if (voucher.codeType === 'unique') {
-    if (freeCodes !== undefined && freeCodes <= 0) return 'sold_out';
-  } else if (!hasSharedStock(voucher)) {
+    if (freeCodes !== undefined && freeCodes < minStockOf(voucher)) return 'sold_out';
+  } else if (!voucher.isUnlimited && voucher.quantity - issuedOf(voucher) < minStockOf(voucher)) {
     return 'sold_out';
   }
   return 'active';
@@ -52,10 +55,10 @@ const annotateVouchers = async (vouchers) => {
   const ids = vouchers.map((v) => v._id);
   const partnerIds = [...new Set(vouchers.map((v) => String(v.partnerId?._id || v.partnerId)))];
 
-  const [partners, claims, walletUsed, freeCodes, redemptions] = await Promise.all([
+  const [partners, claims, assignedCodes, freeCodes, redemptions] = await Promise.all([
     User.find({ _id: { $in: partnerIds } }).select('status'),
     countBy(UserVoucher, { voucherId: { $in: ids } }),
-    countBy(UserVoucher, { voucherId: { $in: ids }, status: 'used' }),
+    countBy(VoucherCode, { voucherId: { $in: ids }, userId: { $ne: null } }),
     countBy(VoucherCode, { voucherId: { $in: ids }, userId: null }),
     Redemption.aggregate([
       { $match: { voucherId: { $in: ids } } },
@@ -66,7 +69,7 @@ const annotateVouchers = async (vouchers) => {
   const toMap = (rows) => new Map(rows.map((r) => [String(r._id), r.count]));
   const partnerStatus = new Map(partners.map((p) => [String(p._id), p.status]));
   const claimMap = toMap(claims);
-  const walletUsedMap = toMap(walletUsed);
+  const assignedMap = toMap(assignedCodes);
   const freeMap = toMap(freeCodes);
   const redeemMap = new Map();
   for (const r of redemptions) {
@@ -88,10 +91,15 @@ const annotateVouchers = async (vouchers) => {
       ...labeled,
       status,
       statusLabel: VOUCHER_STATUS_LABEL[status],
-      // Số lượt sinh viên đã lưu vào ví
-      claimedCount: claimMap.get(key) || 0,
-      // Số voucher trong ví đã được quán quét (luôn ≤ claimedCount)
-      walletUsedCount: walletUsedMap.get(key) || 0,
+      // Số lượt đã phát vào ví. Ưu đãi hẹn cafe cấp lại mã mới trên cùng một dòng trong ví nên không đếm theo số dòng được.
+      claimedCount:
+        v.codeType === 'unique'
+          ? assignedMap.get(key) || 0
+          : v.meetupReward
+            ? issuedOf(v)
+            : claimMap.get(key) || 0,
+      // Số lượt trong ví đã được quán quét
+      walletUsedCount: used.qr || 0,
       // Lượt dùng tại quầy theo cách áp: quét ví (có tên sinh viên) / nhập mã chung (không biết ai)
       redeemedByQr: used.qr || 0,
       redeemedByCode: used.code || 0,

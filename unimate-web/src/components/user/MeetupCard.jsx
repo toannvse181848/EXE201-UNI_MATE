@@ -83,8 +83,8 @@ export function GroupMeetupCard({ meetup, currentUserId, busy, onAction }) {
             </span>
           </div>
         )}
-        {!meetup.rewardTitle && meetup.status === 'accepted' && (
-          <div style={{ fontSize: '11.5px', color: '#64748B' }}>Quán chưa có ưu đãi hẹn cafe.</div>
+        {!meetup.rewardTitle && (rewardDone || meetup.status === 'proposed') && (meetup.rewardNote || meetup.status === 'accepted') && (
+          <div style={{ fontSize: '11.5px', color: '#64748B' }}>{meetup.rewardNote || 'Quán chưa có ưu đãi hẹn cafe.'}</div>
         )}
 
         <div style={{ fontSize: '12px', color: '#334155' }}>
@@ -213,8 +213,8 @@ export default function MeetupCard({ meetup, isMine, buddyName, busy, onRespond,
             </span>
           </div>
         ) : (
-          meetup.status === 'accepted' && (
-            <div style={{ fontSize: '11.5px', color: '#64748B' }}>Quán chưa có ưu đãi hẹn cafe.</div>
+          rewardOpen && (meetup.rewardNote || meetup.status === 'accepted') && (
+            <div style={{ fontSize: '11.5px', color: '#64748B' }}>{meetup.rewardNote || 'Quán chưa có ưu đãi hẹn cafe.'}</div>
           )
         )}
 

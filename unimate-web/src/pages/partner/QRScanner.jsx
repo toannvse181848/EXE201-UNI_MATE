@@ -13,7 +13,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { voucherApi } from '../../services/api';
 import { trackEvent } from '../../utils/analytics';
 import { getAvatarUrl } from '../../constants/avatar';
-import { describeVoucher } from '../../utils/voucher';
+import { describeVoucher, formatVnd } from '../../utils/voucher';
 import { notify } from '../../utils/notify';
 
 // html5-qrcode tự vẽ video vào các div này (xoá sạch nội dung bên trong), nên React không render con vào đó
@@ -619,7 +619,7 @@ export default function QRScanner() {
                 {!confirmed && (scanResult.minBill > 0 || scanResult.note) && (
                   <div style={{ padding: '12px 14px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px', fontSize: '12.5px', color: '#92400E', lineHeight: '1.5' }}>
                     <strong>Thu ngân tự kiểm tra trước khi áp dụng</strong> (hệ thống không tự chặn được):
-                    {scanResult.minBill > 0 && <div>• {scanResult.conditionLabel}</div>}
+                    {scanResult.minBill > 0 && <div>• Hoá đơn từ {formatVnd(scanResult.minBill)}</div>}
                     {scanResult.note && <div>• {scanResult.note}</div>}
                   </div>
                 )}

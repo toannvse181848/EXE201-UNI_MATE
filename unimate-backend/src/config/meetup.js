@@ -26,4 +26,7 @@ module.exports = {
   GROUP_MEETUP_MAX_PEOPLE: 8,
   // Buổi hẹn nhóm đã ghi nhận: quá bấy nhiêu giờ, bạn chưa tới bị thu hồi ưu đãi
   GROUP_LATECOMER_HOURS: 24,
+  // Cùng những người đó đã nhận ưu đãi của một quán thì trong bấy nhiêu ngày không nhận lại (có thêm người mới thì vẫn nhận).
+  // Đặt biến môi trường MEETUP_REWARD_REPEAT_DAYS=0 để tắt khi cần test lặp lại nhiều lần.
+  REWARD_REPEAT_DAYS: Math.max(0, Number(process.env.MEETUP_REWARD_REPEAT_DAYS ?? 7) || 0),
 };

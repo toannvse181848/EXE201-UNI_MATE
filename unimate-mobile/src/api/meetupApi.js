@@ -3,6 +3,7 @@ import client from './client';
 // "Rủ cafe": mời bạn đã kết bạn hoặc cả nhóm chat tới một quán đối tác; chốt hẹn là những bạn đi nhận ưu đãi hẹn cafe
 export const meetupApi = {
   getQuota: () => client.get('/api/meetups/quota'),
+  getRecentRewards: (matchId) => client.get('/api/meetups/recent-rewards', { params: { matchId } }),
   // { matchId, venueId, scheduledAt? }
   create: (payload) => client.post('/api/meetups', payload),
   // Rủ cả nhóm: { groupId, venueId, scheduledAt? }

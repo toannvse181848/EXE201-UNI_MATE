@@ -191,10 +191,10 @@ export default function PartnerDashboard() {
         code: voucherForm.code.trim().toUpperCase(),
         codeType: 'shared',
         discountPercent: discount,
-        totalQuantity: qty,
-        remainingCount: qty,
+        quantity: qty,
+        // Giống form trên web: mặc định chỉ quét QR, gõ mã chung thì không biết ai dùng
+        walletOnly: true,
         validUntil: validUntil.toISOString(),
-        isActive: true,
       };
 
       if (voucherForm.venueId) {

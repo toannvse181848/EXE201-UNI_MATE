@@ -297,6 +297,10 @@ export const meetupApi = {
     const res = await client.get('/api/meetups/quota');
     return res.data;
   },
+  getRecentRewards: async (matchId) => {
+    const res = await client.get('/api/meetups/recent-rewards', { params: { matchId } });
+    return res.data;
+  },
   // { matchId, venueId, scheduledAt? }
   create: async (payload) => {
     const res = await client.post('/api/meetups', payload);

@@ -2,11 +2,14 @@
 
 const DEFAULT_VENUE_IMAGE = 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800';
 
-/** Gom voucher công khai theo venueId (mỗi quán lấy voucher mới nhất) */
+/** Voucher lưu ngay được: không tốn UniCoin, không cần Premium. Nút nhận nhanh ở trang quán chỉ dùng loại này */
+export const isFreeVoucher = (voucher) => !voucher?.premiumOnly && !(voucher?.coinCost > 0);
+
+/** Gom voucher công khai theo venueId (mỗi quán lấy voucher miễn phí mới nhất) */
 export const groupVouchersByVenue = (vouchers = []) =>
   vouchers.reduce((acc, voucher) => {
     const venueId = voucher.venueId?._id || voucher.venueId;
-    if (venueId && !acc[venueId]) acc[venueId] = voucher;
+    if (venueId && !acc[venueId] && isFreeVoucher(voucher)) acc[venueId] = voucher;
     return acc;
   }, {});
 

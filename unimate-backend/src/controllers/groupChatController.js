@@ -5,6 +5,7 @@ const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { getUploadedFileUrl } = require('../config/cloudinary');
 const { parseMessagePaging, trimExtraMessage } = require('../utils/messagePagination');
+const { onGroupMemberLeft } = require('./meetupController');
 
 /**
  * Helper: Lấy danh sách bạn bè (đã match) của user
@@ -419,6 +420,9 @@ const leaveGroup = catchAsync(async (req, res) => {
     (m) => m.user.toString() === currentUserId.toString()
   );
   if (!myMembership) throw new ApiError(400, 'Bạn không phải thành viên nhóm này');
+
+  // Rời nhóm thì không còn thấy thẻ hẹn: rời luôn các buổi hẹn đang mở của nhóm và trả ưu đãi chưa dùng
+  await onGroupMemberLeft(req, groupId, currentUserId);
 
   // Nếu creator rời nhóm mà chỉ còn 1 người => giải tán nhóm
   const remaining = group.members.filter(

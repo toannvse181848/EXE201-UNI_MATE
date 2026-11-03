@@ -19,7 +19,7 @@ import {
   Map as MapIcon,
   Navigation,
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { venueApi, voucherApi } from '../../services/api';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
 import { getGoogleMapsUrl, getGoogleMapsEmbedUrl } from '../../utils/mapLinks';
@@ -56,19 +56,27 @@ export default function UserVenues() {
       if (venuesRes.status === 'rejected') throw venuesRes.reason;
       const realData = venuesRes.value?.data || [];
 
-      // Voucher đang chạy của từng quán (lấy voucher mới nhất)
-      const voucherByVenue = {};
-      (vouchersRes.status === 'fulfilled' ? vouchersRes.value?.data || [] : []).forEach((vch) => {
-        const vId = vch.venueId?._id || vch.venueId;
-        if (vId && !voucherByVenue[vId]) voucherByVenue[vId] = vch;
-      });
-
       // Những voucher sinh viên đã lưu vào ví
       const walletVoucherIds = new Set(
         (walletRes.status === 'fulfilled' ? walletRes.value?.data || [] : []).map(
           (uv) => uv.voucherId?._id || uv.voucherId
         )
       );
+
+      // Nút nhận nhanh chỉ dùng voucher miễn phí, ưu tiên voucher chưa lưu. Voucher đổi UniCoin / Premium
+      // phải vào Kho voucher để thấy giá và điều kiện: bấm nhận ở đây sẽ bị trừ coin mà không được báo trước
+      const voucherByVenue = {};
+      const venuesWithPaidVoucher = new Set();
+      (vouchersRes.status === 'fulfilled' ? vouchersRes.value?.data || [] : []).forEach((vch) => {
+        const vId = vch.venueId?._id || vch.venueId;
+        if (!vId) return;
+        if (vch.premiumOnly || vch.coinCost > 0) {
+          venuesWithPaidVoucher.add(vId);
+          return;
+        }
+        const current = voucherByVenue[vId];
+        if (!current || (walletVoucherIds.has(current._id) && !walletVoucherIds.has(vch._id))) voucherByVenue[vId] = vch;
+      });
 
       if (realData.length > 0) {
         const formatted = realData.map((v) => {
@@ -98,6 +106,7 @@ export default function UserVenues() {
             voucher: voucherByVenue[v._id]?.title || null,
             voucherId: voucherByVenue[v._id]?._id || null,
             voucherCode: voucherByVenue[v._id]?.code || null,
+            hasPaidVoucher: venuesWithPaidVoucher.has(v._id),
             // Quán đang có Gói Đối tác — backend đã xếp lên đầu danh sách
             isFeatured: Boolean(v.isFeatured),
           };
@@ -162,7 +171,7 @@ export default function UserVenues() {
       venue.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       venue.address.toLowerCase().includes(searchTerm.toLowerCase());
     if (activeFilter === 'Tất cả') return matchesSearch;
-    if (activeFilter === 'Có Voucher SV') return matchesSearch && venue.voucher;
+    if (activeFilter === 'Có Voucher SV') return matchesSearch && (venue.voucher || venue.hasPaidVoucher);
     if (activeFilter === 'Mở 24/7') return matchesSearch && (venue.hours || '').includes('24/7');
     if (activeFilter === 'Yên tĩnh') return matchesSearch && venue.tags.includes('Yên tĩnh');
     return matchesSearch;
@@ -494,6 +503,28 @@ export default function UserVenues() {
                     </button>
                   </div>
                 )}
+                {!venue.voucher && venue.hasPaidVoucher && (
+                  <Link
+                    to="/user/vouchers"
+                    style={{
+                      marginTop: 'auto',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      backgroundColor: '#FFF3E0',
+                      border: '1px dashed #FFCC80',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      color: '#E64A19',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Ticket size={18} color="#FF5722" style={{ flexShrink: 0 }} />
+                    Có voucher Premium hoặc đổi UniCoin, xem giá trong Kho voucher
+                  </Link>
+                )}
               </div>
             </div>
           ))}
@@ -661,6 +692,11 @@ export default function UserVenues() {
                     <Ticket size={16} />
                     <span>{claimedCodes[selectedVenueModal.id] ? 'Đã lưu voucher vào ví' : 'Lấy mã ưu đãi ngay'}</span>
                   </button>
+                ) : selectedVenueModal.hasPaidVoucher ? (
+                  <Link to="/user/vouchers" className="btn btn-primary" style={{ flex: 1, padding: '12px', textDecoration: 'none' }}>
+                    <Ticket size={16} />
+                    <span>Xem voucher Premium / đổi UniCoin</span>
+                  </Link>
                 ) : (
                   <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-muted)' }}>
                     Quán chưa có voucher đang chạy

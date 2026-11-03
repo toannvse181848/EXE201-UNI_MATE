@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const Voucher = require('../models/Voucher');
 const UserVoucher = require('../models/UserVoucher');
 const VoucherCode = require('../models/VoucherCode');
-const { describeVoucherValue } = require('./voucherFormat');
+const { describeVoucherValue, isWithinSchedule } = require('./voucherFormat');
 const Venue = require('../models/Venue');
 const { visibleVenueFilter } = require('./visibility');
 const { issuedOf, reserveSharedSlot, releaseSharedSlot } = require('./voucherStock');
@@ -21,9 +21,10 @@ const hasStockForMeetup = async (voucher) => {
 
 /**
  * Ưu đãi hẹn cafe đang chạy của từng quán (mới nhất, còn hạn, còn đủ lượt cho 2 người).
+ * Có scheduledAt thì ưu đãi phải dùng được vào đúng giờ hẹn đó (còn hạn, đúng ngày và giờ áp dụng).
  * @returns Map<venueId string, Voucher>
  */
-const findMeetupRewards = async (venueIds) => {
+const findMeetupRewards = async (venueIds, scheduledAt = null) => {
   if (!venueIds.length) return new Map();
   const visibleIds = await Venue.find(await visibleVenueFilter({ _id: { $in: venueIds } })).distinct('_id');
   const vouchers = await Voucher.find({
@@ -33,10 +34,14 @@ const findMeetupRewards = async (venueIds) => {
     validUntil: { $gte: new Date() },
   }).sort({ createdAt: -1 });
 
+  const meetupTime = scheduledAt ? new Date(scheduledAt).getTime() : null;
+  const usableAtMeetup = (voucher) =>
+    meetupTime === null || (meetupTime <= voucher.validUntil.getTime() && isWithinSchedule(voucher, meetupTime));
+
   const rewards = new Map();
   for (const voucher of vouchers) {
     const key = String(voucher.venueId);
-    if (!rewards.has(key) && (await hasStockForMeetup(voucher))) rewards.set(key, voucher);
+    if (!rewards.has(key) && usableAtMeetup(voucher) && (await hasStockForMeetup(voucher))) rewards.set(key, voucher);
   }
   return rewards;
 };

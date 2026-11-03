@@ -38,6 +38,8 @@ const messageSchema = new mongoose.Schema(
       status: { type: String },
       // Tên ưu đãi hẹn cafe của quán (lúc mời: ưu đãi sẽ nhận; khi chốt: ưu đãi đã vào ví)
       rewardTitle: { type: String },
+      // Lý do buổi hẹn không có ưu đãi dù quán đang có (VD: cùng 2 bạn vừa nhận trong 7 ngày qua)
+      rewardNote: { type: String },
     },
     // Thẻ gợi ý quán (type = 'venue'): lưu bản chụp thông tin quán lúc gửi
     venue: {

@@ -12,6 +12,26 @@ export const getDiscountType = (v) => {
   return 'gift';
 };
 
+export const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+export const DAY_LABELS = { 0: 'CN', 1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7' };
+
+// Ngày và giờ áp dụng, VD: 'T2–T6, 14:00–17:00'. Không giới hạn thì trả về chuỗi rỗng.
+const describeSchedule = (v) => {
+  const days = DAY_ORDER.filter((d) => (v.applyDays || []).includes(d));
+  // Gom các ngày liền nhau: T2, T3, T4 → T2–T4
+  const groups = [];
+  days.forEach((day) => {
+    const last = groups[groups.length - 1];
+    if (last && DAY_ORDER.indexOf(last[last.length - 1]) === DAY_ORDER.indexOf(day) - 1) last.push(day);
+    else groups.push([day]);
+  });
+  const dayText = groups
+    .map((g) => (g.length > 2 ? `${DAY_LABELS[g[0]]}–${DAY_LABELS[g[g.length - 1]]}` : g.map((d) => DAY_LABELS[d]).join(', ')))
+    .join(', ');
+  const timeText = v.applyFrom && v.applyTo ? `${v.applyFrom}–${v.applyTo}` : '';
+  return [dayText, timeText].filter(Boolean).join(', ');
+};
+
 export const describeVoucher = (v = {}) => {
   const type = getDiscountType(v);
   let discountLabel;
@@ -28,11 +48,13 @@ export const describeVoucher = (v = {}) => {
     discountShort = 'Quà tặng';
   }
   const minBill = Number(v.minBill) || 0;
+  const billLabel = minBill > 0 ? `Hoá đơn từ ${formatVnd(minBill)}` : 'Không yêu cầu hoá đơn tối thiểu';
+  const scheduleLabel = describeSchedule(v);
   return {
     discountType: type,
     discountLabel: v.discountLabel || discountLabel,
     discountShort: v.discountShort || discountShort,
-    conditionLabel: v.conditionLabel || (minBill > 0 ? `Hoá đơn từ ${formatVnd(minBill)}` : 'Không yêu cầu hoá đơn tối thiểu'),
+    conditionLabel: v.conditionLabel || (scheduleLabel ? `${billLabel} · Chỉ dùng ${scheduleLabel}` : billLabel),
   };
 };
 

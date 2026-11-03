@@ -18,16 +18,19 @@ const {
   revokeMeetupVouchers,
   toRewardSummary,
 } = require('../utils/meetupRewards');
-const { FREE_INVITES_PER_WEEK, INVITE_WINDOW_DAYS, MEETUP_COMPLETE_COIN, GROUP_MEETUP_MAX_PEOPLE } = require('../config/meetup');
+const {
+  FREE_INVITES_PER_WEEK,
+  INVITE_WINDOW_DAYS,
+  MEETUP_COMPLETE_COIN,
+  GROUP_MEETUP_MAX_PEOPLE,
+  REWARD_REPEAT_DAYS,
+} = require('../config/meetup');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Ưu đãi hẹn cafe dùng được cho buổi hẹn: quán đang có ưu đãi còn lượt, và còn hạn tới giờ hẹn */
-const findRewardFor = async (venueId, scheduledAt) => {
-  const reward = (await findMeetupRewards([venueId])).get(String(venueId)) || null;
-  if (reward && scheduledAt && new Date(scheduledAt) > reward.validUntil) return null;
-  return reward;
-};
+/** Ưu đãi hẹn cafe dùng được cho buổi hẹn: quán đang có ưu đãi còn lượt, còn hạn và đúng ngày giờ áp dụng tại giờ hẹn */
+const findRewardFor = async (venueId, scheduledAt) =>
+  (await findMeetupRewards([venueId], scheduledAt)).get(String(venueId)) || null;
 
 /**
  * Mỗi người chỉ giữ 1 buổi đã chốt có ưu đãi tại một quán: ví chỉ có 1 voucher cho mỗi ưu đãi,
@@ -48,6 +51,39 @@ const assertNoRewardClash = async (venueId, userIds, { excludeId = null, who = '
       'MEETUP_VENUE_CLASH'
     );
   }
+};
+
+const REPEAT_NOTE = `Các bạn đã nhận ưu đãi của quán này trong ${REWARD_REPEAT_DAYS} ngày qua nên buổi này không có voucher. Hẹn cùng bạn mới hoặc quay lại sau nhé.`;
+
+/** Điều kiện tìm các buổi hẹn gần đây đã phát ưu đãi (đã huỷ / không diễn ra thì ưu đãi bị thu hồi, không tính) */
+const recentRewardFilter = () => ({
+  status: { $in: ['accepted', 'completed'] },
+  rewardVoucherId: { $ne: null },
+  respondedAt: { $gte: new Date(Date.now() - REWARD_REPEAT_DAYS * DAY_MS) },
+});
+
+/**
+ * Cùng những người này đã nhận ưu đãi của quán trong REWARD_REPEAT_DAYS ngày qua chưa (tính chung hẹn 2 người và hẹn nhóm).
+ * Có thêm người mới so với buổi trước thì không tính là lặp lại. Không chặn đi cùng nhau, chỉ không tặng ưu đãi nữa.
+ */
+const hasRecentReward = async (venueId, people, excludeId = null) => {
+  if (REWARD_REPEAT_DAYS <= 0 || people.length < 2) return false;
+  return Boolean(
+    await Meetup.exists({
+      ...recentRewardFilter(),
+      venueId,
+      ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+      $or: [
+        { participants: { $all: people } },
+        ...(people.length === 2
+          ? [
+              { proposedBy: people[0], invitee: people[1] },
+              { proposedBy: people[1], invitee: people[0] },
+            ]
+          : []),
+      ],
+    })
+  );
 };
 
 /** Giờ hẹn gửi lên (không bắt buộc) → Date hoặc null */
@@ -139,8 +175,10 @@ const createMeetup = catchAsync(async (req, res) => {
 
   const scheduledAt = parseScheduledAt(req.body.scheduledAt);
 
-  const reward = await findRewardFor(venue._id, scheduledAt);
-  if (reward) await assertNoRewardClash(venue._id, [me, buddyId]);
+  const venueReward = await findRewardFor(venue._id, scheduledAt);
+  if (venueReward) await assertNoRewardClash(venue._id, [me, buddyId]);
+  const repeated = Boolean(venueReward) && (await hasRecentReward(venue._id, [me, buddyId]));
+  const reward = repeated ? null : venueReward;
 
   // Lời mời cũ chưa ai trả lời trong hội thoại này sẽ được thay bằng lời mời mới.
   // Lời mời cũ của chính mình bị huỷ thì được trả lượt, nên đổi quán không tốn thêm lượt.
@@ -178,6 +216,7 @@ const createMeetup = catchAsync(async (req, res) => {
       scheduledAt,
       status: 'proposed',
       rewardTitle: reward?.title || null,
+      rewardNote: repeated ? REPEAT_NOTE : null,
     },
   });
   meetup.messageId = message._id;
@@ -194,6 +233,24 @@ const createMeetup = catchAsync(async (req, res) => {
     message: 'Đã gửi lời mời đi cafe!',
     data: { meetup, message: populated, reward: toRewardSummary(reward), quota: await getQuotaFor(req.user) },
   });
+});
+
+// GET /api/meetups/recent-rewards?matchId= — những quán mà 2 bạn đã nhận ưu đãi gần đây, để khung chọn quán báo trước
+const getRecentRewards = catchAsync(async (req, res) => {
+  const { buddyId } = await findMatchFor(req.query.matchId, req.user._id);
+  const me = req.user._id;
+  const venueIds =
+    REWARD_REPEAT_DAYS > 0
+      ? await Meetup.find({
+          ...recentRewardFilter(),
+          $or: [
+            { proposedBy: me, invitee: buddyId },
+            { proposedBy: buddyId, invitee: me },
+            { participants: { $all: [me, buddyId] } },
+          ],
+        }).distinct('venueId')
+      : [];
+  res.status(200).json({ success: true, data: { venueIds, days: REWARD_REPEAT_DAYS } });
 });
 
 // POST /api/meetups/group — { groupId, venueId, scheduledAt? }: rủ cả nhóm, ai muốn đi thì bấm Tham gia
@@ -276,15 +333,19 @@ const joinMeetup = catchAsync(async (req, res) => {
 
   // Chưa ai có voucher thì tìm ưu đãi của quán; đã có thì bạn tham gia sau nhận đúng ưu đãi của buổi này
   const isFirstGrant = !existing.rewardVoucherId;
-  const reward = isFirstGrant
+  const people = [...existing.participants, me];
+  const venueReward = isFirstGrant
     ? await findRewardFor(existing.venueId, existing.scheduledAt)
     : await findRunningReward(existing.rewardVoucherId);
-  if (reward) {
-    await assertNoRewardClash(existing.venueId, isFirstGrant ? [...existing.participants, me] : [me], {
+  if (venueReward) {
+    await assertNoRewardClash(existing.venueId, isFirstGrant ? people : [me], {
       excludeId: existing._id,
       who: isFirstGrant ? 'Bạn hoặc người rủ' : 'Bạn',
     });
   }
+  // Chưa có ai nhận ưu đãi của buổi này mà vẫn là những người vừa nhận gần đây thì chưa tặng; có thêm bạn mới tham gia thì tặng cho cả buổi
+  const repeated = isFirstGrant && Boolean(venueReward) && (await hasRecentReward(existing.venueId, people, existing._id));
+  const reward = repeated ? null : venueReward;
 
   // Cập nhật có điều kiện: bấm 2 lần không tham gia 2 lần, nhiều người bấm cùng lúc không vượt số người tối đa
   const meetup = await Meetup.findOneAndUpdate(
@@ -313,7 +374,7 @@ const joinMeetup = catchAsync(async (req, res) => {
   const message = await syncMeetupMessage(req, meetup, {
     status: meetup.status,
     participants: await toCardParticipants(meetup.participants),
-    ...(isFirstGrant ? { rewardTitle: rewardGranted > 0 ? reward.title : null } : {}),
+    ...(isFirstGrant ? { rewardTitle: rewardGranted > 0 ? reward.title : null, rewardNote: repeated ? REPEAT_NOTE : null } : {}),
   });
 
   res.status(200).json({
@@ -321,26 +382,30 @@ const joinMeetup = catchAsync(async (req, res) => {
     message:
       rewardGranted > 0
         ? `Đã tham gia! Ưu đãi "${reward.title}" đã vào ví voucher của bạn.`
-        : isFirstGrant
-          ? 'Đã tham gia buổi hẹn!'
-          : 'Đã tham gia buổi hẹn! Ưu đãi của quán vừa hết nên bạn không nhận được voucher.',
+        : repeated
+          ? `Đã tham gia buổi hẹn! ${REPEAT_NOTE}`
+          : isFirstGrant
+            ? 'Đã tham gia buổi hẹn!'
+            : 'Đã tham gia buổi hẹn! Ưu đãi của quán vừa hết nên bạn không nhận được voucher.',
     data: { meetup, message, rewardGranted },
   });
 });
 
-// POST /api/meetups/:id/leave — bạn đã tham gia đổi ý: thu voucher của mình. Người rủ thì dùng huỷ buổi hẹn.
-const leaveMeetup = catchAsync(async (req, res) => {
-  const me = req.user._id;
+/**
+ * Một bạn rời buổi hẹn nhóm: thu voucher của bạn đó, lượt vừa trả ưu tiên cho bạn đang tham gia mà chưa có voucher.
+ * Chỉ còn người rủ thì chưa đủ 2 người: quay về chờ, voucher của người rủ cũng được thu lại.
+ * @returns { meetup, message } hoặc null nếu bạn đó không thể rời buổi này
+ */
+const leaveGroupMeetup = async (req, meetupId, userId) => {
   const left = await Meetup.findOneAndUpdate(
-    { _id: req.params.id, groupId: { $ne: null }, status: 'accepted', proposedBy: { $ne: me }, participants: me },
-    { $pull: { participants: me } },
+    { _id: meetupId, groupId: { $ne: null }, status: 'accepted', proposedBy: { $ne: userId }, participants: userId },
+    { $pull: { participants: userId } },
     { returnDocument: 'after' }
   ).catch(() => null);
-  if (!left) throw new ApiError(400, 'Bạn không thể rời buổi hẹn này');
+  if (!left) return null;
 
-  await revokeMeetupVouchers(left._id, me);
+  await revokeMeetupVouchers(left._id, userId);
 
-  // Chỉ còn người rủ thì chưa đủ 2 người: quay về chờ, voucher của người rủ cũng được thu lại
   const reopened =
     left.participants.length < 2
       ? await Meetup.findOneAndUpdate(
@@ -352,19 +417,65 @@ const leaveMeetup = catchAsync(async (req, res) => {
   if (reopened) await revokeMeetupVouchers(reopened._id);
   const meetup = reopened || left;
 
+  // Bạn vừa rời là người mới duy nhất: những bạn còn lại vừa nhận ưu đãi của quán này nên không giữ ưu đãi của buổi này nữa
+  const repeated =
+    !reopened && Boolean(left.rewardVoucherId) && (await hasRecentReward(left.venueId, left.participants, left._id));
+  if (repeated) {
+    await revokeMeetupVouchers(left._id);
+    left.rewardVoucherId = null;
+    await left.save();
+  } else if (!reopened && left.rewardVoucherId) {
+    const running = await findRunningReward(left.rewardVoucherId);
+    const holders = (await UserVoucher.find({ meetupId: left._id }).distinct('userId')).map(String);
+    for (const participant of left.participants) {
+      if (running && !holders.includes(String(participant))) await grantMeetupVoucher(running, participant, left._id);
+    }
+  }
+
   const reward = reopened ? await findRewardFor(meetup.venueId, meetup.scheduledAt) : null;
   const message = await syncMeetupMessage(req, meetup, {
     status: meetup.status,
     participants: await toCardParticipants(meetup.participants),
-    ...(reopened ? { rewardTitle: reward?.title || null } : {}),
+    ...(reopened ? { rewardTitle: reward?.title || null, rewardNote: null } : {}),
+    ...(repeated ? { rewardTitle: null, rewardNote: REPEAT_NOTE } : {}),
   });
+  return { meetup, message };
+};
+
+// POST /api/meetups/:id/leave — bạn đã tham gia đổi ý: thu voucher của mình. Người rủ thì dùng huỷ buổi hẹn.
+const leaveMeetup = catchAsync(async (req, res) => {
+  const result = await leaveGroupMeetup(req, req.params.id, req.user._id);
+  if (!result) throw new ApiError(400, 'Bạn không thể rời buổi hẹn này');
 
   res.status(200).json({
     success: true,
     message: 'Bạn đã rời buổi hẹn. Ưu đãi chưa dùng của bạn đã được thu hồi.',
-    data: { meetup, message },
+    data: result,
   });
 });
+
+/**
+ * Thành viên rời chat nhóm thì cũng rời các buổi hẹn còn mở của nhóm (không còn thấy thẻ để tự rời / huỷ).
+ * Người rủ rời nhóm thì buổi hẹn bị huỷ.
+ */
+const onGroupMemberLeft = async (req, groupId, userId) => {
+  const open = await Meetup.find({ groupId, status: { $in: ['proposed', 'accepted'] }, participants: userId });
+  for (const meetup of open) {
+    if (String(meetup.proposedBy) !== String(userId)) {
+      await leaveGroupMeetup(req, meetup._id, userId);
+    } else {
+      const cancelled = await Meetup.findOneAndUpdate(
+        { _id: meetup._id, status: meetup.status },
+        { status: 'cancelled' },
+        { returnDocument: 'after' }
+      );
+      if (cancelled) {
+        await revokeMeetupVouchers(cancelled._id);
+        await syncMeetupMessage(req, cancelled, { status: 'cancelled' });
+      }
+    }
+  }
+};
 
 // POST /api/meetups/:id/respond — { action: 'accept' | 'decline' }
 const respondMeetup = catchAsync(async (req, res) => {
@@ -376,8 +487,10 @@ const respondMeetup = catchAsync(async (req, res) => {
   if (!existing) throw new ApiError(404, 'Không tìm thấy lời mời');
   if (String(existing.invitee) !== String(req.user._id)) throw new ApiError(403, 'Chỉ người được mời mới trả lời được');
 
-  const reward = accept && existing.status === 'proposed' ? await findRewardFor(existing.venueId, existing.scheduledAt) : null;
-  if (reward) await assertNoRewardClash(existing.venueId, [existing.proposedBy, existing.invitee]);
+  const venueReward = accept && existing.status === 'proposed' ? await findRewardFor(existing.venueId, existing.scheduledAt) : null;
+  if (venueReward) await assertNoRewardClash(existing.venueId, [existing.proposedBy, existing.invitee]);
+  const repeated = Boolean(venueReward) && (await hasRecentReward(existing.venueId, [existing.proposedBy, existing.invitee], existing._id));
+  const reward = repeated ? null : venueReward;
 
   // Cập nhật có điều kiện: chỉ khi lời mời còn chờ (bấm 2 lần không cấp voucher 2 lần)
   const meetup = await Meetup.findOneAndUpdate(
@@ -398,7 +511,7 @@ const respondMeetup = catchAsync(async (req, res) => {
 
   const message = await syncMeetupMessage(req, meetup, {
     status: meetup.status,
-    ...(accept ? { rewardTitle } : {}),
+    ...(accept ? { rewardTitle, rewardNote: repeated ? REPEAT_NOTE : null } : {}),
   });
 
   res.status(200).json({
@@ -406,7 +519,9 @@ const respondMeetup = catchAsync(async (req, res) => {
     message: accept
       ? rewardGranted > 0
         ? `Đã chốt hẹn! Ưu đãi "${rewardTitle}" đã vào ví voucher của cả hai.`
-        : 'Đã chốt hẹn!'
+        : repeated
+          ? `Đã chốt hẹn! ${REPEAT_NOTE}`
+          : 'Đã chốt hẹn!'
       : 'Đã từ chối lời mời',
     data: { meetup, message, rewardGranted },
   });
@@ -527,9 +642,11 @@ const onVenueCheckin = async (req, userId, venueId) => {
 module.exports = {
   getQuota,
   createMeetup,
+  getRecentRewards,
   createGroupMeetup,
   joinMeetup,
   leaveMeetup,
+  onGroupMemberLeft,
   respondMeetup,
   cancelMeetup,
   onMeetupVoucherRedeemed,

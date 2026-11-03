@@ -49,6 +49,7 @@ export default function SelectPlaceScreen() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [timePreset, setTimePreset] = useState('none');
   const [quota, setQuota] = useState(null);
+  const [recentVenueIds, setRecentVenueIds] = useState([]);
   const [sendingId, setSendingId] = useState(null);
   const { venues, loading } = useVenues();
 
@@ -60,6 +61,10 @@ export default function SelectPlaceScreen() {
   useEffect(() => {
     if (!matchId && !groupId) return;
     meetupApi.getQuota().then((res) => setQuota(res.data?.data || null)).catch(() => {});
+    // Báo trước quán mà 2 bạn vừa nhận ưu đãi. Lỗi thì bỏ qua: backend vẫn kiểm tra khi gửi lời mời
+    if (matchId) {
+      meetupApi.getRecentRewards(matchId).then((res) => setRecentVenueIds(res.data?.data?.venueIds || [])).catch(() => {});
+    }
   }, [matchId, groupId]);
 
   const presets = TIME_PRESETS.filter((p) => p.id !== 'tonight' || new Date().getHours() < 19);
@@ -199,7 +204,11 @@ export default function SelectPlaceScreen() {
               <View style={styles.voucherPill}>
                 <Ionicons name={item.meetupReward ? 'gift' : 'pricetag'} size={13} color={COLORS.white} />
                 <Text style={styles.voucherPillText}>
-                  {item.meetupReward ? `Hẹn ở đây, ${groupId ? 'mỗi bạn' : 'cả hai'} nhận: ${item.meetupReward.title}` : item.voucherBadge}
+                  {item.meetupReward
+                    ? recentVenueIds.includes(item.id)
+                      ? 'Hai bạn vừa nhận ưu đãi của quán này, hẹn lại sẽ không có voucher'
+                      : `Hẹn ở đây, ${groupId ? 'mỗi bạn' : 'cả hai'} nhận: ${item.meetupReward.title}`
+                    : item.voucherBadge}
                 </Text>
               </View>
               {item.isFeatured && (

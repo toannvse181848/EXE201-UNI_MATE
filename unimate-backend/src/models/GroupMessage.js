@@ -33,6 +33,8 @@ const groupMessageSchema = new mongoose.Schema(
       scheduledAt: { type: Date },
       status: { type: String },
       rewardTitle: { type: String },
+      // Lý do buổi hẹn chưa có ưu đãi dù quán đang có (VD: cùng những bạn này vừa nhận trong 7 ngày qua)
+      rewardNote: { type: String },
       maxPeople: { type: Number },
       participants: [
         {
