@@ -24,6 +24,7 @@ const { isPremiumActive } = require('../utils/subscription');
 const { onMeetupVoucherRedeemed } = require('./meetupController');
 const {
   DISCOUNT_TYPES,
+  getDiscountType,
   describeSchedule,
   isWithinSchedule,
   describeVoucherValue,
@@ -968,6 +969,134 @@ const findManagedVoucher = async (req) => {
   return voucher;
 };
 
+const LOCKED_AFTER_CLAIM = 'Đã có sinh viên nhận voucher này nên không đổi được';
+
+/**
+ * PUT /api/vouchers/:id — quán sửa voucher. Không đổi được mã, loại voucher, cách phát mã.
+ * Đã có sinh viên nhận: chỉ được sửa tên, ghi chú, gia hạn, tăng số lượng, bật chỉ quét QR.
+ * Các ô còn lại (mức giảm, hoá đơn tối thiểu, giá coin, ngày giờ áp dụng, chi nhánh) ảnh hưởng tới quyền lợi người đã nhận nên bị khoá.
+ */
+const updateVoucher = catchAsync(async (req, res) => {
+  const voucher = await findManagedVoucher(req);
+  const [{ hasRecipients }] = await annotateVouchers([voucher]);
+  const { body } = req;
+  const changes = {};
+
+  const lockedChange = (current, next, label) => {
+    const changed = JSON.stringify(current ?? null) !== JSON.stringify(next ?? null);
+    if (changed && hasRecipients) throw new ApiError(400, `${LOCKED_AFTER_CLAIM} ${label}`);
+    return changed;
+  };
+
+  if (body.title !== undefined) {
+    const title = String(body.title).trim();
+    if (!title) throw new ApiError(400, 'Vui lòng nhập tên chương trình voucher');
+    if (title.length > 100) throw new ApiError(400, 'Tên chương trình tối đa 100 ký tự');
+    changes.title = title;
+  }
+  if (body.description !== undefined) changes.description = String(body.description || '').trim().slice(0, 500);
+
+  if (['discountType', 'discountPercent', 'discountAmount', 'maxDiscount', 'giftItem'].some((f) => body[f] !== undefined)) {
+    const pick = (v) => ({
+      discountType: v.discountType,
+      discountPercent: v.discountPercent,
+      discountAmount: v.discountAmount,
+      maxDiscount: v.maxDiscount,
+      giftItem: v.giftItem,
+    });
+    const current = { ...pick(voucher), discountType: getDiscountType(voucher) };
+    const defined = Object.fromEntries(Object.entries(pick(body)).filter(([, value]) => value !== undefined));
+    const next = buildDiscountFields({ ...current, ...defined });
+    if (lockedChange(pick({ ...current, giftItem: current.giftItem || '' }), pick(next), 'mức ưu đãi')) Object.assign(changes, next);
+  }
+
+  if (body.minBill !== undefined) {
+    const minBill = toInt(body.minBill) || 0;
+    if (minBill < 0) throw new ApiError(400, 'Hoá đơn tối thiểu không hợp lệ');
+    if (lockedChange(voucher.minBill || 0, minBill, 'hoá đơn tối thiểu')) changes.minBill = minBill;
+  }
+
+  const coinCost = voucher.meetupReward
+    ? 0
+    : body.coinCost !== undefined
+      ? Math.max(0, toInt(body.coinCost) || 0)
+      : voucher.coinCost || 0;
+  if (lockedChange(voucher.coinCost || 0, coinCost, 'giá UniCoin')) changes.coinCost = coinCost;
+
+  if (body.applyDays !== undefined || body.applyFrom !== undefined || body.applyTo !== undefined) {
+    const next = buildScheduleFields({
+      applyDays: body.applyDays ?? voucher.applyDays,
+      applyFrom: body.applyFrom ?? voucher.applyFrom,
+      applyTo: body.applyTo ?? voucher.applyTo,
+    });
+    const current = { applyDays: [...voucher.applyDays], applyFrom: voucher.applyFrom || null, applyTo: voucher.applyTo || null };
+    if (lockedChange(current, next, 'ngày và giờ áp dụng')) Object.assign(changes, next);
+  }
+
+  if (body.venueId !== undefined && String(body.venueId) !== String(voucher.venueId)) {
+    if (hasRecipients) throw new ApiError(400, `${LOCKED_AFTER_CLAIM} chi nhánh`);
+    const venue = await Venue.findById(body.venueId).catch(() => null);
+    if (!venue || String(venue.partnerId) !== String(voucher.partnerId)) throw new ApiError(403, 'Bạn không sở hữu địa điểm này');
+    changes.venueId = venue._id;
+  }
+
+  if (body.validUntil !== undefined) {
+    const validUntil = new Date(body.validUntil);
+    if (Number.isNaN(validUntil.getTime())) throw new ApiError(400, 'Hạn sử dụng không hợp lệ');
+    if (validUntil.getTime() !== new Date(voucher.validUntil).getTime()) {
+      if (validUntil.getTime() < Date.now()) throw new ApiError(400, 'Hạn sử dụng phải từ hôm nay trở đi');
+      if (hasRecipients && validUntil < voucher.validUntil) throw new ApiError(400, `${LOCKED_AFTER_CLAIM} hạn sử dụng ngắn hơn, chỉ được gia hạn`);
+      changes.validUntil = validUntil;
+    }
+  }
+
+  const isUnique = voucher.codeType === 'unique';
+  if (!isUnique && (body.quantity !== undefined || body.isUnlimited !== undefined)) {
+    const isUnlimited = body.isUnlimited !== undefined ? Boolean(body.isUnlimited) : voucher.isUnlimited;
+    const quantity = isUnlimited ? 0 : toInt(body.quantity ?? voucher.quantity);
+    if (!isUnlimited && !(quantity >= 1)) throw new ApiError(400, 'Số lượng phát hành phải từ 1 trở lên');
+    if (voucher.meetupReward && !isUnlimited && quantity < 2) {
+      throw new ApiError(400, 'Ưu đãi hẹn cafe cần ít nhất 2 lượt: mỗi buổi hẹn tặng cho 2 bạn');
+    }
+    if (hasRecipients && !isUnlimited && (voucher.isUnlimited || quantity < voucher.quantity)) {
+      throw new ApiError(400, `${LOCKED_AFTER_CLAIM} số lượng ít hơn, chỉ được tăng`);
+    }
+    changes.isUnlimited = isUnlimited;
+    changes.quantity = quantity;
+  }
+
+  // Cùng luật với lúc tạo: hẹn cafe, Premium, voucher có giá coin luôn chỉ quét QR
+  const walletOnly =
+    !isUnique &&
+    (Boolean(body.walletOnly ?? voucher.walletOnly) || voucher.meetupReward || voucher.premiumOnly || coinCost > 0);
+  if (hasRecipients && voucher.walletOnly && !walletOnly) {
+    throw new ApiError(400, `${LOCKED_AFTER_CLAIM} để cho gõ mã chung`);
+  }
+  changes.walletOnly = walletOnly;
+
+  Object.assign(voucher, changes);
+  await voucher.save();
+  res.status(200).json({ success: true, message: 'Đã cập nhật voucher', data: withVoucherLabels(voucher) });
+});
+
+/** DELETE /api/vouchers/:id — chỉ xoá được voucher chưa có ai nhận; đã có người nhận thì tạm dừng để giữ lịch sử đối soát */
+const deleteVoucher = catchAsync(async (req, res) => {
+  const voucher = await findManagedVoucher(req);
+  const [{ hasRecipients }] = await annotateVouchers([voucher]);
+  const refuse = () => new ApiError(400, 'Đã có sinh viên nhận voucher này nên không xoá được. Bấm Tạm dừng để ngừng phát.');
+  if (hasRecipients) throw refuse();
+
+  // Có điều kiện để sinh viên vừa nhận đúng lúc này thì không bị xoá mất voucher
+  if (voucher.codeType === 'unique') {
+    await VoucherCode.deleteMany({ voucherId: voucher._id, userId: null });
+    if (await VoucherCode.exists({ voucherId: voucher._id })) throw refuse();
+  }
+  const removed = await Voucher.findOneAndDelete({ _id: voucher._id, issuedCount: { $in: [0, null] } });
+  if (!removed) throw refuse();
+
+  res.status(200).json({ success: true, message: 'Đã xoá voucher' });
+});
+
 /** Lấy danh sách mã từ body.codes (mảng hoặc chuỗi nhiều dòng) hoặc cột đầu tiên của file Excel/CSV */
 const readCodeList = (req) => {
   let raw = [];
@@ -1065,6 +1194,8 @@ const getVoucherCodes = catchAsync(async (req, res) => {
 module.exports = {
   addVoucherCodes,
   getVoucherCodes,
+  updateVoucher,
+  deleteVoucher,
   getPublicVouchers,
   claimVoucher,
   getMyWallet,

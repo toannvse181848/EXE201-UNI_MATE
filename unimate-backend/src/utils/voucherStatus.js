@@ -103,6 +103,10 @@ const annotateVouchers = async (vouchers) => {
       // Lượt dùng tại quầy theo cách áp: quét ví (có tên sinh viên) / nhập mã chung (không biết ai)
       redeemedByQr: used.qr || 0,
       redeemedByCode: used.code || 0,
+      // Đã có sinh viên nhận hoặc dùng: quán không xoá được và không đổi được các ô ảnh hưởng tới quyền lợi của họ
+      hasRecipients: Boolean(
+        issuedOf(v) > 0 || claimMap.get(key) || assignedMap.get(key) || used.qr || used.code
+      ),
       freeCodes: v.codeType === 'unique' ? freeMap.get(key) || 0 : null,
       // Mã chung: số lượt còn phát được (null = không giới hạn / mã riêng)
       remainingCount: v.codeType === 'unique' || v.isUnlimited ? null : Math.max(0, v.quantity - issuedOf(v)),

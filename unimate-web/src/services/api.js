@@ -191,6 +191,14 @@ export const voucherApi = {
     const res = await client.patch(`/api/vouchers/${id}/toggle`);
     return res.data;
   },
+  updateVoucher: async (id, data) => {
+    const res = await client.put(`/api/vouchers/${id}`, data);
+    return res.data;
+  },
+  deleteVoucher: async (id) => {
+    const res = await client.delete(`/api/vouchers/${id}`);
+    return res.data;
+  },
   getAllVouchersAdmin: async () => {
     const res = await client.get('/api/vouchers/admin/all');
     return res.data;

@@ -16,6 +16,8 @@ const {
   importVouchersSpreadsheet,
   addVoucherCodes,
   getVoucherCodes,
+  updateVoucher,
+  deleteVoucher,
 } = require('../controllers/voucherController');
 const { protect, authorize } = require('../middlewares/auth');
 const uploadSpreadsheet = require('../middlewares/uploadSpreadsheet');
@@ -46,6 +48,8 @@ router.post(
 );
 router.post('/', authorize('partner'), createVoucher);
 router.patch('/:id/toggle', authorize('partner', 'admin'), toggleVoucherStatus);
+router.put('/:id', authorize('partner', 'admin'), updateVoucher);
+router.delete('/:id', authorize('partner', 'admin'), deleteVoucher);
 
 // Voucher mã riêng: nạp danh sách mã (JSON { codes } hoặc file Excel/CSV, mã ở cột đầu) và xem tình trạng từng mã
 router.post('/:id/codes', authorize('partner', 'admin'), uploadSpreadsheet.single('file'), addVoucherCodes);

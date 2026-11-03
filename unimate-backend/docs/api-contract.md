@@ -419,6 +419,10 @@ Ngoài ngày giờ áp dụng thì `/verify` và `/redeem` trả `400` kèm `cod
 
 Tạo voucher (`POST /api/vouchers`) gửi thêm các field trên. Mã voucher và mã riêng không được trùng nhau, gồm 3–30 ký tự chữ không dấu, số, gạch ngang hoặc gạch dưới, không bắt đầu bằng `UVM-`. File Excel nhập voucher có thêm cột **Loại mã** (Chung / Riêng), **Giá UniCoin**, và cột Số lượng nhận chữ **Không giới hạn**. Tải lại file mẫu để có cột mới. Khi nhập file, dòng sai mã, sai mức giảm, sai số lượng hoặc hết hạn bị bỏ qua và trả lý do trong `skipped`; voucher mới mặc định `walletOnly: true`; chế độ `update` giữ nguyên loại mã và quán của voucher đang chạy.
 
+Sửa và xoá voucher (partner chủ voucher hoặc admin). Danh sách voucher trả thêm `hasRecipients`: `true` là đã có sinh viên nhận hoặc dùng.
+- `PUT /api/vouchers/:id` — không đổi được mã, loại voucher, cách phát mã. Khi `hasRecipients` là `true`, chỉ được sửa tên, ghi chú, gia hạn, tăng số lượng, bật `walletOnly`; đổi các ô khác trả `400`.
+- `DELETE /api/vouchers/:id` — chỉ xoá được khi `hasRecipients` là `false`, xoá luôn các mã riêng đã nạp. Đã có người nhận thì trả `400`, dùng tạm dừng để giữ lịch sử.
+
 Voucher mã riêng:
 - `POST /api/vouchers/:id/codes` — nạp danh sách mã: JSON `{ "codes": ["BT-001", "BT-002"] }` (hoặc chuỗi mỗi mã một dòng), hoặc form-data `file` là Excel/CSV có mã ở cột đầu tiên. Chỉ nhận voucher loại mã riêng. Mã trùng nằm trong `skippedExisting`, mã sai định dạng nằm trong `skippedInvalid`.
 - `GET /api/vouchers/:id/codes` — tình trạng từng mã: `available` / `assigned` / `used`, kèm tên sinh viên.

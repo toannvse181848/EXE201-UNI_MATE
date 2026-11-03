@@ -10,6 +10,7 @@ import {
 import { voucherApi, venueApi } from '../../services/api';
 import ImportVoucherModal from '../../components/partner/ImportVoucherModal';
 import CreateVoucherModal from '../../components/partner/CreateVoucherModal';
+import VoucherDetailModal from '../../components/partner/VoucherDetailModal';
 import { describeVoucher } from '../../utils/voucher';
 import VoucherStatusBadge from '../../components/VoucherStatusBadge';
 import { notify } from '../../utils/notify';
@@ -34,6 +35,9 @@ export default function VoucherManagement() {
   const [createKind, setCreateKind] = useState(() => (searchParams.get('create') === 'meetup' ? 'meetup' : 'normal'));
   const [showCreateModal, setShowCreateModal] = useState(() => Boolean(searchParams.get('create')));
   const [showImportModal, setShowImportModal] = useState(false);
+  // Voucher đang xem chi tiết / đang sửa (bản ghi nguyên gốc từ API)
+  const [detailVoucher, setDetailVoucher] = useState(null);
+  const [editingVoucher, setEditingVoucher] = useState(null);
 
 
   // Xoá ?create=1 khỏi địa chỉ để tải lại trang không tự mở form lần nữa
@@ -86,6 +90,7 @@ export default function VoucherManagement() {
         status: v.status || (v.isActive ? 'active' : 'paused'),
         statusLabel: v.statusLabel,
         isActive: Boolean(v.isActive),
+        raw: v,
       }));
       setVouchers(formatted);
     } catch (err) {
@@ -384,7 +389,24 @@ export default function VoucherManagement() {
                     <VoucherStatusBadge status={item.status} label={item.statusLabel} />
                   </td>
                   <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() => setDetailVoucher(item.raw)}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: '#FFFFFF',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Chi tiết
+                      </button>
                       {item.codeType === 'unique' && (
                         <button
                           type="button"
@@ -414,6 +436,7 @@ export default function VoucherManagement() {
                           backgroundColor: '#FFFFFF',
                           color: item.isActive ? '#DC2626' : '#059669',
                           cursor: 'pointer',
+                          whiteSpace: 'nowrap',
                         }}
                       >
                         {item.isActive ? 'Tạm dừng' : 'Bật chạy'}
@@ -449,6 +472,33 @@ export default function VoucherManagement() {
           onClose={() => setShowCreateModal(false)}
           venues={venues}
           initialKind={createKind}
+          onCreated={fetchVouchers}
+        />
+      )}
+
+      {/* Modal: Chi tiết voucher, từ đây sửa hoặc xoá */}
+      {detailVoucher && (
+        <VoucherDetailModal
+          voucher={detailVoucher}
+          onClose={() => setDetailVoucher(null)}
+          onEdit={() => {
+            setEditingVoucher(detailVoucher);
+            setDetailVoucher(null);
+          }}
+          onDeleted={() => {
+            setDetailVoucher(null);
+            fetchVouchers();
+          }}
+        />
+      )}
+
+      {/* Modal: Sửa voucher, dùng lại form tạo voucher */}
+      {editingVoucher && (
+        <CreateVoucherModal
+          open
+          voucher={editingVoucher}
+          onClose={() => setEditingVoucher(null)}
+          venues={venues}
           onCreated={fetchVouchers}
         />
       )}
