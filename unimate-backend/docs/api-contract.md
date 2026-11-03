@@ -265,11 +265,19 @@ Response `200`:
 }
 ```
 
-Lỗi: `400` voucher đã dùng / hết hạn / tạm ngưng / hết lượt · `403` voucher không thuộc quán của bạn · `404` mã không tồn tại
+Lỗi: `400` voucher đã dùng / hết hạn / tạm ngưng / hết lượt / buổi hẹn đã huỷ · `403` voucher không thuộc quán của bạn · `404` mã không tồn tại
 
 ### Áp dụng voucher
 
-`POST /api/vouchers/redeem` — partner/admin, body giống `/verify`. Sinh viên không tự gọi được. Mỗi lần thành công tạo một bản ghi lịch sử check-in.
+`POST /api/vouchers/redeem` — partner/admin, body giống `/verify`. Sinh viên không tự gọi được. Mỗi voucher áp dụng thành công tạo một bản ghi lịch sử check-in.
+
+Ưu đãi hẹn cafe (`/verify` trả `meetup.requiresCompanion: true`): phải có mặt từ 2 bạn trở lên, gửi thêm mã của các bạn đi cùng trong cùng một lần gọi:
+
+```json
+{ "qrPayload": "UVM-AAAA", "companions": [{ "qrPayload": "UVM-BBBB" }, { "code": "BT15-002" }] }
+```
+
+Mọi voucher cùng được dùng hoặc không voucher nào được dùng. Thiếu `companions` trả `400` kèm `code: "MEETUP_NEEDS_BOTH"`; có mã không phải của bạn đi cùng trong buổi hẹn đó trả `400`. Buổi hẹn nhóm đã được ghi nhận thì bạn đến muộn quét một mình được (`requiresCompanion: false`).
 
 ### Lịch sử check-in
 
@@ -279,7 +287,24 @@ Response `200`: `{ "success": true, "total": 12, "data": [ { "_id", "method", "c
 
 `GET /api/vouchers/partner/my-vouchers` và `GET /api/vouchers/admin/all` trả thêm `claimedCount` (số lượt sinh viên đã lưu vào ví).
 
-Response của `/verify` có thêm `assignedCode` (mã riêng của sinh viên, nếu là voucher mã riêng) và `fromMeetup` (`true` = ưu đãi hẹn cafe, quán quét đủ mã của cả hai bạn thì buổi hẹn mới được ghi nhận). Ưu đãi hẹn cafe không nhận mã chung gõ tay, phải dùng `UVM-...` hoặc mã riêng trong ví. `remainingCount` là `null` khi voucher không giới hạn lượt. Response của `/redeem` có thêm `coinAwarded`: số UniCoin sinh viên được thưởng (20, vẫn tính trong giới hạn 60/ngày).
+Response của `/verify` có thêm `assignedCode` (mã riêng của sinh viên, nếu là voucher mã riêng), `fromMeetup` (`true` = ưu đãi hẹn cafe) và `meetup` (`null` nếu không phải ưu đãi hẹn cafe, hoặc `{ "id", "status", "isGroup", "requiresCompanion", "companions": [{ "id", "fullName", "avatar", "studentId", "university" }] }`, `companions` là những bạn còn voucher chưa dùng). Ưu đãi hẹn cafe, voucher `premiumOnly` và voucher có `coinCost > 0` không nhận mã chung gõ tay, phải dùng `UVM-...` hoặc mã riêng trong ví. `remainingCount` là `null` khi voucher không giới hạn lượt.
+
+Response của `/redeem` có thêm:
+- `coinAwarded`: UniCoin sinh viên của mã đầu thực nhận (20 khi dùng voucher, thêm 30 nếu buổi hẹn hoàn tất, vẫn tính trong giới hạn 60/ngày).
+- `students`: `[{ "id", "fullName", "coinAwarded", "coinCapped" }]`, từng sinh viên vừa được áp dụng. `coinCapped: true` = bị cắt bớt vì giới hạn ngày. Mảng rỗng khi gõ mã chung.
+- `maxDailyEarn`: giới hạn UniCoin kiếm mỗi ngày (60).
+- `meetupCompleted`: `true` khi cả hai bạn đã dùng ưu đãi và buổi hẹn được ghi nhận.
+
+Buổi hẹn bị huỷ (huỷ hẹn, huỷ kết bạn, chặn) hoặc không diễn ra (`no_show`) thì voucher chưa dùng bị thu hồi khỏi ví và trả lại lượt / mã cho quán. `POST /api/meetups`, `POST /api/meetups/:id/respond` và các API nhóm bên dưới trả `400` kèm `code: "MEETUP_VENUE_CLASH"` khi người liên quan đang có buổi đã chốt có ưu đãi tại cùng quán.
+
+### Rủ cả nhóm đi cafe (sinh viên, thành viên nhóm)
+
+- `POST /api/meetups/group` — `{ "groupId", "venueId", "scheduledAt"? }`: tạo lời mời và thẻ `type: "meetup"` trong chat nhóm. Tính vào lượt mời của người rủ.
+- `POST /api/meetups/:id/join`: tham gia. Có từ 2 người là chốt hẹn (`accepted`), mỗi người tham gia nhận 1 voucher, tối đa 8 người mỗi buổi.
+- `POST /api/meetups/:id/leave`: bạn đã tham gia đổi ý, voucher của người đó bị thu hồi. Chỉ còn người rủ thì buổi hẹn quay về `proposed` và voucher của người rủ cũng bị thu hồi.
+- `POST /api/meetups/:id/cancel`: buổi hẹn nhóm chỉ người rủ huỷ được.
+
+Quán quét từ 2 mã trở lên trong cùng một lần `/redeem` thì buổi hẹn thành `completed`, chỉ người được quét mới được thưởng UniCoin. Bạn đến muộn quét riêng được trong 24 giờ, quá hạn voucher chưa dùng bị thu hồi.
 
 ---
 

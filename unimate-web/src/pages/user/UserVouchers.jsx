@@ -17,6 +17,8 @@ import {
 import { voucherApi } from '../../services/api';
 import { trackEvent } from '../../utils/analytics';
 
+const QR_STATUS_POLL_MS = 4000;
+
 export default function UserVouchers() {
   const navigate = useNavigate();
   const { user, reloadUser } = useAuth();
@@ -33,6 +35,8 @@ export default function UserVouchers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [claimingId, setClaimingId] = useState(null);
+  // Quán vừa áp dụng voucher đang mở QR: báo kết quả và UniCoin vừa nhận
+  const [redeemNotice, setRedeemNotice] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -57,7 +61,45 @@ export default function UserVouchers() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  // Số dư UniCoin lưu trong trình duyệt từ lúc đăng nhập: tải lại để thấy coin vừa được thưởng khi dùng voucher tại quán.
+  // reloadUser được tạo lại mỗi lần AuthProvider render nên không đưa vào deps
+  useEffect(() => {
+    fetchData();
+    reloadUser?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Đang mở QR ở quầy: hỏi lại server để biết thu ngân đã áp dụng chưa
+  const openQrId = selectedVoucher?.id;
+  useEffect(() => {
+    if (!openQrId) return undefined;
+    let coinBefore = null;
+    reloadUser?.().then((fresh) => { coinBefore = fresh?.uniCoin ?? null; });
+
+    const timer = setInterval(async () => {
+      try {
+        const res = await voucherApi.getMyWallet();
+        const wallet = res?.data || [];
+        const item = wallet.find((w) => w._id === openQrId);
+        if (item?.status === 'saved') return;
+
+        // Đã dùng, hết hạn, hoặc không còn trong ví vì buổi hẹn đã huỷ: QR này không còn giá trị
+        clearInterval(timer);
+        setMyVouchers(wallet);
+        setSelectedVoucher(null);
+        if (item?.status !== 'used') return;
+        const fresh = await reloadUser?.();
+        setRedeemNotice({
+          title: item.voucherId?.title || 'Voucher',
+          coinEarned: fresh?.uniCoin != null && coinBefore != null ? fresh.uniCoin - coinBefore : null,
+        });
+      } catch {
+        // Mạng chập chờn: lần sau hỏi lại
+      }
+    }, QR_STATUS_POLL_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openQrId]);
 
   const handleClaimVoucher = async (voucherId) => {
     setClaimingId(voucherId);
@@ -98,7 +140,6 @@ export default function UserVouchers() {
       voucherId: v._id || v.id,
       code: v.code || '',
       displayCode,
-      codeType: v.codeType || 'shared',
       isUnlimited: Boolean(v.isUnlimited),
       coinCost: Number(v.coinCost) || 0,
       qrPayload: isWalletItem ? raw.qrPayload : null,
@@ -114,6 +155,8 @@ export default function UserVouchers() {
       minOrder: describeVoucher(v).conditionLabel,
       description: v.description || (v.terms || []).join(' · '),
       status: isWalletItem ? raw.status : 'available',
+      // Quán tạm ngưng thì thu ngân quét sẽ bị từ chối: không mời sinh viên bấm "Dùng ngay"
+      paused: isWalletItem && v.isActive === false,
     };
   };
 
@@ -138,7 +181,7 @@ export default function UserVouchers() {
             Xuất trình mã QR tại quán cafe để nhân viên đối tác quét và áp dụng giảm giá trực tiếp.
           </p>
           <p style={{ fontSize: '13px', color: '#C2410C', marginTop: '6px', fontWeight: '600' }}>
-            🤝 Mẹo: vào <Link to="/user/messages" style={{ color: '#C2410C' }}>Tin nhắn</Link>, bấm "Rủ đi cafe" với bạn đã kết bạn. Bạn ấy đồng ý là cả hai nhận thêm ưu đãi hẹn cafe của quán.
+            🤝 Mẹo: vào <Link to="/user/messages" style={{ color: '#C2410C' }}>Tin nhắn</Link>, bấm "Rủ đi cafe" với bạn đã kết bạn hoặc trong chat nhóm. Chốt hẹn là các bạn nhận thêm ưu đãi hẹn cafe của quán.
           </p>
         </div>
 
@@ -182,6 +225,25 @@ export default function UserVouchers() {
           </div>
         </div>
       </div>
+
+      {redeemNotice && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '14px 18px', marginBottom: '20px', borderRadius: '14px', backgroundColor: '#ECFDF5', border: '1.5px solid #10B981', color: '#065F46', fontSize: '14px', fontWeight: '700' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={20} style={{ flexShrink: 0 }} />
+            <span>
+              Quán đã áp dụng "{redeemNotice.title}".{' '}
+              {redeemNotice.coinEarned > 0
+                ? `Bạn nhận được +${redeemNotice.coinEarned} UniCoin 🎉`
+                : redeemNotice.coinEarned === 0
+                  ? 'Hôm nay bạn đã đạt giới hạn 60 UniCoin nên lượt này không cộng thêm coin.'
+                  : ''}
+            </span>
+          </div>
+          <button onClick={() => setRedeemNotice(null)} style={{ color: '#065F46', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div
@@ -308,9 +370,6 @@ export default function UserVouchers() {
               {/* Body */}
               <div style={{ padding: '18px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: vch.codeType === 'unique' ? '#EDE9FE' : '#F1F5F9', color: vch.codeType === 'unique' ? '#6D28D9' : '#475569' }}>
-                    {vch.codeType === 'unique' ? 'Mã riêng' : 'Mã chung'}
-                  </span>
                   {vch.fromMeetup && (
                     <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#FFEDD5', color: '#C2410C' }}>
                       🤝 Ưu đãi hẹn cafe
@@ -335,7 +394,7 @@ export default function UserVouchers() {
                     Điều kiện: <strong>{vch.minOrder}</strong>
                   </div>
 
-                  {vch.status === 'saved' ? (
+                  {vch.status === 'saved' && !vch.paused ? (
                     <button
                       onClick={() => handleOpenQR(vch)}
                       style={{
@@ -366,7 +425,7 @@ export default function UserVouchers() {
                         fontWeight: '800',
                       }}
                     >
-                      {vch.status === 'used' ? 'Đã sử dụng' : 'Hết hạn'}
+                      {vch.status === 'used' ? 'Đã sử dụng' : vch.status === 'expired' ? 'Hết hạn' : 'Quán tạm ngưng'}
                     </span>
                   )}
                 </div>
@@ -409,9 +468,6 @@ export default function UserVouchers() {
                         Miễn phí
                       </span>
                     )}
-                    <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: vch.codeType === 'unique' ? '#EDE9FE' : '#F1F5F9', color: vch.codeType === 'unique' ? '#6D28D9' : '#475569' }}>
-                      {vch.codeType === 'unique' ? 'Mã riêng' : 'Mã chung'}
-                    </span>
                     {vch.isUnlimited && (
                       <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
                         Không giới hạn
@@ -495,7 +551,7 @@ export default function UserVouchers() {
             </p>
             {selectedVoucher.fromMeetup && (
               <p style={{ fontSize: '12px', color: '#C2410C', fontWeight: '600', marginBottom: '20px' }}>
-                🤝 Ưu đãi hẹn cafe: mỗi bạn đưa mã trong ví của mình, quán quét đủ mã của cả hai thì buổi hẹn được ghi nhận và cả hai được thưởng UniCoin.
+                🤝 Ưu đãi hẹn cafe: phải có mặt từ 2 bạn trở lên, mỗi bạn đưa mã trong ví của mình. Quán quét đủ mã rồi mới áp dụng, buổi hẹn được ghi nhận và các bạn có mặt được thưởng UniCoin.
               </p>
             )}
 

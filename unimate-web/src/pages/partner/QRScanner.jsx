@@ -36,14 +36,50 @@ const cameraErrorMessage = (err) => {
   return 'Không mở được camera trên máy này. Dùng nút chụp ảnh mã QR hoặc nhập mã bên dưới.';
 };
 
+// Kết quả kiểm tra mã từ backend → dữ liệu hiển thị trên thẻ kết quả
+const toScanResult = (found, payload) => {
+  const student = found?.student;
+  return {
+    payload,
+    code: found.code,
+    valid: true,
+    title: found.title || `Voucher ${found.code}`,
+    // Ưu đãi và điều kiện thật của voucher (nhân viên đối chiếu trước khi áp)
+    discountLabel: describeVoucher(found).discountLabel,
+    conditionLabel: describeVoucher(found).conditionLabel,
+    minBill: Number(found.minBill) || 0,
+    note: found.description || '',
+    studentId: student?.id || null,
+    studentName: student?.fullName || 'Khách dùng mã chung (không qua ví)',
+    studentSchool: student
+      ? [student.university, student.studentId && `MSSV: ${student.studentId}`].filter(Boolean).join(' · ')
+      : 'Mã voucher chung của quán',
+    studentAvatar: getAvatarUrl(student?.avatar),
+    venue: found.venueName || 'Cửa hàng đối tác',
+    expiry: found.validUntil ? new Date(found.validUntil).toLocaleDateString('vi-VN') : 'Còn hạn sử dụng',
+    // Ưu đãi hẹn cafe: mỗi bạn một mã, requiresCompanion = phải quét thêm mã của bạn đi cùng rồi mới áp dụng
+    fromMeetup: Boolean(found.fromMeetup),
+    meetup: found.meetup || null,
+  };
+};
+
+// UniCoin thực nhận của một sinh viên, nói rõ khi bị cắt vì giới hạn kiếm coin trong ngày
+const coinResultText = ({ fullName, coinAwarded, coinCapped }, maxDailyEarn) => {
+  if (coinAwarded <= 0) return `${fullName}: không cộng thêm UniCoin vì hôm nay đã đạt giới hạn ${maxDailyEarn} UniCoin`;
+  return `${fullName}: +${coinAwarded} UniCoin${coinCapped ? ` (đã chạm giới hạn ${maxDailyEarn} UniCoin/ngày)` : ''}`;
+};
+
 export default function QRScanner() {
   const [inputCode, setInputCode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [scanError, setScanError] = useState(null);
+  // Ưu đãi hẹn cafe: mã của các bạn đi cùng
+  const [companionResults, setCompanionResults] = useState([]);
+  const [companionError, setCompanionError] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
-  // Voucher vừa quét là ưu đãi hẹn cafe và cả hai bạn trong buổi hẹn đã dùng
-  const [meetupCompleted, setMeetupCompleted] = useState(false);
+  // Kết quả áp dụng từ backend: buổi hẹn đã hoàn tất chưa, UniCoin từng bạn thực nhận
+  const [redeemInfo, setRedeemInfo] = useState(null);
   const [redeeming, setRedeeming] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -58,6 +94,15 @@ export default function QRScanner() {
   const stopCameraRef = useRef(Promise.resolve());
   const fileInputRef = useRef(null);
   const resultRef = useRef(null);
+  const scannerRef = useRef(null);
+
+  // Ưu đãi hẹn cafe: đã có mã đầu, chưa có mã của bạn đi cùng nào thì chưa được áp dụng
+  const meetupInfo = scanResult?.meetup;
+  const needsCompanion = Boolean(meetupInfo?.requiresCompanion && companionResults.length === 0);
+  // Buổi hẹn nhóm: đủ 2 bạn là áp dụng được, vẫn quét thêm được các bạn khác trước khi xác nhận
+  const canScanMore = Boolean(meetupInfo?.requiresCompanion && companionResults.length < (meetupInfo.companions?.length || 0));
+  const companionName = meetupInfo?.isGroup ? 'bạn khác trong nhóm' : meetupInfo?.companions?.[0]?.fullName || 'bạn đi cùng';
+  const peopleCount = companionResults.length + 1;
 
   const loadHistory = async () => {
     try {
@@ -85,14 +130,23 @@ export default function QRScanner() {
     const rawInput = (codeToVerify || inputCode).trim();
     if (!rawInput) return;
 
+    // Đang chờ mã của bạn đi cùng: giữ nguyên kết quả mã đầu, lỗi của mã sau không xoá mã đầu
+    const firstScan = !confirmed && canScanMore ? scanResult : null;
+    const fail = (message) => (firstScan ? setCompanionError(message) : setScanError(message));
+
     setScanning(true);
-    setConfirmed(false);
-    setScanError(null);
-    setScanResult(null);
+    setCompanionError(null);
+    if (!firstScan) {
+      setConfirmed(false);
+      setRedeemInfo(null);
+      setScanError(null);
+      setScanResult(null);
+      setCompanionResults([]);
+    }
 
     // Quét nhầm mã QR check-in dán tại quán (mã đó để sinh viên tự quét)
     if (rawInput.toUpperCase().startsWith('UNIMATE-CHECKIN:')) {
-      setScanError('Đây là mã QR check-in dán tại quán, không phải voucher. Hãy quét mã QR trong ví voucher trên điện thoại sinh viên.');
+      fail('Đây là mã QR check-in dán tại quán, không phải voucher. Hãy quét mã QR trong ví voucher trên điện thoại sinh viên.');
       setScanning(false);
       return;
     }
@@ -101,30 +155,22 @@ export default function QRScanner() {
 
     try {
       const res = await voucherApi.verifyVoucher(payload);
-      const found = res?.data;
-      const student = found?.student;
+      const result = toScanResult(res?.data, payload);
 
-      setScanResult({
-        payload,
-        code: found.code,
-        valid: true,
-        title: found.title || `Voucher ${found.code}`,
-        // Ưu đãi và điều kiện thật của voucher (nhân viên đối chiếu trước khi áp)
-        discountLabel: describeVoucher(found).discountLabel,
-        conditionLabel: describeVoucher(found).conditionLabel,
-        note: found.description || '',
-        studentName: student?.fullName || 'Khách dùng mã chung (không qua ví)',
-        studentSchool: student
-          ? [student.university, student.studentId && `MSSV: ${student.studentId}`].filter(Boolean).join(' · ')
-          : 'Mã voucher chung của quán',
-        studentAvatar: getAvatarUrl(student?.avatar),
-        venue: found.venueName || 'Cửa hàng đối tác',
-        expiry: found.validUntil ? new Date(found.validUntil).toLocaleDateString('vi-VN') : 'Còn hạn sử dụng',
-        // Ưu đãi hẹn cafe: mỗi bạn một mã, quét đủ cả hai thì buổi hẹn mới được ghi nhận
-        fromMeetup: Boolean(found.fromMeetup),
-      });
+      if (!firstScan) {
+        setScanResult(result);
+        // Để trống ô nhập cho mã của bạn đi cùng
+        if (result.meetup?.requiresCompanion) setInputCode('');
+      } else if (result.meetup?.id !== firstScan.meetup.id) {
+        fail(`Mã này không thuộc buổi hẹn của ${firstScan.studentName}. Hãy quét mã của ${companionName}.`);
+      } else if ([firstScan, ...companionResults].some((scanned) => scanned.studentId === result.studentId)) {
+        fail(`Đây vẫn là mã của ${result.studentName}. Hãy quét mã của ${companionName}.`);
+      } else {
+        setCompanionResults((prev) => [...prev, result]);
+        setInputCode('');
+      }
     } catch (err) {
-      setScanError(err.message || 'Lỗi kiểm tra voucher từ hệ thống');
+      fail(err.message || 'Lỗi kiểm tra voucher từ hệ thống');
     } finally {
       setScanning(false);
     }
@@ -200,13 +246,20 @@ export default function QRScanner() {
     if (scanResult || scanError) {
       resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [scanResult, scanError]);
+  }, [scanResult, scanError, companionResults, companionError]);
 
   const handleStartCamera = () => {
     if (cameraOn) return;
     setCameraError(null);
     setCameraStarting(true);
     setCameraOn(true);
+  };
+
+  // Mở lại camera cho mã của bạn đi cùng (điện thoại: camera nằm trên thẻ kết quả nên cuộn lên)
+  const handleScanCompanion = () => {
+    setCompanionError(null);
+    handleStartCamera();
+    scannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   // Dự phòng khi trình duyệt không mở được camera trực tiếp: chụp hoặc chọn ảnh có mã QR
@@ -237,13 +290,16 @@ export default function QRScanner() {
   };
 
   const handleConfirmRedeem = async () => {
-    if (!scanResult || redeeming) return;
+    if (!scanResult || redeeming || needsCompanion) return;
     setRedeeming(true);
     try {
-      const res = await voucherApi.redeemVoucher(scanResult.payload);
-      // Quán quét QR áp voucher = sinh viên thực sự ra quán
-      trackEvent('voucher_redeem');
-      setMeetupCompleted(Boolean(res?.data?.meetupCompleted));
+      const res = await voucherApi.redeemVoucher({
+        ...scanResult.payload,
+        ...(companionResults.length > 0 ? { companions: companionResults.map((r) => r.payload) } : {}),
+      });
+      // Quán quét QR áp voucher = sinh viên thực sự ra quán (mỗi voucher tính 1 lượt)
+      for (let i = 0; i < peopleCount; i += 1) trackEvent('voucher_redeem');
+      setRedeemInfo(res?.data || null);
       setConfirmed(true);
       loadHistory();
     } catch (err) {
@@ -258,8 +314,10 @@ export default function QRScanner() {
     setInputCode('');
     setScanResult(null);
     setScanError(null);
+    setCompanionResults([]);
+    setCompanionError(null);
     setConfirmed(false);
-    setMeetupCompleted(false);
+    setRedeemInfo(null);
     if (lastSourceRef.current === 'camera') handleStartCamera();
   };
 
@@ -292,6 +350,7 @@ export default function QRScanner() {
 
           {/* Scanner Box */}
           <div
+            ref={scannerRef}
             style={{
               width: '100%',
               maxWidth: '360px',
@@ -416,7 +475,7 @@ export default function QRScanner() {
 
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '16px' }}>
               Nhập mã <strong>UVM-...</strong> (hoặc mã riêng) in dưới QR trong ví sinh viên để trừ đúng voucher của bạn ấy.
-              Mã voucher chung của quán chỉ dành cho khách không dùng ví UNI-MATE.
+              Mã voucher chung của quán chỉ dành cho khách không dùng ví UNI-MATE, và không dùng được cho voucher Premium, voucher đổi UniCoin, ưu đãi hẹn cafe.
             </p>
           </div>
         </div>
@@ -451,9 +510,9 @@ export default function QRScanner() {
                 {/* Status Callout */}
                 <div
                   style={{
-                    backgroundColor: confirmed ? '#ECFDF5' : '#FFECE6',
+                    backgroundColor: confirmed ? '#ECFDF5' : needsCompanion ? '#FFFBEB' : '#FFECE6',
                     border: '1.5px solid',
-                    borderColor: confirmed ? '#10B981' : 'var(--primary)',
+                    borderColor: confirmed ? '#10B981' : needsCompanion ? '#F59E0B' : 'var(--primary)',
                     borderRadius: '16px',
                     padding: '16px 20px',
                     display: 'flex',
@@ -461,26 +520,61 @@ export default function QRScanner() {
                     gap: '14px',
                   }}
                 >
-                  <CheckCircle2 size={32} color={confirmed ? '#10B981' : 'var(--primary)'} style={{ flexShrink: 0 }} />
+                  {needsCompanion ? (
+                    <Scan size={32} color="#B45309" style={{ flexShrink: 0 }} />
+                  ) : (
+                    <CheckCircle2 size={32} color={confirmed ? '#10B981' : 'var(--primary)'} style={{ flexShrink: 0 }} />
+                  )}
                   <div>
-                    <h4 style={{ fontSize: '16px', fontWeight: '900', color: confirmed ? '#065F46' : 'var(--primary)' }}>
-                      {confirmed ? 'ĐÃ CHECK-IN THÀNH CÔNG 🎉' : 'VOUCHER HỢP LỆ & KHẢ DỤNG ✅'}
+                    <h4 style={{ fontSize: '16px', fontWeight: '900', color: confirmed ? '#065F46' : needsCompanion ? '#B45309' : 'var(--primary)' }}>
+                      {confirmed
+                        ? 'ĐÃ CHECK-IN THÀNH CÔNG 🎉'
+                        : needsCompanion
+                          ? 'BƯỚC 1/2: CẦN QUÉT THÊM MÃ THỨ HAI'
+                          : companionResults.length > 0
+                            ? `ĐỦ ${peopleCount} BẠN, SẴN SÀNG ÁP DỤNG ✅`
+                            : 'VOUCHER HỢP LỆ & KHẢ DỤNG ✅'}
                     </h4>
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
                       MÃ: {scanResult.code}
                     </span>
-                    {confirmed && meetupCompleted && (
-                      <div style={{ fontSize: '12.5px', color: '#1D4ED8', fontWeight: '700', marginTop: '4px' }}>
-                        🤝 Cặp hẹn cafe đã đủ 2 người, buổi hẹn được ghi nhận!
+                    {needsCompanion && (
+                      <div style={{ fontSize: '12.5px', color: '#92400E', fontWeight: '700', marginTop: '4px' }}>
+                        🤝 Ưu đãi hẹn cafe phải có mặt từ 2 bạn trở lên. Quét tiếp mã trong ví của {companionName} rồi mới áp dụng được.
+                        {meetupInfo?.isGroup && (
+                          <div style={{ fontWeight: '600', marginTop: '2px' }}>
+                            Các bạn cùng buổi hẹn: {meetupInfo.companions.map((c) => c.fullName).join(', ')}
+                          </div>
+                        )}
                       </div>
                     )}
-                    {confirmed && scanResult.fromMeetup && !meetupCompleted && (
+                    {confirmed && redeemInfo?.meetupCompleted && (
                       <div style={{ fontSize: '12.5px', color: '#1D4ED8', fontWeight: '700', marginTop: '4px' }}>
-                        🤝 Ưu đãi hẹn cafe: bấm "Quét lượt mới" để quét tiếp mã của bạn đi cùng, đủ 2 người thì buổi hẹn được ghi nhận.
+                        🤝 Đã đủ người, buổi hẹn được ghi nhận!
                       </div>
                     )}
+                    {confirmed && (redeemInfo?.students || []).map((s) => (
+                      <div key={s.id} style={{ fontSize: '12.5px', color: '#065F46', fontWeight: '700', marginTop: '4px' }}>
+                        {coinResultText(s, redeemInfo.maxDailyEarn)}
+                      </div>
+                    ))}
                   </div>
                 </div>
+
+                {companionError && (
+                  <div style={{ padding: '12px 14px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', fontSize: '13px', fontWeight: '600', color: '#B91C1C' }}>
+                    {companionError}
+                  </div>
+                )}
+
+                {/* Điều kiện chỉ thu ngân kiểm tra được: hệ thống không biết số tiền hoá đơn, không đọc được ghi chú */}
+                {!confirmed && (scanResult.minBill > 0 || scanResult.note) && (
+                  <div style={{ padding: '12px 14px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px', fontSize: '12.5px', color: '#92400E', lineHeight: '1.5' }}>
+                    <strong>Thu ngân tự kiểm tra trước khi áp dụng</strong> (hệ thống không tự chặn được):
+                    {scanResult.minBill > 0 && <div>• {scanResult.conditionLabel}</div>}
+                    {scanResult.note && <div>• {scanResult.note}</div>}
+                  </div>
+                )}
 
                 {/* Offer Details */}
                 <div style={{ padding: '16px', backgroundColor: 'var(--bg-page)', borderRadius: '14px', border: '1px solid var(--border-color)' }}>
@@ -492,35 +586,48 @@ export default function QRScanner() {
                   </h3>
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                     {scanResult.discountLabel} · {scanResult.conditionLabel}
-                    {scanResult.note ? <><br />{scanResult.note}</> : null}
+                    <br />
+                    Áp dụng tại: <strong>{scanResult.venue}</strong> · HSD: {scanResult.expiry}
                   </p>
                 </div>
 
                 {/* Student Customer Profile */}
                 <div style={{ padding: '16px', backgroundColor: 'var(--bg-page)', borderRadius: '14px', border: '1px solid var(--border-color)' }}>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)' }}>THÔNG TIN SINH VIÊN</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-                    <img
-                      src={scanResult.studentAvatar}
-                      alt={scanResult.studentName}
-                      style={{ width: '48px', height: '48px', borderRadius: '24px', objectFit: 'cover' }}
-                    />
-                    <div>
-                      <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                        {scanResult.studentName}
-                      </h4>
-                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        {scanResult.studentSchool}
-                      </p>
+                  {[scanResult, ...companionResults].map((result) => (
+                    <div key={result.code + result.studentName} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+                      <img
+                        src={result.studentAvatar}
+                        alt={result.studentName}
+                        style={{ width: '48px', height: '48px', borderRadius: '24px', objectFit: 'cover' }}
+                      />
+                      <div>
+                        <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                          {result.studentName}
+                        </h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          {result.studentSchool}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ))}
+                  {needsCompanion && (
+                    <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: '10px', border: '1.5px dashed #F59E0B', fontSize: '13px', fontWeight: '700', color: '#B45309' }}>
+                      {scanning ? 'Đang kiểm tra mã...' : `Chờ quét mã của ${companionName}`}
+                    </div>
+                  )}
+                  {!confirmed && !needsCompanion && canScanMore && (
+                    <div style={{ marginTop: '10px', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                      {scanning ? 'Đang kiểm tra mã...' : 'Còn bạn nào trong nhóm đang ở quầy thì quét thêm trước khi xác nhận. Bạn đến sau vẫn quét riêng được.'}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : scanError ? (
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <AlertCircle size={48} style={{ margin: '0 auto 12px', color: '#EF4444' }} />
                 <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#EF4444' }}>
-                  Không tìm thấy voucher
+                  Không áp dụng được voucher
                 </h4>
                 <p style={{ fontSize: '13px', marginTop: '6px', color: 'var(--text-secondary)' }}>
                   {scanError}
@@ -540,15 +647,48 @@ export default function QRScanner() {
           </div>
 
           {/* Action Button */}
-          {scanResult && !confirmed && (
+          {scanResult && !confirmed && needsCompanion && (
+            <div style={{ marginTop: '20px' }}>
+              <button
+                onClick={handleScanCompanion}
+                disabled={scanning}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '14px', fontSize: '15px' }}
+              >
+                <Camera size={18} />
+                <span>Quét mã của {companionName}</span>
+              </button>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
+                Không dùng được camera thì nhập mã của bạn ấy vào ô nhập thủ công.
+              </p>
+            </div>
+          )}
+          {scanResult && !confirmed && !needsCompanion && canScanMore && (
+            <button
+              onClick={handleScanCompanion}
+              disabled={scanning || redeeming}
+              className="btn btn-secondary"
+              style={{ width: '100%', padding: '12px', fontSize: '14px', marginTop: '20px' }}
+            >
+              <Camera size={16} />
+              <span>Quét thêm bạn trong nhóm</span>
+            </button>
+          )}
+          {scanResult && !confirmed && !needsCompanion && (
             <button
               onClick={handleConfirmRedeem}
               disabled={redeeming}
               className="btn btn-primary"
-              style={{ width: '100%', padding: '14px', fontSize: '15px', marginTop: '20px', opacity: redeeming ? 0.7 : 1 }}
+              style={{ width: '100%', padding: '14px', fontSize: '15px', marginTop: canScanMore ? '10px' : '20px', opacity: redeeming ? 0.7 : 1 }}
             >
               <CheckCircle2 size={18} />
-              <span>{redeeming ? 'Đang áp dụng...' : 'Xác nhận áp dụng voucher & Trừ tiền hóa đơn'}</span>
+              <span>
+                {redeeming
+                  ? 'Đang áp dụng...'
+                  : companionResults.length > 0
+                    ? `Xác nhận áp dụng cho cả ${peopleCount} bạn & Trừ tiền hóa đơn`
+                    : 'Xác nhận áp dụng voucher & Trừ tiền hóa đơn'}
+              </span>
             </button>
           )}
           {/* Áp xong: nút to để quét khách / bạn đi cùng tiếp theo */}

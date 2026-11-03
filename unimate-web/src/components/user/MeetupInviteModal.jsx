@@ -7,9 +7,10 @@ import { toDateTimeLocal } from '../../utils/meetup';
 
 /**
  * Khung "Rủ đi cafe": chọn quán đối tác (+ giờ hẹn nếu muốn) rồi gửi lời mời vào hội thoại.
+ * Có groupId là rủ cả nhóm (buddyName là tên nhóm), không thì rủ 1 bạn theo matchId.
  * Quán trả Gói Đối tác đứng đầu, quán có ưu đãi hẹn cafe đứng trước quán chưa có.
  */
-export default function MeetupInviteModal({ open, onClose, matchId, buddyName, onInvited }) {
+export default function MeetupInviteModal({ open, onClose, matchId, groupId, buddyName, onInvited }) {
   const [venues, setVenues] = useState([]);
   const [loadingVenues, setLoadingVenues] = useState(false);
   const [search, setSearch] = useState('');
@@ -29,24 +30,21 @@ export default function MeetupInviteModal({ open, onClose, matchId, buddyName, o
       .getQuota()
       .then((res) => !cancelled && setQuota(res.data || null))
       .catch(() => {});
-    if (venues.length === 0) {
-      setLoadingVenues(true);
-      venueApi
-        .getPublicVenues()
-        .then((res) => {
-          if (cancelled) return;
-          const list = [...(res.data || [])];
-          list.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured) || Number(Boolean(b.meetupReward)) - Number(Boolean(a.meetupReward)));
-          setVenues(list);
-        })
-        .catch((err) => !cancelled && setError(err.message))
-        .finally(() => !cancelled && setLoadingVenues(false));
-    }
+    // Tải lại mỗi lần mở khung: ưu đãi hẹn cafe của quán có thể vừa hết lượt hoặc vừa được tạo
+    setLoadingVenues(true);
+    venueApi
+      .getPublicVenues()
+      .then((res) => {
+        if (cancelled) return;
+        const list = [...(res.data || [])];
+        list.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured) || Number(Boolean(b.meetupReward)) - Number(Boolean(a.meetupReward)));
+        setVenues(list);
+      })
+      .catch((err) => !cancelled && setError(err.message))
+      .finally(() => !cancelled && setLoadingVenues(false));
     return () => {
       cancelled = true;
     };
-    // Danh sách quán chỉ tải lần đầu mở khung
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;
@@ -59,12 +57,9 @@ export default function MeetupInviteModal({ open, onClose, matchId, buddyName, o
     setSendingId(venue._id);
     setError('');
     try {
-      const res = await meetupApi.create({
-        matchId,
-        venueId: venue._id,
-        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
-      });
-      trackEvent('meetup_invite', { venue_name: venue.name, has_reward: Boolean(venue.meetupReward) });
+      const target = { venueId: venue._id, scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined };
+      const res = groupId ? await meetupApi.createGroup({ groupId, ...target }) : await meetupApi.create({ matchId, ...target });
+      trackEvent('meetup_invite', { venue_name: venue.name, has_reward: Boolean(venue.meetupReward), is_group: Boolean(groupId) });
       onInvited(res.data?.message);
       onClose();
     } catch (err) {
@@ -87,10 +82,12 @@ export default function MeetupInviteModal({ open, onClose, matchId, buddyName, o
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '17px', fontWeight: '900', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Coffee size={20} color="#FF5722" /> Rủ {buddyName || 'bạn ấy'} đi cafe
+              <Coffee size={20} color="#FF5722" /> {groupId ? `Rủ nhóm ${buddyName || ''} đi cafe` : `Rủ ${buddyName || 'bạn ấy'} đi cafe`}
             </h3>
             <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Bạn ấy đồng ý là chốt hẹn. Quán có ưu đãi hẹn cafe thì cả hai cùng nhận vào ví.
+              {groupId
+                ? 'Ai muốn đi thì bấm Tham gia. Có từ 2 bạn là chốt hẹn, quán có ưu đãi hẹn cafe thì mỗi bạn tham gia nhận 1 ưu đãi vào ví.'
+                : 'Bạn ấy đồng ý là chốt hẹn. Quán có ưu đãi hẹn cafe thì cả hai cùng nhận vào ví.'}
             </p>
           </div>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
@@ -166,7 +163,7 @@ export default function MeetupInviteModal({ open, onClose, matchId, buddyName, o
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{venue.address}</div>
                         {venue.meetupReward && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: '700', color: '#C2410C', marginTop: '2px' }}>
-                            <Gift size={12} /> Hẹn ở đây, cả hai nhận: {venue.meetupReward.title}
+                            <Gift size={12} /> Hẹn ở đây, {groupId ? 'mỗi bạn' : 'cả hai'} nhận: {venue.meetupReward.title}
                           </div>
                         )}
                       </div>

@@ -4,7 +4,9 @@ const Venue = require('../models/Venue');
 const Redemption = require('../models/Redemption');
 const VoucherCode = require('../models/VoucherCode');
 const User = require('../models/User');
-const { earnCoins } = require('../utils/coinService');
+const Meetup = require('../models/Meetup');
+const { earnCoins, MAX_DAILY_EARN } = require('../utils/coinService');
+const { MEETUP_COMPLETE_COIN, GROUP_MEETUP_MAX_PEOPLE } = require('../config/meetup');
 const XLSX = require('xlsx');
 
 // UniCoin thưởng cho sinh viên khi quán xác nhận dùng voucher tại quầy
@@ -213,14 +215,52 @@ const getMyWallet = catchAsync(async (req, res) => {
   });
 });
 
+const toStudentInfo = (student) =>
+  student
+    ? {
+        id: student._id,
+        fullName: student.fullName,
+        avatar: student.avatar,
+        studentId: student.studentProfile?.studentId || null,
+        university: student.studentProfile?.university || null,
+      }
+    : null;
+
 /**
- * Tìm voucher cần đối soát từ body { code } hoặc { qrPayload } và kiểm tra hợp lệ.
+ * Voucher nhận qua buổi "Rủ cafe" (2 người hoặc cả nhóm): buổi hẹn phải còn hiệu lực.
+ * Buổi đã chốt mà chưa ai trong buổi dùng ưu đãi thì requiresCompanion = true: phải quét thêm mã của
+ * ít nhất 1 bạn đi cùng mới áp dụng, đi một mình không dùng được ưu đãi của buổi hẹn.
+ * companions: những bạn còn voucher chưa dùng, thu ngân có thể quét cùng lượt.
+ */
+const getMeetupContext = async (userVoucher) => {
+  if (!userVoucher?.meetupId) return null;
+  const meetup = await Meetup.findById(userVoucher.meetupId).select('status groupId');
+  if (!meetup || !['accepted', 'completed'].includes(meetup.status)) {
+    throw new ApiError(400, 'Buổi hẹn của ưu đãi này đã huỷ hoặc không diễn ra nên ưu đãi không còn hiệu lực');
+  }
+  const others = await UserVoucher.find({ meetupId: meetup._id, _id: { $ne: userVoucher._id } }).populate(
+    'userId',
+    'fullName avatar studentProfile'
+  );
+  const unused = others.filter((other) => other.status === 'saved');
+  return {
+    id: meetup._id,
+    status: meetup.status,
+    isGroup: Boolean(meetup.groupId),
+    requiresCompanion: meetup.status === 'accepted' && unused.length > 0 && unused.length === others.length,
+    companions: unused.map((other) => toStudentInfo(other.userId)),
+    companionVoucherIds: unused.map((other) => String(other._id)),
+  };
+};
+
+/**
+ * Tìm voucher cần đối soát từ { code } hoặc { qrPayload } và kiểm tra hợp lệ.
  * - qrPayload (UVM-xxxx): voucher trong ví của một sinh viên cụ thể
  * - code: mã voucher chung của quán
  * Partner chỉ được đối soát voucher của chính mình, admin thì được tất cả.
  */
-const findRedeemTarget = async (req) => {
-  let { code, qrPayload } = req.body;
+const findRedeemTarget = async (req, payload) => {
+  let { code, qrPayload } = payload || {};
   code = typeof code === 'string' ? code.trim().toUpperCase() : '';
   qrPayload = typeof qrPayload === 'string' ? qrPayload.trim().toUpperCase() : '';
 
@@ -244,8 +284,10 @@ const findRedeemTarget = async (req) => {
       const voucherCode = await VoucherCode.findOne({ code });
       if (voucherCode) {
         if (!voucherCode.userVoucherId) throw new ApiError(400, 'Mã này chưa được phát cho sinh viên nào');
-        const owned = await UserVoucher.findById(voucherCode.userVoucherId).select('qrPayload');
-        if (!owned) throw new ApiError(404, 'Không tìm thấy voucher trong ví sinh viên');
+        const owned = await UserVoucher.findById(voucherCode.userVoucherId).select('qrPayload assignedCode');
+        // Ví đã được cấp mã khác cho buổi hẹn sau (hoặc voucher đó đã bị thu hồi): mã cũ này đã dùng rồi,
+        // không được trừ nhầm vào voucher mới
+        if (!owned || owned.assignedCode !== voucherCode.code) throw new ApiError(400, 'Mã này đã được sử dụng');
         qrPayload = owned.qrPayload;
         code = '';
       }
@@ -269,12 +311,13 @@ const findRedeemTarget = async (req) => {
     if (voucher.codeType === 'unique') {
       throw new ApiError(400, 'Đây là mã chiến dịch. Vui lòng nhập mã riêng hoặc mã UVM-... trong ví của sinh viên');
     }
-    if (voucher.walletOnly) {
-      throw new ApiError(400, 'Voucher này chỉ áp dụng khi quét mã QR trong ví UNI-MATE của sinh viên');
-    }
     // Ưu đãi hẹn cafe gắn với từng bạn trong buổi hẹn: phải quét đúng mã trong ví mỗi người mới ghi nhận được buổi hẹn
     if (voucher.meetupReward) {
       throw new ApiError(400, 'Ưu đãi hẹn cafe: quét mã QR (hoặc nhập mã UVM-...) trong ví của từng bạn, không dùng mã chung');
+    }
+    // Gõ mã chung thì không biết ai đang dùng: không kiểm tra được Premium và chưa trừ UniCoin của ai
+    if (voucher.walletOnly || voucher.premiumOnly || voucher.coinCost > 0) {
+      throw new ApiError(400, 'Voucher này chỉ áp dụng khi quét mã QR trong ví UNI-MATE của sinh viên');
     }
     if (!hasSharedStock(voucher)) {
       throw new ApiError(400, 'Voucher đã hết số lượng');
@@ -287,23 +330,12 @@ const findRedeemTarget = async (req) => {
   if (!voucher.isActive) throw new ApiError(400, 'Voucher đã bị tạm ngưng');
   if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn sử dụng');
 
-  return { voucher, userVoucher };
+  return { voucher, userVoucher, meetup: await getMeetupContext(userVoucher) };
 };
-
-const toStudentInfo = (student) =>
-  student
-    ? {
-        id: student._id,
-        fullName: student.fullName,
-        avatar: student.avatar,
-        studentId: student.studentProfile?.studentId || null,
-        university: student.studentProfile?.university || null,
-      }
-    : null;
 
 /** Partner: Kiểm tra voucher trước khi áp dụng (không trừ lượt) */
 const verifyVoucher = catchAsync(async (req, res) => {
-  const { voucher, userVoucher } = await findRedeemTarget(req);
+  const { voucher, userVoucher, meetup } = await findRedeemTarget(req, req.body);
 
   res.status(200).json({
     success: true,
@@ -320,8 +352,17 @@ const verifyVoucher = catchAsync(async (req, res) => {
       validUntil: voucher.validUntil,
       venueName: voucher.venueId?.name || null,
       assignedCode: userVoucher?.assignedCode || null,
-      // Voucher nhận qua "Rủ cafe": quét đủ mã của cả hai bạn thì buổi hẹn mới được ghi nhận
+      // Voucher nhận qua "Rủ cafe": requiresCompanion = phải quét thêm mã của bạn đi cùng rồi mới áp dụng được
       fromMeetup: Boolean(userVoucher?.meetupId),
+      meetup: meetup
+        ? {
+            id: meetup.id,
+            status: meetup.status,
+            isGroup: meetup.isGroup,
+            requiresCompanion: meetup.requiresCompanion,
+            companions: meetup.companions,
+          }
+        : null,
       // null = không giới hạn lượt
       // Mã chung: lượt còn phát được (lượt trong ví đã được giữ trước). Mã riêng / không giới hạn: null
       remainingCount: voucher.isUnlimited || voucher.codeType === 'unique' ? null : voucher.quantity - issuedOf(voucher),
@@ -330,52 +371,93 @@ const verifyVoucher = catchAsync(async (req, res) => {
   });
 });
 
-/** Partner: Quét QR để đối soát & tiêu voucher của sinh viên */
+/**
+ * Partner: Quét QR để đối soát & tiêu voucher của sinh viên.
+ * Ưu đãi hẹn cafe: body có thêm companions: [{ qrPayload | code }] là mã của các bạn đi cùng,
+ * mọi voucher dùng cùng một lượt xác nhận.
+ */
 const redeemVoucher = catchAsync(async (req, res) => {
-  const { voucher, userVoucher } = await findRedeemTarget(req);
-  let meetupCompleted = false;
+  const { voucher, userVoucher, meetup } = await findRedeemTarget(req, req.body);
 
-  if (userVoucher) {
-    // Cập nhật có điều kiện để 2 lần quét cùng lúc không tiêu voucher 2 lần
-    const marked = await UserVoucher.findOneAndUpdate(
-      { _id: userVoucher._id, status: 'saved' },
-      { status: 'used', usedAt: new Date() }
-    );
-    if (!marked) throw new ApiError(400, 'Voucher này đã được sử dụng');
-    await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } });
-    meetupCompleted = Boolean(await onMeetupVoucherRedeemed(req, userVoucher));
+  const companionVouchers = [];
+  if (meetup?.requiresCompanion) {
+    const payloads = Array.isArray(req.body.companions) ? req.body.companions.slice(0, GROUP_MEETUP_MAX_PEOPLE) : [];
+    if (payloads.length === 0) {
+      const who = meetup.isGroup ? 'bạn khác trong nhóm' : meetup.companions[0]?.fullName || 'bạn đi cùng';
+      throw new ApiError(400, `Ưu đãi hẹn cafe cần có mặt từ 2 bạn trở lên: quét thêm mã của ${who} rồi mới áp dụng`, 'MEETUP_NEEDS_BOTH');
+    }
+    for (const payload of payloads) {
+      const { userVoucher: companion } = await findRedeemTarget(req, payload);
+      if (!companion || !meetup.companionVoucherIds.includes(String(companion._id))) {
+        throw new ApiError(400, 'Có mã không phải của bạn đi cùng trong buổi hẹn này');
+      }
+      if (!companionVouchers.some(({ _id }) => String(_id) === String(companion._id))) companionVouchers.push(companion);
+    }
+  }
+  const walletVouchers = [userVoucher, ...companionVouchers].filter(Boolean);
+
+  if (walletVouchers.length > 0) {
+    // Cập nhật có điều kiện để 2 lần quét cùng lúc không tiêu voucher 2 lần.
+    // Các mã của buổi hẹn cùng được dùng, hoặc không mã nào được dùng.
+    const marked = [];
+    for (const { _id } of walletVouchers) {
+      const updated = await UserVoucher.findOneAndUpdate({ _id, status: 'saved' }, { status: 'used', usedAt: new Date() });
+      if (!updated) {
+        await UserVoucher.updateMany({ _id: { $in: marked } }, { status: 'saved', usedAt: null });
+        throw new ApiError(400, 'Voucher này đã được sử dụng');
+      }
+      marked.push(_id);
+    }
+    await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: walletVouchers.length } });
   } else {
     // Gõ mã chung tại quầy: chiếm 1 lượt phát (có điều kiện) rồi mới tính là đã dùng
     if (!(await reserveSharedSlot(voucher))) throw new ApiError(400, 'Voucher đã hết số lượng');
     await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } });
   }
 
-  const redemption = await Redemption.create({
+  const toRedemption = (walletVoucher) => ({
     voucherId: voucher._id,
     venueId: voucher.venueId?._id,
     partnerId: voucher.partnerId,
     redeemedBy: req.user._id,
-    userId: userVoucher?.userId?._id || null,
-    userVoucherId: userVoucher?._id || null,
-    method: userVoucher ? 'qr' : 'code',
+    userId: walletVoucher?.userId?._id || null,
+    userVoucherId: walletVoucher?._id || null,
+    method: walletVoucher ? 'qr' : 'code',
   });
+  const [redemption] = await Redemption.create(
+    walletVouchers.length > 0 ? walletVouchers.map(toRedemption) : [toRedemption(null)]
+  );
 
   // Quán đã xác nhận sinh viên dùng voucher tại quầy → thưởng UniCoin (vẫn tính trong giới hạn ngày)
-  let coinAwarded = 0;
-  if (userVoucher?.userId?._id) {
-    coinAwarded = await earnCoins(userVoucher.userId._id, VOUCHER_REDEEM_COIN, {
+  const coinByStudent = {};
+  for (const { userId: student } of walletVouchers) {
+    coinByStudent[String(student._id)] = await earnCoins(student._id, VOUCHER_REDEEM_COIN, {
       type: 'voucher_redeem',
       description: `Dùng voucher tại ${voucher.venueId?.name || 'quán đối tác'} ☕`,
     });
+  }
+
+  // Đủ người của buổi "Rủ cafe" đã dùng ưu đãi tại quán → buổi hẹn hoàn tất, cộng thêm thưởng hẹn cafe
+  const completed = await onMeetupVoucherRedeemed(req, userVoucher, walletVouchers.map(({ userId: student }) => student._id));
+  const meetupCoinAwarded = completed?.coinAwarded || {};
+  for (const [studentId, coin] of Object.entries(meetupCoinAwarded)) {
+    coinByStudent[studentId] = (coinByStudent[studentId] || 0) + coin;
   }
 
   res.status(200).json({
     success: true,
     message: 'Đối soát & áp dụng voucher thành công! 🎉',
     data: {
-      coinAwarded,
-      // Cả hai sinh viên của buổi "Rủ cafe" đã dùng ưu đãi tại quán
-      meetupCompleted,
+      coinAwarded: userVoucher ? coinByStudent[String(userVoucher.userId._id)] || 0 : 0,
+      meetupCompleted: Boolean(completed),
+      // Từng sinh viên vừa được áp dụng và UniCoin thực nhận; coinCapped = bị cắt bớt vì giới hạn kiếm coin trong ngày
+      students: walletVouchers.map(({ userId: student }) => {
+        const key = String(student._id);
+        const coinAwarded = coinByStudent[key] || 0;
+        const coinPlanned = VOUCHER_REDEEM_COIN + (key in meetupCoinAwarded ? MEETUP_COMPLETE_COIN : 0);
+        return { id: student._id, fullName: student.fullName, coinAwarded, coinCapped: coinAwarded < coinPlanned };
+      }),
+      maxDailyEarn: MAX_DAILY_EARN,
       id: redemption._id,
       code: voucher.code,
       title: voucher.title,
@@ -511,6 +593,11 @@ const createVoucher = catchAsync(async (req, res) => {
   const minBill = toInt(req.body.minBill) || 0;
   if (minBill < 0) throw new ApiError(400, 'Hoá đơn tối thiểu không hợp lệ');
   const coinCost = meetupReward ? 0 : Math.max(0, toInt(req.body.coinCost) || 0);
+  // Ưu đãi hẹn cafe tặng cho mọi buổi hẹn tại quán, không giới hạn theo Premium
+  const premiumOnly = !meetupReward && Boolean(req.body.premiumOnly);
+  if (meetupReward && !isUnique && !isUnlimited && quantity < 2) {
+    throw new ApiError(400, 'Ưu đãi hẹn cafe cần ít nhất 2 lượt: mỗi buổi hẹn tặng cho 2 bạn');
+  }
   const description = String(req.body.description || '').trim().slice(0, 500);
   const terms = Array.isArray(req.body.terms)
     ? req.body.terms.map((t) => String(t).trim()).filter(Boolean).slice(0, 10)
@@ -531,10 +618,10 @@ const createVoucher = catchAsync(async (req, res) => {
     quantity,
     coinCost,
     meetupReward,
-    // Ưu đãi hẹn cafe tặng cho mọi buổi hẹn tại quán, không giới hạn theo Premium
-    premiumOnly: !meetupReward && Boolean(req.body.premiumOnly),
-    // Mã riêng vốn đã chỉ dùng được qua ví / mã riêng
-    walletOnly: !isUnique && Boolean(req.body.walletOnly),
+    premiumOnly,
+    // Mã riêng vốn đã chỉ dùng được qua ví / mã riêng. Hẹn cafe, Premium, đổi UniCoin cũng chỉ dùng qua ví
+    // (gõ mã chung thì không biết ai dùng), xem findRedeemTarget
+    walletOnly: !isUnique && (Boolean(req.body.walletOnly) || meetupReward || premiumOnly || coinCost > 0),
     validUntil,
     usedCount: 0,
     issuedCount: 0,
@@ -858,12 +945,14 @@ const getVoucherCodes = catchAsync(async (req, res) => {
   const voucher = await findManagedVoucher(req);
   const codes = await VoucherCode.find({ voucherId: voucher._id })
     .populate('userId', 'fullName studentProfile.studentId')
-    .populate('userVoucherId', 'status usedAt')
+    .populate('userVoucherId', 'status usedAt assignedCode')
     .sort({ _id: 1 });
 
+  // Ví đã được cấp mã khác cho buổi hẹn sau (hoặc voucher đó đã bị thu hồi): mã này đã dùng ở buổi trước
+  const isUsedCode = (c) => !c.userVoucherId || c.userVoucherId.status === 'used' || c.userVoucherId.assignedCode !== c.code;
   const data = codes.map((c) => ({
     code: c.code,
-    status: !c.userId ? 'available' : (c.userVoucherId?.status === 'used' ? 'used' : 'assigned'),
+    status: !c.userId ? 'available' : (isUsedCode(c) ? 'used' : 'assigned'),
     student: c.userId ? { fullName: c.userId.fullName, studentId: c.userId.studentProfile?.studentId || null } : null,
     assignedAt: c.assignedAt,
     usedAt: c.userVoucherId?.usedAt || null,

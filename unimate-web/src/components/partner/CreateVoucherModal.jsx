@@ -16,15 +16,21 @@ const KINDS = [
     id: 'meetup',
     icon: Coffee,
     title: 'Ưu đãi hẹn cafe',
-    desc: 'Không hiện trong danh sách. Khi 2 sinh viên rủ nhau tới quán bạn và chốt hẹn, mỗi người tự nhận 1 ưu đãi này.',
+    desc: 'Không hiện trong danh sách. Sinh viên rủ nhau tới quán bạn (2 bạn hoặc cả nhóm), ai chốt đi thì tự nhận 1 ưu đãi này. Tới quán phải quét từ 2 mã trở lên mới áp dụng được.',
   },
   {
     id: 'premium',
     icon: Crown,
     title: 'Chỉ Premium',
-    desc: 'Hiện cho mọi sinh viên, nhưng chỉ thành viên Premium mới lưu được. Dùng cho ưu đãi lớn.',
+    desc: 'Hiện cho mọi sinh viên, nhưng chỉ thành viên Premium mới lưu được. Chỉ dùng được bằng QR trong ví. Dùng cho ưu đãi lớn.',
   },
 ];
+
+// "Cách phát mã" chỉ là cách quán quản lý mã, không liên quan tới số người đi cùng
+const CODE_TYPE_HINT = {
+  shared: 'Mã chung: cả chương trình dùng 1 mã do quán đặt. Mỗi sinh viên lưu vào ví vẫn có QR riêng để quán quét. Không liên quan tới số người đi cùng.',
+  unique: 'Mã riêng: sau khi tạo, bấm "Nạp mã" để đưa danh sách mã của quán vào. Mỗi sinh viên nhận 1 mã, mỗi mã dùng 1 lần, hết mã là hết lượt. Không liên quan tới số người đi cùng.',
+};
 
 const DISCOUNT_TYPES = [
   { id: 'percent', label: 'Giảm theo %' },
@@ -34,8 +40,8 @@ const DISCOUNT_TYPES = [
 
 const WHERE_SHOWN = {
   normal: 'Hiện trong mục Voucher → sinh viên bấm Lưu → vào Ví voucher',
-  meetup: 'Không hiện trong danh sách → tự vào ví cả 2 bạn khi chốt hẹn tại quán',
-  premium: 'Hiện trong mục Voucher, có khoá Premium → chỉ Premium lưu được',
+  meetup: 'Không hiện trong danh sách → tự vào ví những bạn chốt hẹn tại quán → quán quét từ 2 mã trở lên mới áp dụng. Quán có nhiều ưu đãi hẹn cafe thì dùng ưu đãi tạo gần nhất còn lượt.',
+  premium: 'Hiện trong mục Voucher, có khoá Premium → chỉ Premium lưu được → quán quét QR trong ví',
 };
 
 const endOfYear = () => `${new Date().getFullYear()}-12-31`;
@@ -136,6 +142,8 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
   const amountTooSmall = form.discountAmount !== '' && Number(form.discountAmount) < 1000;
   const switchToAmount = (value) => setForm((prev) => ({ ...prev, discountType: 'amount', discountAmount: value, discountPercent: '' }));
   const switchToPercent = (value) => setForm((prev) => ({ ...prev, discountType: 'percent', discountPercent: value, discountAmount: '' }));
+  // Gõ mã chung thì không biết ai dùng: hẹn cafe, Premium, đổi UniCoin luôn phải quét QR trong ví (backend cũng ép như vậy)
+  const walletOnlyForced = form.kind !== 'normal' || Number(form.coinCost) > 0;
 
   if (!open) return null;
 
@@ -150,6 +158,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
     if (form.discountType === 'amount' && !(Number(form.discountAmount) >= 1000)) return 'Số tiền giảm tối thiểu 1.000đ';
     if (form.discountType === 'gift' && !form.giftItem.trim()) return 'Vui lòng nhập món quà tặng';
     if (form.codeType === 'shared' && !form.isUnlimited && !(Number(form.quantity) >= 1)) return 'Số lượng phát hành phải từ 1 trở lên';
+    if (form.kind === 'meetup' && form.codeType === 'shared' && !form.isUnlimited && Number(form.quantity) < 2) return 'Ưu đãi hẹn cafe cần ít nhất 2 lượt: mỗi buổi hẹn tặng cho 2 bạn';
     if (!form.expiry) return 'Vui lòng chọn hạn sử dụng';
     return '';
   };
@@ -350,6 +359,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
               <div>
                 <label style={labelStyle}>Hoá đơn tối thiểu (đ)</label>
                 <input style={field} inputMode="numeric" value={groupDigits(form.minBill)} onChange={(e) => set('minBill', onlyDigits(e.target.value))} placeholder="Để trống = không yêu cầu" />
+                <div style={hint}>Thu ngân tự kiểm tra: hệ thống không biết số tiền hoá đơn</div>
               </div>
               <div>
                 <label style={labelStyle}>Hạn sử dụng *</label>
@@ -359,6 +369,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
             <div>
               <label style={labelStyle}>Điều kiện / ghi chú</label>
               <textarea style={{ ...field, minHeight: '60px', resize: 'vertical', fontFamily: 'inherit' }} maxLength={500} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="VD: Áp dụng thứ 2 – thứ 6, không cộng dồn khuyến mãi khác" />
+              <div style={hint}>Ô này chỉ để sinh viên và thu ngân đọc. Hệ thống không tự chặn theo nội dung ghi ở đây, thu ngân kiểm tra lúc quét.</div>
             </div>
           </div>
 
@@ -376,16 +387,19 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
               <div>
                 <label style={labelStyle}>Số lượng</label>
                 {form.codeType === 'unique' ? (
-                  <div style={{ ...hint, marginTop: 0, paddingTop: '10px' }}>Bằng số mã bạn nạp sau khi tạo</div>
+                  <div style={{ ...hint, marginTop: 0, paddingTop: '10px' }}>
+                    Bằng số mã bạn nạp sau khi tạo{form.kind === 'meetup' ? '. Mỗi bạn tham gia dùng 1 mã, mỗi buổi hẹn ít nhất 2 mã' : ''}
+                  </div>
                 ) : (
                   <>
                     <input style={{ ...field, backgroundColor: form.isUnlimited ? '#F1F5F9' : '#FFFFFF' }} inputMode="numeric" disabled={form.isUnlimited} value={form.isUnlimited ? '' : form.quantity} onChange={(e) => set('quantity', onlyDigits(e.target.value))} placeholder={form.isUnlimited ? 'Không giới hạn' : '100'} />
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '6px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={form.isUnlimited} onChange={(e) => set('isUnlimited', e.target.checked)} /> Không giới hạn
                     </label>
-                    <label title="Thu ngân không gõ được mã chung; sinh viên phải đưa QR trong ví" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={form.walletOnly} onChange={(e) => set('walletOnly', e.target.checked)} /> Chỉ quét QR trong ví
+                    <label title="Thu ngân không gõ được mã chung; sinh viên phải đưa QR trong ví" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)', cursor: walletOnlyForced ? 'default' : 'pointer' }}>
+                      <input type="checkbox" disabled={walletOnlyForced} checked={walletOnlyForced || form.walletOnly} onChange={(e) => set('walletOnly', e.target.checked)} /> Chỉ quét QR trong ví
                     </label>
+                    {form.kind === 'meetup' && !form.isUnlimited && <div style={hint}>Mỗi bạn tham gia dùng 1 lượt, mỗi buổi hẹn ít nhất 2 lượt</div>}
                   </>
                 )}
               </div>
@@ -397,6 +411,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
                 </div>
               )}
             </div>
+            <div style={hint}>{CODE_TYPE_HINT[form.codeType]}</div>
           </div>
 
           {/* Xem trước */}

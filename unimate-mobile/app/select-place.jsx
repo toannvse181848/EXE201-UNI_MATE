@@ -52,14 +52,15 @@ export default function SelectPlaceScreen() {
   const [sendingId, setSendingId] = useState(null);
   const { venues, loading } = useVenues();
 
-  // chat-room truyền buddyName, màn match truyền partnerName
-  const partnerName = params.partnerName || params.buddyName || 'bạn của bạn';
+  // chat-room truyền buddyName, màn match truyền partnerName, chat nhóm truyền groupName
+  const partnerName = params.groupName || params.partnerName || params.buddyName || 'bạn của bạn';
   const matchId = params.matchId;
+  const groupId = params.groupId;
 
   useEffect(() => {
-    if (!matchId) return;
+    if (!matchId && !groupId) return;
     meetupApi.getQuota().then((res) => setQuota(res.data?.data || null)).catch(() => {});
-  }, [matchId]);
+  }, [matchId, groupId]);
 
   const presets = TIME_PRESETS.filter((p) => p.id !== 'tonight' || new Date().getHours() < 19);
 
@@ -69,7 +70,7 @@ export default function SelectPlaceScreen() {
     .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured) || Number(Boolean(b.meetupReward)) - Number(Boolean(a.meetupReward)));
 
   const handleSelectVenue = async (venue) => {
-    if (!matchId) {
+    if (!matchId && !groupId) {
       // Mở từ nơi không có hội thoại: về danh sách tin nhắn để chọn bạn
       router.push('/(tabs)/chat');
       return;
@@ -78,7 +79,13 @@ export default function SelectPlaceScreen() {
     setSendingId(venue.id);
     try {
       const scheduledAt = presets.find((p) => p.id === timePreset)?.get() || null;
-      await meetupApi.create({ matchId, venueId: venue.id, scheduledAt: scheduledAt ? scheduledAt.toISOString() : undefined });
+      const target = { venueId: venue.id, scheduledAt: scheduledAt ? scheduledAt.toISOString() : undefined };
+      if (groupId) {
+        await meetupApi.createGroup({ groupId, ...target });
+        router.back();
+        return;
+      }
+      await meetupApi.create({ matchId, ...target });
       if (params.returnTo === 'chat') {
         router.back();
       } else {
@@ -116,8 +123,8 @@ export default function SelectPlaceScreen() {
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
-          <Text style={styles.headerTitle}>Rủ đi cafe</Text>
-          <Text style={styles.headerSubtitle}>với {partnerName}</Text>
+          <Text style={styles.headerTitle}>{groupId ? 'Rủ cả nhóm đi cafe' : 'Rủ đi cafe'}</Text>
+          <Text style={styles.headerSubtitle}>{groupId ? 'nhóm' : 'với'} {partnerName}</Text>
         </View>
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/chat')}
@@ -192,7 +199,7 @@ export default function SelectPlaceScreen() {
               <View style={styles.voucherPill}>
                 <Ionicons name={item.meetupReward ? 'gift' : 'pricetag'} size={13} color={COLORS.white} />
                 <Text style={styles.voucherPillText}>
-                  {item.meetupReward ? `Hẹn ở đây, cả hai nhận: ${item.meetupReward.title}` : item.voucherBadge}
+                  {item.meetupReward ? `Hẹn ở đây, ${groupId ? 'mỗi bạn' : 'cả hai'} nhận: ${item.meetupReward.title}` : item.voucherBadge}
                 </Text>
               </View>
               {item.isFeatured && (

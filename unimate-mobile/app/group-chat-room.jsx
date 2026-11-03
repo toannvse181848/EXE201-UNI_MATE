@@ -22,7 +22,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../src/constants/colors';
 import { Avatar } from '../src/components/Avatar';
 import { MessageAttachment } from '../src/components/MessageAttachment';
+import { GroupMeetupCard } from '../src/components/MeetupCard';
 import { groupChatApi } from '../src/api/groupChatApi';
+import { meetupApi } from '../src/api/meetupApi';
 import { useAuth } from '../src/context/AuthContext';
 
 const QUICK_EMOJIS = ['☕', '📚', '🎉', '🔥', '❤️', '👍', '😂', '👋', '💯', '✨', '💻', '🙌'];
@@ -51,6 +53,7 @@ export default function GroupChatRoomScreen() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [busyMeetupId, setBusyMeetupId] = useState(null);
 
   // Modals
   const [showMembersModal, setShowMembersModal] = useState(false);
@@ -110,6 +113,24 @@ export default function GroupChatRoomScreen() {
 
     return () => clearInterval(interval);
   }, [fetchMessages]);
+
+  // Tham gia / rời / huỷ buổi hẹn nhóm ngay trên thẻ trong chat
+  const handleMeetupAction = async (meetupId, action) => {
+    if (!meetupId || busyMeetupId) return;
+    setBusyMeetupId(String(meetupId));
+    try {
+      const request = { join: meetupApi.join, leave: meetupApi.leave, cancel: meetupApi.cancel }[action];
+      const res = await request(meetupId);
+      const updated = res.data?.data?.message;
+      if (updated) setMessages((prev) => prev.map((m) => (m._id === updated._id ? updated : m)));
+      if (action === 'join' && res.data?.message) Alert.alert('Rủ cả nhóm đi cafe ☕', res.data.message);
+    } catch (err) {
+      Alert.alert('Không thực hiện được', err.message);
+      fetchMessages(false);
+    } finally {
+      setBusyMeetupId(null);
+    }
+  };
 
   // Gửi tin nhắn văn bản
   const handleSendText = async () => {
@@ -350,8 +371,19 @@ export default function GroupChatRoomScreen() {
             {/* Video, tài liệu */}
             <MessageAttachment item={item} isMe={isMe} />
 
-            {/* Văn bản */}
-            {Boolean(item.text) && (
+            {/* Thẻ rủ cả nhóm đi cafe */}
+            {item.type === 'meetup' && Boolean(item.meetup) && (
+              <GroupMeetupCard
+                meetup={item.meetup}
+                currentUserId={currentUserId}
+                busy={busyMeetupId === String(item.meetup.meetupId)}
+                onAction={(action) => handleMeetupAction(item.meetup.meetupId, action)}
+                onOpenWallet={() => router.push('/my-vouchers')}
+              />
+            )}
+
+            {/* Văn bản (thẻ rủ cafe đã đủ thông tin nên ẩn chữ dự phòng) */}
+            {Boolean(item.text) && !(item.type === 'meetup' && item.meetup) && (
               <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextOther]}>
                 {item.text}
               </Text>
@@ -406,6 +438,14 @@ export default function GroupChatRoomScreen() {
 
         {/* Action icons */}
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => router.push({ pathname: '/select-place', params: { groupId, groupName: group.name } })}
+            title="Rủ cả nhóm đi cafe"
+          >
+            <Ionicons name="cafe-outline" size={20} color={COLORS.primary} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.headerIconBtn}
             onPress={openAddMemberModal}

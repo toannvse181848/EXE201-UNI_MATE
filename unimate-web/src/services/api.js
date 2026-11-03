@@ -302,9 +302,22 @@ export const meetupApi = {
     const res = await client.post('/api/meetups', payload);
     return res.data;
   },
+  // Rủ cả nhóm: { groupId, venueId, scheduledAt? }
+  createGroup: async (payload) => {
+    const res = await client.post('/api/meetups/group', payload);
+    return res.data;
+  },
   // action: 'accept' | 'decline'
   respond: async (meetupId, action) => {
     const res = await client.post(`/api/meetups/${meetupId}/respond`, { action });
+    return res.data;
+  },
+  join: async (meetupId) => {
+    const res = await client.post(`/api/meetups/${meetupId}/join`);
+    return res.data;
+  },
+  leave: async (meetupId) => {
+    const res = await client.post(`/api/meetups/${meetupId}/leave`);
     return res.data;
   },
   cancel: async (meetupId) => {

@@ -19,8 +19,28 @@ const groupMessageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'video', 'file', 'system'],
+      enum: ['text', 'image', 'video', 'file', 'system', 'meetup'],
       default: 'text',
+    },
+    // Thẻ "Rủ cả nhóm đi cafe" (type = 'meetup'): bản chụp lời mời, cập nhật khi có người tham gia / chốt / huỷ
+    meetup: {
+      meetupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Meetup' },
+      proposedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      venueId: { type: mongoose.Schema.Types.ObjectId, ref: 'Venue' },
+      venueName: { type: String },
+      venueAddress: { type: String },
+      venueImage: { type: String },
+      scheduledAt: { type: Date },
+      status: { type: String },
+      rewardTitle: { type: String },
+      maxPeople: { type: Number },
+      participants: [
+        {
+          _id: false,
+          user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+          fullName: { type: String },
+        },
+      ],
     },
     fileUrl: {
       type: String,

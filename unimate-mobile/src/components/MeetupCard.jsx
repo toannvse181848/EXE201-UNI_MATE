@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 
@@ -21,6 +21,125 @@ const formatMeetupTime = (value) =>
     : null;
 
 /**
+ * Thẻ "Rủ cả nhóm đi cafe" trong chat nhóm.
+ * currentUserId: người đang xem. busy: đang gửi thao tác. onAction('join' | 'leave' | 'cancel'). onOpenWallet: mở ví voucher.
+ */
+export function GroupMeetupCard({ meetup, currentUserId, busy, onAction, onOpenWallet }) {
+  const status = STATUS[meetup.status] || STATUS.proposed;
+  const time = formatMeetupTime(meetup.scheduledAt);
+  const participants = meetup.participants || [];
+  const joined = participants.some((p) => String(p.user) === String(currentUserId));
+  const isOrganizer = String(meetup.proposedBy) === String(currentUserId);
+  const isOpen = meetup.status === 'proposed' || meetup.status === 'accepted';
+  const isFull = participants.length >= (meetup.maxPeople || Infinity);
+  const rewardDone = meetup.status === 'accepted' || meetup.status === 'completed';
+  const rewardRevoked = Boolean(meetup.rewardTitle) && (meetup.status === 'cancelled' || meetup.status === 'no_show');
+
+  const confirmThen = (title, text, label, action) => {
+    Alert.alert(title, text, [
+      { text: 'Không', style: 'cancel' },
+      { text: label, style: 'destructive', onPress: () => onAction(action) },
+    ]);
+  };
+
+  return (
+    <View style={styles.card}>
+      {Boolean(meetup.venueImage) && <Image source={{ uri: meetup.venueImage }} style={styles.image} />}
+      <View style={styles.body}>
+        <View style={styles.headRow}>
+          <Text style={styles.kicker}>☕ Rủ cả nhóm đi cafe</Text>
+          <View style={[styles.statusPill, { backgroundColor: status.bg }]}>
+            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.venueName}>{meetup.venueName}</Text>
+        <Text style={styles.venueAddress}>{meetup.venueAddress}</Text>
+
+        {Boolean(time) && (
+          <View style={styles.timeRow}>
+            <Ionicons name="time-outline" size={13} color="#334155" />
+            <Text style={styles.timeText}>{time}</Text>
+          </View>
+        )}
+
+        {Boolean(meetup.rewardTitle) && (rewardDone || meetup.status === 'proposed') && (
+          <View style={styles.rewardBox}>
+            <Ionicons name="gift-outline" size={14} color="#9A3412" />
+            <Text style={styles.rewardText}>
+              {rewardDone ? 'Mỗi bạn tham gia có trong ví: ' : 'Có từ 2 bạn tham gia, mỗi bạn nhận: '}
+              <Text style={styles.bold}>{meetup.rewardTitle}</Text>
+            </Text>
+          </View>
+        )}
+        {!meetup.rewardTitle && meetup.status === 'accepted' && <Text style={styles.muted}>Quán chưa có ưu đãi hẹn cafe.</Text>}
+
+        <Text style={styles.timeText}>
+          <Text style={styles.bold}>
+            {participants.length}{meetup.maxPeople ? `/${meetup.maxPeople}` : ''} bạn tham gia:{' '}
+          </Text>
+          {participants.map((p) => p.fullName).join(', ')}
+        </Text>
+
+        {isOpen && !joined && !isFull && (
+          <TouchableOpacity style={[styles.btn, styles.btnPrimary, { marginTop: 2 }]} disabled={busy} onPress={() => onAction('join')}>
+            {busy ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={styles.btnPrimaryText}>Tham gia</Text>}
+          </TouchableOpacity>
+        )}
+        {isOpen && !joined && isFull && <Text style={styles.muted}>Buổi hẹn này đã đủ người.</Text>}
+
+        {meetup.status === 'proposed' && isOrganizer && (
+          <View style={styles.waitRow}>
+            <Text style={[styles.muted, { flex: 1 }]}>Đang chờ các bạn trong nhóm tham gia</Text>
+            <TouchableOpacity disabled={busy} onPress={() => onAction('cancel')}>
+              <Text style={styles.cancelText}>Huỷ lời mời</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {meetup.status === 'accepted' && joined && (
+          <>
+            {Boolean(meetup.rewardTitle) && (
+              <TouchableOpacity style={[styles.btn, styles.btnPrimary, { marginTop: 4 }]} onPress={onOpenWallet}>
+                <Text style={styles.btnPrimaryText}>Mở ví voucher</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.muted}>
+              {meetup.rewardTitle
+                ? 'Cả nhóm cùng tới quán: quán quét mã QR trong ví của từ 2 bạn trở lên rồi mới áp dụng ưu đãi (đi một mình không dùng được). Hoặc từ 2 bạn cùng quét QR check-in của quán để được tính là đã gặp.'
+                : 'Tới quán, từ 2 bạn cùng quét mã QR check-in dán tại quán trong ngày để được tính là đã gặp.'}
+            </Text>
+            {isOrganizer ? (
+              <TouchableOpacity disabled={busy} onPress={() => confirmThen('Huỷ buổi hẹn này?', 'Ưu đãi chưa dùng của mọi người sẽ bị thu hồi khỏi ví.', 'Huỷ buổi hẹn', 'cancel')}>
+                <Text style={styles.cancelText}>Huỷ buổi hẹn</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity disabled={busy} onPress={() => confirmThen('Không đi nữa?', 'Ưu đãi chưa dùng của bạn sẽ bị thu hồi khỏi ví.', 'Không đi nữa', 'leave')}>
+                <Text style={styles.cancelText}>Không đi nữa</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {meetup.status === 'completed' && (
+          <Text style={styles.doneText}>Nhóm đã gặp nhau tại quán. Bạn nào có mặt được thưởng UniCoin 🎉 (tính trong giới hạn 60 UniCoin/ngày). Bạn đến muộn vẫn dùng được ưu đãi trong 24 giờ.</Text>
+        )}
+
+        {rewardRevoked && <Text style={styles.muted}>Ưu đãi chưa dùng của buổi này đã được thu hồi khỏi ví.</Text>}
+
+        {meetup.status === 'expired' && (
+          <Text style={styles.muted}>Lời mời không có ai tham gia trong 48 giờ nên đã hết hạn.</Text>
+        )}
+
+        {meetup.status === 'no_show' && (
+          <Text style={styles.muted}>Đã quá giờ hẹn mà chưa ghi nhận nhóm tới quán.</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
  * Thẻ "Rủ đi cafe" trong phòng chat.
  * isMine: mình là người mời. busy: đang gửi trả lời. onOpenWallet: mở ví voucher.
  */
@@ -28,6 +147,17 @@ export function MeetupCard({ meetup, isMine, buddyName, busy, onRespond, onCance
   const status = STATUS[meetup.status] || STATUS.proposed;
   const time = formatMeetupTime(meetup.scheduledAt);
   const rewardDone = meetup.status === 'accepted' || meetup.status === 'completed';
+  // Lời mời bị từ chối / huỷ / hết hạn thì không còn ưu đãi để hứa
+  const rewardOpen = rewardDone || meetup.status === 'proposed';
+  // Buổi đã chốt có voucher trong ví mà không diễn ra thì voucher bị thu hồi
+  const rewardRevoked = Boolean(meetup.rewardTitle) && (meetup.status === 'cancelled' || meetup.status === 'no_show');
+
+  const handleCancelAccepted = () => {
+    Alert.alert('Huỷ buổi hẹn này?', 'Ưu đãi chưa dùng của cả hai bạn sẽ bị thu hồi khỏi ví.', [
+      { text: 'Không', style: 'cancel' },
+      { text: 'Huỷ buổi hẹn', style: 'destructive', onPress: onCancel },
+    ]);
+  };
 
   return (
     <View style={styles.card}>
@@ -50,7 +180,7 @@ export function MeetupCard({ meetup, isMine, buddyName, busy, onRespond, onCance
           </View>
         )}
 
-        {meetup.rewardTitle ? (
+        {meetup.rewardTitle && rewardOpen ? (
           <View style={styles.rewardBox}>
             <Ionicons name="gift-outline" size={14} color="#9A3412" />
             <Text style={styles.rewardText}>
@@ -91,15 +221,20 @@ export function MeetupCard({ meetup, isMine, buddyName, busy, onRespond, onCance
             )}
             <Text style={styles.muted}>
               {meetup.rewardTitle
-                ? 'Tới quán, mỗi người đưa mã QR trong ví cho quán quét để dùng ưu đãi (hoặc cả hai cùng quét QR check-in của quán).'
+                ? 'Hai bạn cùng tới quán: quán quét mã QR trong ví của cả hai rồi mới áp dụng ưu đãi (đi một mình không dùng được). Hoặc cả hai quét QR check-in của quán để được tính là đã gặp.'
                 : 'Tới quán, cả hai cùng quét mã QR check-in dán tại quán trong ngày để được tính là đã gặp.'}
             </Text>
+            <TouchableOpacity disabled={busy} onPress={handleCancelAccepted}>
+              <Text style={styles.cancelText}>Huỷ buổi hẹn</Text>
+            </TouchableOpacity>
           </>
         )}
 
         {meetup.status === 'completed' && (
-          <Text style={styles.doneText}>Hai bạn đã gặp nhau tại quán. Mỗi người được thưởng UniCoin 🎉</Text>
+          <Text style={styles.doneText}>Hai bạn đã gặp nhau tại quán. Mỗi người được thưởng UniCoin 🎉 (tính trong giới hạn 60 UniCoin/ngày)</Text>
         )}
+
+        {rewardRevoked && <Text style={styles.muted}>Ưu đãi chưa dùng của buổi này đã được thu hồi khỏi ví.</Text>}
 
         {meetup.status === 'expired' && (
           <Text style={styles.muted}>Lời mời không được trả lời trong 48 giờ nên đã hết hạn.</Text>

@@ -6,6 +6,7 @@ const ApiError = require('../utils/ApiError');
 const { computeMatchScore, commonInterests, sortByRank } = require('../utils/matchingAlgorithm');
 const { isPremiumActive } = require('../utils/subscription');
 const { isVenueVisible } = require('../utils/visibility');
+const { revokeMeetupVouchers } = require('../utils/meetupRewards');
 const { toPublicStudent } = require('../utils/publicProfile');
 const { saveLocationFromQuery } = require('../utils/userLocation');
 
@@ -20,9 +21,12 @@ const findPair = (a, b) =>
     ],
   });
 
-/** Huỷ các lời mời / buổi hẹn còn mở của cặp này (khi huỷ kết bạn hoặc chặn) */
-const cancelOpenMeetups = (matchId) =>
-  Meetup.updateMany({ matchId, status: { $in: ['proposed', 'accepted'] } }, { status: 'cancelled' });
+/** Huỷ các lời mời / buổi hẹn còn mở của cặp này (khi huỷ kết bạn hoặc chặn) và thu hồi ưu đãi chưa dùng */
+const cancelOpenMeetups = async (matchId) => {
+  const open = await Meetup.find({ matchId, status: { $in: ['proposed', 'accepted'] } }).select('_id');
+  await Meetup.updateMany({ _id: { $in: open.map((m) => m._id) } }, { status: 'cancelled' });
+  for (const { _id } of open) await revokeMeetupVouchers(_id);
+};
 
 // Sinh viên: Lấy danh sách bạn học để quẹt thẻ khám phá
 const getDiscoveryDeck = catchAsync(async (req, res) => {

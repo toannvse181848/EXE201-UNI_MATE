@@ -5,18 +5,22 @@ const VoucherCode = require('../models/VoucherCode');
 const { describeVoucherValue } = require('./voucherFormat');
 const Venue = require('../models/Venue');
 const { visibleVenueFilter } = require('./visibility');
-const { hasSharedStock, reserveSharedSlot, releaseSharedSlot } = require('./voucherStock');
+const { issuedOf, reserveSharedSlot, releaseSharedSlot } = require('./voucherStock');
 
-/** Voucher còn lượt để phát: mã riêng thì còn mã trống, mã chung thì chưa dùng hết số lượng */
-const hasStock = async (voucher) => {
+// Mỗi buổi hẹn tặng ưu đãi cho ít nhất 2 người
+const SLOTS_PER_MEETUP = 2;
+
+/** Voucher còn đủ lượt cho một buổi hẹn: mã riêng thì đủ mã trống, mã chung thì đủ lượt chưa phát */
+const hasStockForMeetup = async (voucher) => {
   if (voucher.codeType === 'unique') {
-    return Boolean(await VoucherCode.exists({ voucherId: voucher._id, userId: null }));
+    const freeCodes = await VoucherCode.countDocuments({ voucherId: voucher._id, userId: null });
+    return freeCodes >= SLOTS_PER_MEETUP;
   }
-  return hasSharedStock(voucher);
+  return voucher.isUnlimited || voucher.quantity - issuedOf(voucher) >= SLOTS_PER_MEETUP;
 };
 
 /**
- * Ưu đãi hẹn cafe đang chạy của từng quán (mới nhất, còn hạn, còn lượt).
+ * Ưu đãi hẹn cafe đang chạy của từng quán (mới nhất, còn hạn, còn đủ lượt cho 2 người).
  * @returns Map<venueId string, Voucher>
  */
 const findMeetupRewards = async (venueIds) => {
@@ -32,10 +36,13 @@ const findMeetupRewards = async (venueIds) => {
   const rewards = new Map();
   for (const voucher of vouchers) {
     const key = String(voucher.venueId);
-    if (!rewards.has(key) && (await hasStock(voucher))) rewards.set(key, voucher);
+    if (!rewards.has(key) && (await hasStockForMeetup(voucher))) rewards.set(key, voucher);
   }
   return rewards;
 };
+
+/** Ưu đãi đã gắn với buổi hẹn nhóm còn chạy không (bạn tham gia sau nhận đúng ưu đãi này) */
+const findRunningReward = (voucherId) => Voucher.findOne({ _id: voucherId, isActive: true, validUntil: { $gte: new Date() } });
 
 /** Thông tin ưu đãi gửi cho client (không lộ mã voucher) */
 const toRewardSummary = (voucher) =>
@@ -112,4 +119,45 @@ const grantMeetupVoucher = async (voucher, userId, meetupId) => {
   return userVoucher;
 };
 
-module.exports = { hasStock, findMeetupRewards, toRewardSummary, grantMeetupVoucher };
+/**
+ * Thu hồi voucher chưa dùng của một buổi hẹn (huỷ hẹn, huỷ kết bạn, không diễn ra):
+ * xoá khỏi ví và trả lại lượt / mã cho quán. Voucher đã dùng giữ nguyên để đối soát.
+ * Có userId thì chỉ thu hồi của người đó (rời buổi hẹn nhóm).
+ * @returns số voucher đã thu hồi
+ */
+const revokeMeetupVouchers = async (meetupId, userId = null) => {
+  const vouchers = await UserVoucher.find({ meetupId, status: 'saved', ...(userId ? { userId } : {}) }).select('_id');
+  let revoked = 0;
+  for (const { _id } of vouchers) {
+    // Xoá có điều kiện: quán vừa quét đúng lúc này thì voucher đã là "used", không thu hồi nữa
+    const removed = await UserVoucher.findOneAndDelete({ _id, status: 'saved' });
+    if (!removed) continue;
+    if (removed.assignedCode) {
+      await VoucherCode.updateOne(
+        { voucherId: removed.voucherId, code: removed.assignedCode },
+        { userId: null, userVoucherId: null, assignedAt: null }
+      );
+    } else {
+      await releaseSharedSlot({ _id: removed.voucherId });
+    }
+    revoked += 1;
+  }
+  return revoked;
+};
+
+/**
+ * Tặng ưu đãi cho những người chốt buổi hẹn: đủ tất cả hoặc không ai nhận.
+ * Hết lượt giữa chừng thì trả lại phần đã cấp, không để một người có voucher còn người kia không.
+ * @returns true nếu tất cả đã có voucher
+ */
+const grantMeetupVouchers = async (voucher, userIds, meetupId) => {
+  for (const userId of userIds) {
+    if (!(await grantMeetupVoucher(voucher, userId, meetupId))) {
+      await revokeMeetupVouchers(meetupId);
+      return false;
+    }
+  }
+  return true;
+};
+
+module.exports = { findMeetupRewards, findRunningReward, toRewardSummary, grantMeetupVoucher, grantMeetupVouchers, revokeMeetupVouchers };

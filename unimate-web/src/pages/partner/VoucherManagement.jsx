@@ -74,7 +74,7 @@ export default function VoucherManagement() {
         value: describeVoucher(v).discountLabel,
         condition: describeVoucher(v).conditionLabel,
         branch: v.venueId?.name || '',
-        total: v.isUnlimited ? 'Không giới hạn' : (v.quantity || 500),
+        total: v.isUnlimited ? 'Không giới hạn' : (v.quantity ?? 0),
         // Mã chung: lượt đã phát = lưu vào ví + gõ mã tại quầy (cùng số backend dùng để tính hết lượt)
         issued: v.codeType === 'unique' ? v.claimedCount || 0 : v.issuedCount ?? v.claimedCount ?? 0,
         // Lượt dùng thật tại quầy (bản ghi quét), cùng số với trang admin
@@ -603,7 +603,7 @@ export default function VoucherManagement() {
                             </span>
                           </td>
                           <td style={{ padding: '8px 12px', color: '#475569' }}>
-                            {item.userId?.fullName || '—'}
+                            {item.student?.fullName || '—'}
                           </td>
                         </tr>
                       ))}

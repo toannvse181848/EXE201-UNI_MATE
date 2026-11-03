@@ -23,6 +23,11 @@ export default function PartnerScanner() {
   const [redeeming, setRedeeming] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null);
   const [verifyError, setVerifyError] = useState(null);
+  // Ưu đãi hẹn cafe: mã của các bạn đi cùng ({ payload, student })
+  const [companionCode, setCompanionCode] = useState('');
+  const [verifyingCompanion, setVerifyingCompanion] = useState(false);
+  const [companions, setCompanions] = useState([]);
+  const [companionError, setCompanionError] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
 
@@ -46,6 +51,19 @@ export default function PartnerScanner() {
     return code.startsWith('UVM-') ? { qrPayload: code } : { code };
   };
 
+  // Ưu đãi hẹn cafe: đã có mã đầu, chưa có mã của bạn đi cùng nào thì chưa được áp dụng
+  const meetupInfo = verifyResult?.meetup;
+  const needsCompanion = Boolean(meetupInfo?.requiresCompanion && companions.length === 0);
+  // Buổi hẹn nhóm: đủ 2 bạn là áp dụng được, vẫn nhập thêm được các bạn khác trước khi xác nhận
+  const canAddMore = Boolean(meetupInfo?.requiresCompanion && companions.length < (meetupInfo.companions?.length || 0));
+  const companionName = meetupInfo?.isGroup ? 'bạn khác trong nhóm' : meetupInfo?.companions?.[0]?.fullName || 'bạn đi cùng';
+
+  const clearCompanion = () => {
+    setCompanionCode('');
+    setCompanions([]);
+    setCompanionError(null);
+  };
+
   const handleVerify = async () => {
     if (!inputCode.trim()) {
       return Alert.alert('Thông báo', 'Vui lòng nhập hoặc dán mã QR / mã voucher');
@@ -54,6 +72,7 @@ export default function PartnerScanner() {
     setVerifying(true);
     setVerifyError(null);
     setVerifyResult(null);
+    clearCompanion();
 
     try {
       const payload = toPayload(inputCode);
@@ -66,24 +85,63 @@ export default function PartnerScanner() {
     }
   };
 
+  const handleVerifyCompanion = async () => {
+    if (!companionCode.trim()) {
+      return Alert.alert('Thông báo', `Vui lòng nhập mã trong ví của ${companionName}`);
+    }
+
+    setVerifyingCompanion(true);
+    setCompanionError(null);
+    try {
+      const payload = toPayload(companionCode);
+      const res = await voucherApi.verifyVoucher(payload);
+      const found = res?.data?.data || res?.data;
+      if (found.meetup?.id !== verifyResult.meetup.id) {
+        setCompanionError(`Mã này không thuộc buổi hẹn này. Hãy nhập mã của ${companionName}.`);
+      } else if ([verifyResult.student, ...companions.map((c) => c.student)].some((s) => s?.id === found.student?.id)) {
+        setCompanionError(`Đây vẫn là mã của ${found.student?.fullName}. Hãy nhập mã của ${companionName}.`);
+      } else {
+        setCompanions((prev) => [...prev, { payload, student: found.student }]);
+        setCompanionCode('');
+      }
+    } catch (err) {
+      setCompanionError(err.message || 'Mã voucher không hợp lệ hoặc không tồn tại');
+    } finally {
+      setVerifyingCompanion(false);
+    }
+  };
+
   const handleRedeem = async () => {
-    if (!verifyResult) return;
+    if (!verifyResult || needsCompanion) return;
 
     setRedeeming(true);
     try {
       const payload = toPayload(inputCode);
-      const res = await voucherApi.redeemVoucher(payload);
+      const res = await voucherApi.redeemVoucher(
+        companions.length > 0 ? { ...payload, companions: companions.map((c) => c.payload) } : payload
+      );
+      const redeemed = res.data?.data;
+      // UniCoin từng bạn thực nhận, nói rõ khi đã chạm giới hạn kiếm coin trong ngày
+      const coinLines = (redeemed?.students || []).map((s) =>
+        s.coinAwarded > 0
+          ? `${s.fullName}: +${s.coinAwarded} UniCoin`
+          : `${s.fullName}: không cộng thêm UniCoin vì hôm nay đã đạt giới hạn ${redeemed.maxDailyEarn} UniCoin`
+      );
 
       Alert.alert(
         'Check-in Thành công! 🎉',
-        res.data?.data?.meetupCompleted
-          ? 'Voucher đã được xác nhận. Cặp hẹn cafe đã đủ 2 người, buổi hẹn được ghi nhận 🤝'
-          : 'Voucher đã được xác nhận sử dụng thành công cho sinh viên.'
+        [
+          redeemed?.meetupCompleted
+            ? 'Voucher đã được xác nhận. Đã đủ người, buổi hẹn được ghi nhận 🤝'
+            : 'Voucher đã được xác nhận sử dụng thành công cho sinh viên.',
+          ...coinLines,
+        ].join('\n')
       );
 
       setInputCode('');
       setVerifyResult(null);
       setVerifyError(null);
+      clearCompanion();
       loadHistory();
     } catch (err) {
       Alert.alert('Thất bại', err.message || 'Không thể xác nhận voucher lúc này');
@@ -139,6 +197,7 @@ export default function PartnerScanner() {
                     setInputCode('');
                     setVerifyResult(null);
                     setVerifyError(null);
+                    clearCompanion();
                   }}
                   style={{ padding: 4 }}
                 >
@@ -177,39 +236,84 @@ export default function PartnerScanner() {
                 {verifyResult.voucher?.title || verifyResult.title || 'Voucher giảm giá'}
               </Text>
 
+              {/* Điều kiện chỉ thu ngân kiểm tra được: hệ thống không biết số tiền hoá đơn, không đọc được ghi chú */}
+              <Text style={styles.conditionText}>
+                {verifyResult.discountLabel} · {verifyResult.conditionLabel}
+                {verifyResult.description ? `\nThu ngân tự kiểm tra: ${verifyResult.description}` : ''}
+                {verifyResult.venueName ? `\nÁp dụng tại: ${verifyResult.venueName}` : ''}
+              </Text>
+
               {/* Student info */}
-              {verifyResult.user && (
-                <View style={styles.studentInfoBox}>
+              {[verifyResult.student, ...companions.map((c) => c.student)].filter(Boolean).map((student) => (
+                <View key={student.id} style={styles.studentInfoBox}>
                   <View style={styles.studentAvatar}>
                     <Ionicons name="person" size={18} color={COLORS.primary} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.studentName}>
-                      Sinh viên: {verifyResult.user.fullName || 'Thành viên UNI-MATE'}
+                      Sinh viên: {student.fullName || 'Thành viên UNI-MATE'}
                     </Text>
-                    <Text style={styles.studentSub}>
-                      {verifyResult.user.university || verifyResult.user.email}
-                    </Text>
+                    {Boolean(student.university) && (
+                      <Text style={styles.studentSub}>{student.university}</Text>
+                    )}
                   </View>
+                </View>
+              ))}
+
+              {canAddMore && (
+                /* Ưu đãi hẹn cafe: phải có mặt từ 2 bạn trở lên mới áp dụng được */
+                <View style={[styles.companionBox, !needsCompanion && { marginBottom: 12 }]}>
+                  <Text style={styles.companionTitle}>
+                    {needsCompanion
+                      ? `🤝 Ưu đãi hẹn cafe phải có mặt từ 2 bạn trở lên. Nhập tiếp mã trong ví của ${companionName} rồi mới áp dụng được.`
+                      : '🤝 Còn bạn nào trong nhóm đang ở quầy thì nhập thêm trước khi xác nhận. Bạn đến sau vẫn quét riêng được.'}
+                    {meetupInfo?.isGroup ? `
+Các bạn cùng buổi hẹn: ${meetupInfo.companions.map((c) => c.fullName).join(', ')}` : ''}
+                  </Text>
+                  <View style={styles.inputRow}>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="VD: UVM-123456"
+                      placeholderTextColor={COLORS.textMuted}
+                      value={companionCode}
+                      onChangeText={(t) => {
+                        setCompanionCode(t);
+                        setCompanionError(null);
+                      }}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  {Boolean(companionError) && <Text style={styles.companionError}>{companionError}</Text>}
+                  <Button
+                    title={`Kiểm tra mã của ${companionName}`}
+                    onPress={handleVerifyCompanion}
+                    loading={verifyingCompanion}
+                    style={{ marginTop: 10 }}
+                  />
                 </View>
               )}
 
-              {/* Redeem Button */}
-              <TouchableOpacity
-                style={styles.redeemBtn}
-                onPress={handleRedeem}
-                disabled={redeeming}
-                activeOpacity={0.85}
-              >
-                {redeeming ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-done" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.redeemBtnText}>XÁC NHẬN SỬ DỤNG VOUCHER</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {!needsCompanion && (
+                /* Redeem Button */
+                <TouchableOpacity
+                  style={styles.redeemBtn}
+                  onPress={handleRedeem}
+                  disabled={redeeming}
+                  activeOpacity={0.85}
+                >
+                  {redeeming ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-done" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.redeemBtnText}>
+                        {companions.length > 0 ? `XÁC NHẬN CHO CẢ ${companions.length + 1} BẠN` : 'XÁC NHẬN SỬ DỤNG VOUCHER'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -379,7 +483,33 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: COLORS.text,
+    marginBottom: 6,
+  },
+  conditionText: {
+    fontSize: 12.5,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
     marginBottom: 12,
+  },
+  companionBox: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    padding: 12,
+  },
+  companionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  companionError: {
+    color: COLORS.error,
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginTop: 8,
   },
   studentInfoBox: {
     flexDirection: 'row',

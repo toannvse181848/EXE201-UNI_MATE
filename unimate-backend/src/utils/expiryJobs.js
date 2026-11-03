@@ -1,13 +1,15 @@
 const Meetup = require('../models/Meetup');
 const Order = require('../models/Order');
-const { INVITE_EXPIRE_HOURS, NO_SHOW_GRACE_HOURS, NO_TIME_MEETUP_DAYS } = require('../config/meetup');
+const { INVITE_EXPIRE_HOURS, NO_SHOW_GRACE_HOURS, NO_TIME_MEETUP_DAYS, GROUP_LATECOMER_HOURS } = require('../config/meetup');
 const { migrateIssuedCount } = require('./voucherStock');
+const { revokeMeetupVouchers } = require('./meetupRewards');
 
 /**
  * Đóng các trạng thái chờ không có lối ra theo thời gian (chạy định kỳ trong tiến trình server):
  * - Lời "Rủ cafe" chưa ai trả lời quá INVITE_EXPIRE_HOURS giờ → expired (người mời được trả lượt)
  * - Buổi hẹn đã chốt, quá giờ hẹn NO_SHOW_GRACE_HOURS giờ (không đặt giờ: chốt quá NO_TIME_MEETUP_DAYS ngày)
- *   mà chưa ghi nhận tới quán → no_show
+ *   mà chưa ghi nhận tới quán → no_show, thu hồi ưu đãi chưa dùng và trả lại lượt cho quán
+ * - Buổi hẹn nhóm đã ghi nhận quá GROUP_LATECOMER_HOURS giờ → thu hồi ưu đãi của bạn chưa tới
  * - Đơn mua gói chờ thanh toán quá 24 giờ → tự huỷ (autoCancelled: tiền về muộn vẫn tự kích hoạt gói)
  */
 const HOUR_MS = 60 * 60 * 1000;
@@ -35,6 +37,8 @@ const moveMeetups = async (io, filter, fromStatus, toStatus) => {
       { returnDocument: 'after' }
     );
     if (updated) moved.push(updated);
+    // Chỉ buổi đã chốt mới có ưu đãi trong ví
+    if (updated && fromStatus === 'accepted') await revokeMeetupVouchers(updated._id);
   }
   await syncCards(io, moved, toStatus);
   return moved.length;
@@ -56,6 +60,13 @@ const runExpiryJobs = async (io) => {
     'accepted',
     'no_show'
   );
+
+  const finishedGroups = await Meetup.find({
+    groupId: { $ne: null },
+    status: 'completed',
+    completedAt: { $lt: new Date(now - GROUP_LATECOMER_HOURS * HOUR_MS) },
+  }).select('_id');
+  for (const { _id } of finishedGroups) await revokeMeetupVouchers(_id);
 
   const orders = await Order.updateMany(
     { status: 'pending', createdAt: { $lt: new Date(now - ORDER_PENDING_HOURS * HOUR_MS) } },

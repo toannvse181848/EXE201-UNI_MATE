@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { chatApi, matchApi, groupChatApi, meetupApi, API_BASE_URL } from '../../services/api';
-import MeetupCard from '../../components/user/MeetupCard';
+import MeetupCard, { GroupMeetupCard } from '../../components/user/MeetupCard';
 import MeetupInviteModal from '../../components/user/MeetupInviteModal';
 import ReportUserModal from '../../components/user/ReportUserModal';
 import FriendActionsModal from '../../components/user/FriendActionsModal';
@@ -357,6 +357,9 @@ export default function UserMessages() {
 
   // "Rủ đi cafe": khung chọn quán + thẻ lời mời đang được trả lời
   const [showMeetupModal, setShowMeetupModal] = useState(false);
+  const [showGroupMeetupModal, setShowGroupMeetupModal] = useState(false);
+  // Điện thoại chỉ hiện 1 trong 2 khung: danh sách hoặc chat. Bấm quay lại thì về danh sách.
+  const [showListOnMobile, setShowListOnMobile] = useState(false);
   // Báo cáo người đang chat với ban quản trị
   const [showReportModal, setShowReportModal] = useState(false);
   // Huỷ kết bạn / chặn người đang chat
@@ -741,6 +744,36 @@ export default function UserMessages() {
     }
   };
 
+  // Thêm / cập nhật thẻ rủ cafe trong chat nhóm
+  const upsertGroupMessage = (savedMsg) => {
+    if (!savedMsg) return;
+    setGroupMessages((prev) =>
+      prev.some((m) => m._id === savedMsg._id)
+        ? prev.map((m) => (m._id === savedMsg._id ? savedMsg : m))
+        : [...prev, savedMsg]
+    );
+  };
+
+  // Tham gia / rời / huỷ buổi hẹn nhóm ngay trên thẻ trong chat nhóm
+  const handleGroupMeetupAction = async (meetupId, action) => {
+    if (!meetupId || busyMeetupId) return;
+    setBusyMeetupId(meetupId);
+    try {
+      const request = { join: meetupApi.join, leave: meetupApi.leave, cancel: meetupApi.cancel }[action];
+      const res = await request(meetupId);
+      if (res.data?.message) upsertGroupMessage(res.data.message);
+      if (action === 'join') {
+        trackEvent('meetup_accept', { reward_granted: res.data?.rewardGranted || 0, is_group: true });
+        if (res.message) alert(res.message);
+      }
+    } catch (err) {
+      alert(err.message);
+      if (selectedGroupId) loadGroupMessages(selectedGroupId, true);
+    } finally {
+      setBusyMeetupId(null);
+    }
+  };
+
   // ─── GROUP CHAT HANDLERS ──────────────────────────────────────────────────
 
   // Tải danh sách nhóm
@@ -985,6 +1018,7 @@ export default function UserMessages() {
       const gId = newGroup.groupId || newGroup._id || newGroup.id;
       setSelectedGroupId(gId);
       setSelectedMatchId(null);
+      setShowListOnMobile(false);
       setActiveTab('groups');
     } catch (err) {
       alert('Không thể tạo nhóm. Vui lòng thử lại: ' + err.message);
@@ -1092,7 +1126,7 @@ export default function UserMessages() {
     >
       {/* ================= SIDEBAR TRÁI ================= */}
       <div
-        className={`messages-sidebar${activeConversation ? ' hide-mobile' : ''}`}
+        className={`messages-sidebar${(activeConversation || (selectedGroupId && activeGroup)) && !showListOnMobile ? ' hide-mobile' : ''}`}
         style={{
           width: '360px',
           borderRight: '1px solid var(--border-color)',
@@ -1393,6 +1427,7 @@ export default function UserMessages() {
                       onClick={() => {
                         setSelectedGroupId(gId);
                         setSelectedMatchId(null);
+                        setShowListOnMobile(false);
                       }}
                       style={{
                         display: 'flex',
@@ -1533,6 +1568,7 @@ export default function UserMessages() {
                       onClick={() => {
                         setSelectedMatchId(chat.matchId);
                         setSelectedGroupId(null);
+                        setShowListOnMobile(false);
                       }}
                       style={{
                         display: 'flex',
@@ -1959,7 +1995,7 @@ export default function UserMessages() {
       {/* ================= KHUNG CHAT CHÍNH (BÊN PHẢI) ================= */}
       {!selectedGroupId && activeConversation ? (
         <div
-          className="messages-chat-area"
+          className={`messages-chat-area${showListOnMobile ? ' hide-mobile' : ''}`}
           style={{
             flex: 1,
             display: 'flex',
@@ -1984,7 +2020,7 @@ export default function UserMessages() {
               {/* Nút quay lại trên mobile */}
               <button
                 className="messages-back-btn"
-                onClick={() => setSelectedMatchId(null)}
+                onClick={() => { setSelectedMatchId(null); setShowListOnMobile(true); }}
                 style={{
                   display: 'none',
                   background: 'none',
@@ -2753,14 +2789,14 @@ export default function UserMessages() {
       ) : selectedGroupId && activeGroup ? (
         /* ====== GROUP CHAT PANEL ====== */
         <div
-          className="messages-chat-area"
+          className={`messages-chat-area${showListOnMobile ? ' hide-mobile' : ''}`}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#FFFFFF', position: 'relative' }}
         >
           {/* Group Chat Header */}
           <div className="chat-header" style={{ padding: '14px 20px', gap: '10px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
               <button
-                onClick={() => { setSelectedGroupId(null); setGroupMessages([]); setGroupInfo(null); }}
+                onClick={() => { setSelectedGroupId(null); setGroupMessages([]); setGroupInfo(null); setShowListOnMobile(true); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: '4px' }}
               >
                 <ArrowLeft size={20} color="var(--text-secondary)" />
@@ -2777,6 +2813,15 @@ export default function UserMessages() {
             </div>
             {/* Group action buttons */}
             <div className="chat-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setShowGroupMeetupModal(true)}
+                title="Rủ cả nhóm đi cafe"
+                className="chat-header-cafe-btn"
+                style={{ background: '#FFF3E0', border: '1px solid #FFCC80', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#FF5722', fontSize: '12px', fontWeight: '800' }}
+              >
+                <Coffee size={15} /> <span className="chat-header-btn-text" style={{ whiteSpace: 'nowrap' }}>Rủ đi cafe</span>
+              </button>
               <button
                 onClick={() => setShowGroupMembersModal(true)}
                 title="Xem thành viên"
@@ -2889,8 +2934,17 @@ export default function UserMessages() {
                             <Download size={14} style={{ marginLeft: 'auto', flexShrink: 0 }} />
                           </a>
                         )}
-                        {/* Text */}
-                        {msg.text && <span>{msg.text}</span>}
+                        {/* Thẻ rủ cả nhóm đi cafe */}
+                        {msg.type === 'meetup' && msg.meetup && (
+                          <GroupMeetupCard
+                            meetup={msg.meetup}
+                            currentUserId={currentUserId}
+                            busy={busyMeetupId === msg.meetup.meetupId}
+                            onAction={(action) => handleGroupMeetupAction(msg.meetup.meetupId, action)}
+                          />
+                        )}
+                        {/* Text (thẻ rủ cafe đã đủ thông tin nên ẩn chữ dự phòng) */}
+                        {msg.text && !(msg.type === 'meetup' && msg.meetup) && <span>{msg.text}</span>}
                       </div>
                       <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '3px', textAlign: isMe ? 'right' : 'left', paddingLeft: '4px', paddingRight: '4px' }}>
                         {formatTime(msg.createdAt)}
@@ -3130,6 +3184,13 @@ export default function UserMessages() {
         matchId={selectedMatchId}
         buddyName={activeConversation?.buddy?.fullName}
         onInvited={upsertMessage}
+      />
+      <MeetupInviteModal
+        open={showGroupMeetupModal}
+        onClose={() => setShowGroupMeetupModal(false)}
+        groupId={selectedGroupId}
+        buddyName={activeGroup?.name}
+        onInvited={upsertGroupMessage}
       />
 
       {/* ====== MODAL TẠO NHÓM ====== */}

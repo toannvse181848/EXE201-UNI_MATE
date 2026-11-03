@@ -273,6 +273,8 @@ const sendGroupMessage = catchAsync(async (req, res) => {
   const hasText = Boolean(text?.trim());
   const hasFile = Boolean(fileUrl);
   if (!hasText && !hasFile) throw new ApiError(400, 'Nội dung tin nhắn không được trống');
+  // Thẻ rủ cafe và tin hệ thống chỉ do server tạo
+  if (type === 'meetup' || type === 'system') throw new ApiError(400, 'Loại tin nhắn không hợp lệ');
 
   const group = await GroupChat.findById(groupId);
   if (!group || !group.isActive) throw new ApiError(404, 'Nhóm không tồn tại');
