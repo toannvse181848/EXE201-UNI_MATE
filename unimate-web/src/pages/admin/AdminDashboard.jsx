@@ -17,6 +17,7 @@ import {
   Download,
   RefreshCw,
 } from 'lucide-react';
+import { notify } from '../../utils/notify';
 
 // Hiển thị "…" khi chưa tải xong
 const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('vi-VN') : '…');
@@ -218,7 +219,7 @@ export default function AdminDashboard() {
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Không xuất được file: ' + err.message);
+      notify.error('Không xuất được file: ' + err.message);
     } finally {
       setExporting(false);
     }

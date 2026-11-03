@@ -12,6 +12,7 @@ import ImportVoucherModal from '../../components/partner/ImportVoucherModal';
 import CreateVoucherModal from '../../components/partner/CreateVoucherModal';
 import { describeVoucher } from '../../utils/voucher';
 import VoucherStatusBadge from '../../components/VoucherStatusBadge';
+import { notify } from '../../utils/notify';
 
 // Tab lọc → các trạng thái backend thuộc tab đó
 const TAB_GROUPS = {
@@ -106,7 +107,7 @@ export default function VoucherManagement() {
       // Trạng thái hiển thị (chờ duyệt / hết hạn...) do backend tính → tải lại cho đúng
       await fetchVouchers();
     } catch (err) {
-      alert('Không thể cập nhật trạng thái voucher: ' + err.message);
+      notify.error('Không thể cập nhật trạng thái voucher: ' + err.message);
     }
   };
 
@@ -118,7 +119,7 @@ export default function VoucherManagement() {
       const res = await voucherApi.getVoucherCodes(v.id);
       setCodesData(res.data || []);
     } catch (err) {
-      alert('Lỗi tải danh sách mã: ' + err.message);
+      notify.error('Lỗi tải danh sách mã: ' + err.message);
     } finally {
       setCodesLoading(false);
     }
@@ -135,13 +136,13 @@ export default function VoucherManagement() {
     setAddingCodes(true);
     try {
       const res = await voucherApi.addVoucherCodes(selectedUniqueVoucher.id, { codes });
-      alert(res.message || `Đã nạp ${res.data?.addedCount || codes.length} mã thành công!`);
+      notify.success(res.message || `Đã nạp ${res.data?.addedCount || codes.length} mã thành công!`);
       setNewCodesInput('');
       const updated = await voucherApi.getVoucherCodes(selectedUniqueVoucher.id);
       setCodesData(updated.data || []);
       fetchVouchers();
     } catch (err) {
-      alert('Lỗi nạp mã: ' + (err.response?.data?.message || err.message));
+      notify.error('Lỗi nạp mã: ' + (err.response?.data?.message || err.message));
     } finally {
       setAddingCodes(false);
     }

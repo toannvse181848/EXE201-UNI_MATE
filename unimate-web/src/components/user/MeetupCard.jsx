@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, Gift, Loader2, Ticket } from 'lucide-react';
 import { formatMeetupTime } from '../../utils/meetup';
+import { confirmDialog } from '../../utils/notify';
 
 const STATUS = {
   proposed: { label: 'Chờ trả lời', color: '#B45309', bg: '#FEF3C7' },
@@ -44,8 +45,8 @@ export function GroupMeetupCard({ meetup, currentUserId, busy, onAction }) {
   const rewardDone = meetup.status === 'accepted' || meetup.status === 'completed';
   const rewardRevoked = Boolean(meetup.rewardTitle) && (meetup.status === 'cancelled' || meetup.status === 'no_show');
 
-  const confirmThen = (text, action) => {
-    if (window.confirm(text)) onAction(action);
+  const confirmThen = async (text, label, action) => {
+    if (await confirmDialog(text, { confirmText: label, cancelText: 'Không', danger: true })) onAction(action);
   };
   const linkBtn = { alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, color: '#94A3B8', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline' };
 
@@ -124,11 +125,11 @@ export function GroupMeetupCard({ meetup, currentUserId, busy, onAction }) {
                 : 'Tới quán, từ 2 bạn cùng quét mã QR check-in dán tại quán trong ngày để được tính là đã gặp.'}
             </div>
             {isOrganizer ? (
-              <button type="button" disabled={busy} onClick={() => confirmThen('Huỷ buổi hẹn này? Ưu đãi chưa dùng của mọi người sẽ bị thu hồi khỏi ví.', 'cancel')} style={linkBtn}>
+              <button type="button" disabled={busy} onClick={() => confirmThen('Huỷ buổi hẹn này? Ưu đãi chưa dùng của mọi người sẽ bị thu hồi khỏi ví.', 'Huỷ buổi hẹn', 'cancel')} style={linkBtn}>
                 Huỷ buổi hẹn
               </button>
             ) : (
-              <button type="button" disabled={busy} onClick={() => confirmThen('Không đi nữa? Ưu đãi chưa dùng của bạn sẽ bị thu hồi khỏi ví.', 'leave')} style={linkBtn}>
+              <button type="button" disabled={busy} onClick={() => confirmThen('Không đi nữa? Ưu đãi chưa dùng của bạn sẽ bị thu hồi khỏi ví.', 'Không đi nữa', 'leave')} style={linkBtn}>
                 Không đi nữa
               </button>
             )}
@@ -170,8 +171,13 @@ export default function MeetupCard({ meetup, isMine, buddyName, busy, onRespond,
   // Buổi đã chốt có voucher trong ví mà không diễn ra thì voucher bị thu hồi
   const rewardRevoked = Boolean(meetup.rewardTitle) && (meetup.status === 'cancelled' || meetup.status === 'no_show');
 
-  const handleCancelAccepted = () => {
-    if (window.confirm('Huỷ buổi hẹn này? Ưu đãi chưa dùng của cả hai bạn sẽ bị thu hồi khỏi ví.')) onCancel();
+  const handleCancelAccepted = async () => {
+    const agreed = await confirmDialog('Huỷ buổi hẹn này? Ưu đãi chưa dùng của cả hai bạn sẽ bị thu hồi khỏi ví.', {
+      confirmText: 'Huỷ buổi hẹn',
+      cancelText: 'Không',
+      danger: true,
+    });
+    if (agreed) onCancel();
   };
 
   return (

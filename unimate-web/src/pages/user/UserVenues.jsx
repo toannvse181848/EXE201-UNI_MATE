@@ -24,6 +24,7 @@ import { venueApi, voucherApi } from '../../services/api';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
 import { getGoogleMapsUrl, getGoogleMapsEmbedUrl } from '../../utils/mapLinks';
 import { trackEvent } from '../../utils/analytics';
+import { notify } from '../../utils/notify';
 
 // priceRange trong DB là chuỗi ("35.000 - 65.000 VNĐ"); dữ liệu cũ có thể là { min, max }
 const formatPriceRange = (priceRange) => {
@@ -148,9 +149,9 @@ export default function UserVenues() {
       await voucherApi.claimVoucher(venue.voucherId);
       trackEvent('voucher_claim', { voucher_id: String(venue.voucherId), source: 'venue' });
       setClaimedCodes((prev) => ({ ...prev, [venue.id]: true }));
-      alert(`🎉 Đã lưu voucher [${venue.voucherCode}] vào ví voucher của bạn! Bạn có thể xem mã QR ở mục "Ví Voucher của tôi".`);
+      notify.success(`🎉 Đã lưu voucher [${venue.voucherCode}] vào ví voucher của bạn! Bạn có thể xem mã QR ở mục "Ví Voucher của tôi".`);
     } catch (err) {
-      alert('Không thể nhận voucher: ' + err.message);
+      notify.error('Không thể nhận voucher: ' + err.message);
     } finally {
       setClaimingVenueId(null);
     }

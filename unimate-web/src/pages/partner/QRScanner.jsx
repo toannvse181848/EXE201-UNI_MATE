@@ -14,6 +14,7 @@ import { voucherApi } from '../../services/api';
 import { trackEvent } from '../../utils/analytics';
 import { getAvatarUrl } from '../../constants/avatar';
 import { describeVoucher } from '../../utils/voucher';
+import { notify } from '../../utils/notify';
 
 // html5-qrcode tự vẽ video vào các div này (xoá sạch nội dung bên trong), nên React không render con vào đó
 const CAMERA_READER_ID = 'partner-qr-reader';
@@ -77,6 +78,8 @@ export default function QRScanner() {
   // Ưu đãi hẹn cafe: mã của các bạn đi cùng
   const [companionResults, setCompanionResults] = useState([]);
   const [companionError, setCompanionError] = useState(null);
+  // Ô nhập mã của bạn tiếp theo, nằm ngay trong thẻ kết quả
+  const [nextCode, setNextCode] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   // Kết quả áp dụng từ backend: buổi hẹn đã hoàn tất chưa, UniCoin từng bạn thực nhận
   const [redeemInfo, setRedeemInfo] = useState(null);
@@ -95,6 +98,7 @@ export default function QRScanner() {
   const fileInputRef = useRef(null);
   const resultRef = useRef(null);
   const scannerRef = useRef(null);
+  const nextCodeRef = useRef(null);
 
   // Ưu đãi hẹn cafe: đã có mã đầu, chưa có mã của bạn đi cùng nào thì chưa được áp dụng
   const meetupInfo = scanResult?.meetup;
@@ -168,6 +172,7 @@ export default function QRScanner() {
       } else {
         setCompanionResults((prev) => [...prev, result]);
         setInputCode('');
+        setNextCode('');
       }
     } catch (err) {
       fail(err.message || 'Lỗi kiểm tra voucher từ hệ thống');
@@ -175,6 +180,17 @@ export default function QRScanner() {
       setScanning(false);
     }
   };
+
+  const handleAddNextCode = (e) => {
+    e.preventDefault();
+    lastSourceRef.current = 'manual';
+    handleVerifyCode(nextCode);
+  };
+
+  // Đang nhập tay thì đặt sẵn con trỏ vào ô mã tiếp theo
+  useEffect(() => {
+    if (canScanMore && lastSourceRef.current === 'manual') nextCodeRef.current?.focus();
+  }, [canScanMore, companionResults]);
 
   // Camera đọc được mã: tắt camera rồi kiểm tra luôn (useEffectEvent để không phải mở lại camera mỗi lần render)
   const onCameraDecoded = useEffectEvent((decodedText) => {
@@ -303,7 +319,7 @@ export default function QRScanner() {
       setConfirmed(true);
       loadHistory();
     } catch (err) {
-      alert('Không thể áp dụng voucher: ' + err.message);
+      notify.error('Không thể áp dụng voucher: ' + err.message);
     } finally {
       setRedeeming(false);
     }
@@ -316,6 +332,7 @@ export default function QRScanner() {
     setScanError(null);
     setCompanionResults([]);
     setCompanionError(null);
+    setNextCode('');
     setConfirmed(false);
     setRedeemInfo(null);
     if (lastSourceRef.current === 'camera') handleStartCamera();
@@ -540,7 +557,7 @@ export default function QRScanner() {
                     </span>
                     {needsCompanion && (
                       <div style={{ fontSize: '12.5px', color: '#92400E', fontWeight: '700', marginTop: '4px' }}>
-                        🤝 Ưu đãi hẹn cafe phải có mặt từ 2 bạn trở lên. Quét tiếp mã trong ví của {companionName} rồi mới áp dụng được.
+                        🤝 Ưu đãi hẹn cafe phải có mặt từ 2 bạn trở lên. Thêm mã trong ví của {companionName} rồi mới áp dụng được.
                         {meetupInfo?.isGroup && (
                           <div style={{ fontWeight: '600', marginTop: '2px' }}>
                             Các bạn cùng buổi hẹn: {meetupInfo.companions.map((c) => c.fullName).join(', ')}
@@ -560,6 +577,37 @@ export default function QRScanner() {
                     ))}
                   </div>
                 </div>
+
+                {/* Thêm mã ngay tại đây, thu ngân không phải tìm lại ô nhập ở cột bên kia */}
+                {!confirmed && canScanMore && (
+                  <form
+                    onSubmit={handleAddNextCode}
+                    style={{ padding: '12px 14px', backgroundColor: '#FFFFFF', border: `1.5px solid ${needsCompanion ? '#F59E0B' : 'var(--border-color)'}`, borderRadius: '12px' }}
+                  >
+                    <label htmlFor="partner-next-code" style={{ display: 'block', fontSize: '12.5px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                      {needsCompanion ? `Nhập mã của ${companionName}` : 'Thêm bạn khác trong nhóm (không bắt buộc)'}
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        id="partner-next-code"
+                        ref={nextCodeRef}
+                        type="text"
+                        placeholder="Mã UVM-... hoặc mã riêng"
+                        value={nextCode}
+                        onChange={(e) => setNextCode(e.target.value)}
+                        style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '13px', textTransform: 'uppercase' }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={scanning || !nextCode.trim()}
+                        className="btn btn-primary"
+                        style={{ padding: '9px 16px', fontSize: '13px', flexShrink: 0, opacity: scanning || !nextCode.trim() ? 0.6 : 1 }}
+                      >
+                        {scanning ? 'Đang kiểm tra...' : 'Thêm mã'}
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                 {companionError && (
                   <div style={{ padding: '12px 14px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', fontSize: '13px', fontWeight: '600', color: '#B91C1C' }}>
@@ -648,20 +696,15 @@ export default function QRScanner() {
 
           {/* Action Button */}
           {scanResult && !confirmed && needsCompanion && (
-            <div style={{ marginTop: '20px' }}>
-              <button
-                onClick={handleScanCompanion}
-                disabled={scanning}
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '14px', fontSize: '15px' }}
-              >
-                <Camera size={18} />
-                <span>Quét mã của {companionName}</span>
-              </button>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
-                Không dùng được camera thì nhập mã của bạn ấy vào ô nhập thủ công.
-              </p>
-            </div>
+            <button
+              onClick={handleScanCompanion}
+              disabled={scanning}
+              className="btn btn-secondary"
+              style={{ width: '100%', padding: '12px', fontSize: '14px', marginTop: '20px' }}
+            >
+              <Camera size={16} />
+              <span>Quét mã của {companionName} bằng camera</span>
+            </button>
           )}
           {scanResult && !confirmed && !needsCompanion && canScanMore && (
             <button

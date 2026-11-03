@@ -5,6 +5,7 @@ import { onboardingApi, userApi } from '../services/api';
 import { trackEvent } from '../utils/analytics';
 import { needsStudentInfo } from '../utils/profile';
 import { UNIVERSITIES, MAJORS, ACADEMIC_YEARS } from '../constants/academic';
+import { notify } from '../utils/notify';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const OBJECTIVES = [
@@ -320,7 +321,7 @@ export default function Onboarding() {
       if (alreadyOnboarded) navigate('/user/discover', { replace: true });
       else setStep(1);
     } catch (e) {
-      alert('Lưu thông tin thất bại: ' + e.message);
+      notify.error('Lưu thông tin thất bại: ' + e.message);
     } finally {
       setLoading(false);
     }
@@ -367,7 +368,7 @@ export default function Onboarding() {
       trackEvent('onboarding_complete', { interests_count: interests.length });
       setStep(4); // success screen
     } catch (err) {
-      alert('Lưu thất bại: ' + err.message);
+      notify.error('Lưu thất bại: ' + err.message);
     } finally {
       setLoading(false);
     }

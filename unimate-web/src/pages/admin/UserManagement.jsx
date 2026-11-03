@@ -17,6 +17,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { userApi } from '../../services/api';
+import { confirmDialog } from '../../utils/notify';
 
 // Premium còn hạn (giống backend utils/subscription.isPremiumActive): cờ isPremium vẫn là true sau khi hết hạn
 const isPremiumActive = (sp) =>
@@ -84,7 +85,7 @@ export default function UserManagement() {
       ? `Bạn có chắc chắn muốn KHOÁ tài khoản "${user.fullName}" (${user.email})?`
       : `Mở khoá tài khoản "${user.fullName}" (${user.email})?`;
 
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg, { confirmText: newStatus === 'suspended' ? 'Khoá tài khoản' : 'Mở khoá', danger: newStatus === 'suspended' }))) return;
 
     try {
       setActionLoading(user._id);
@@ -112,7 +113,7 @@ export default function UserManagement() {
       ? `CẤP gói Premium & Tích xanh cho tài khoản "${user.fullName}"?`
       : `THU HỒI gói Premium & Tích xanh của tài khoản "${user.fullName}"?`;
 
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg, { confirmText: newPremium ? 'Cấp Premium' : 'Thu hồi', danger: !newPremium }))) return;
 
     try {
       setActionLoading(`prem_${user._id}`);

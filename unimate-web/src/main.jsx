@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import AppNotifications from './components/AppNotifications.jsx'
 import { initAnalytics } from './utils/analytics'
 import { captureAttribution } from './utils/attribution'
 
@@ -13,6 +14,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
+      <AppNotifications />
     </ErrorBoundary>
   </StrictMode>,
 )

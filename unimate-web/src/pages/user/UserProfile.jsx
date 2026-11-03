@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 
 import { MAJORS, ACADEMIC_YEARS, formatStudentYear } from '../../constants/academic';
+import { notify } from '../../utils/notify';
 
 // Khớp giới hạn độ dài họ tên ở backend (userController)
 const FULL_NAME_MAX_LENGTH = 60;
@@ -257,12 +258,12 @@ export default function UserProfile() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Vui lòng chọn file hình ảnh hợp lệ (JPG, PNG, WEBP...)');
+      notify.error('Vui lòng chọn file hình ảnh hợp lệ (JPG, PNG, WEBP...)');
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert('Dung lượng ảnh tối đa là 10MB');
+      notify.error('Dung lượng ảnh tối đa là 10MB');
       return;
     }
 
@@ -303,7 +304,7 @@ export default function UserProfile() {
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      alert('Họ và tên không được để trống');
+      notify.error('Họ và tên không được để trống');
       return;
     }
 
@@ -325,9 +326,9 @@ export default function UserProfile() {
         localStorage.setItem('unimate_portal_user', JSON.stringify(updated));
       }
       setIsEditing(false);
-      alert('Đã cập nhật hồ sơ sinh viên thành công!');
+      notify.success('Đã cập nhật hồ sơ sinh viên thành công!');
     } catch (err) {
-      alert('Lưu hồ sơ thất bại: ' + err.message);
+      notify.error('Lưu hồ sơ thất bại: ' + err.message);
     } finally {
       setIsSavingProfile(false);
     }

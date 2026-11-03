@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { GraduationCap, Coffee, ShieldCheck, ArrowRight, ArrowLeft, Lock, Mail, UserPlus, X, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { authApi } from '../services/api';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import { notify } from '../utils/notify';
 
 
 // Trang chủ của từng vai trò sau khi đăng nhập
@@ -86,13 +87,13 @@ export default function Login({ adminPortal = false }) {
       const loggedInUser = await login(email, password, role);
       if (adminPortal && loggedInUser.role !== 'admin') {
         logout();
-        alert('Tài khoản này không có quyền quản trị.');
+        notify.error('Tài khoản này không có quyền quản trị.');
         return;
       }
       // Chuyển theo vai trò thật của tài khoản (không theo tab đang chọn)
       navigate(PORTAL_HOME[loggedInUser.role] || currentConfig.path);
     } catch (err) {
-      alert('Đăng nhập thất bại: ' + err.message);
+      notify.error('Đăng nhập thất bại: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -105,7 +106,7 @@ export default function Login({ adminPortal = false }) {
       // Tài khoản mới tạo bằng Google: hoàn thiện hồ sơ trước khi khám phá
       navigate(isNewUser ? '/onboarding' : PORTAL_HOME[loggedInUser.role] || '/');
     } catch (err) {
-      alert('Đăng nhập Google thất bại: ' + err.message);
+      notify.error('Đăng nhập Google thất bại: ' + err.message);
     } finally {
       setLoading(false);
     }

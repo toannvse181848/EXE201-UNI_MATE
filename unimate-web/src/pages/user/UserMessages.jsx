@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { notify, confirmDialog } from '../../utils/notify';
 import {
   Search,
   Send,
@@ -107,7 +108,7 @@ const buildAttachment = (file, forcedType = null) => {
   }
   const maxSizeMb = mime.startsWith('video/') ? MAX_VIDEO_SIZE_MB : MAX_OTHER_SIZE_MB;
   if (file.size > maxSizeMb * 1024 * 1024) {
-    alert(`File vượt quá giới hạn ${maxSizeMb}MB cho phép`);
+    notify.error(`File vượt quá giới hạn ${maxSizeMb}MB cho phép`);
     return null;
   }
   const previewUrl = mediaType === 'image' || mediaType === 'video' ? URL.createObjectURL(file) : null;
@@ -592,7 +593,7 @@ export default function UserMessages() {
         }
       } catch (uploadErr) {
         console.error('Lỗi upload tệp đính kèm:', uploadErr);
-        alert(`Không thể tải file lên: ${uploadErr.message}`);
+        notify.error(`Không thể tải file lên: ${uploadErr.message}`);
         setSending(false);
         setUploadingMedia(false);
         return;
@@ -682,7 +683,7 @@ export default function UserMessages() {
       const isMatch = res?.isMatch ?? true;
       if (isMatch) trackEvent('friend_match', { source: 'accept_like' });
 
-      alert(
+      notify.success(
         `🎉 Kết bạn thành công!\nBạn và ${item.buddy?.fullName} đã thích nhau. Hãy bắt đầu trò chuyện ngay nhé! ☕`
       );
 
@@ -692,7 +693,7 @@ export default function UserMessages() {
       setSelectedMatchId(item.matchId);
     } catch (err) {
       console.error('Lỗi khi chấp nhận thích:', err);
-      alert('Không thể hoàn tất kết bạn. Vui lòng thử lại.');
+      notify.error('Không thể hoàn tất kết bạn. Vui lòng thử lại.');
     } finally {
       setActionLoadingId(null);
     }
@@ -734,10 +735,10 @@ export default function UserMessages() {
       if (res.data?.message) upsertMessage(res.data.message);
       if (action === 'accept') {
         trackEvent('meetup_accept', { reward_granted: res.data?.rewardGranted || 0 });
-        if (res.message) alert(res.message);
+        if (res.message) notify.success(res.message);
       }
     } catch (err) {
-      alert(err.message);
+      notify.error(err.message);
       if (selectedMatchId) loadMessages(selectedMatchId, true);
     } finally {
       setBusyMeetupId(null);
@@ -764,10 +765,10 @@ export default function UserMessages() {
       if (res.data?.message) upsertGroupMessage(res.data.message);
       if (action === 'join') {
         trackEvent('meetup_accept', { reward_granted: res.data?.rewardGranted || 0, is_group: true });
-        if (res.message) alert(res.message);
+        if (res.message) notify.success(res.message);
       }
     } catch (err) {
-      alert(err.message);
+      notify.error(err.message);
       if (selectedGroupId) loadGroupMessages(selectedGroupId, true);
     } finally {
       setBusyMeetupId(null);
@@ -908,7 +909,7 @@ export default function UserMessages() {
         const uploadRes = await groupChatApi.uploadMedia(attachment.file);
         if (uploadRes?.data) uploadedFile = uploadRes.data;
       } catch (err) {
-        alert(`Không thể tải file lên: ${err.message}`);
+        notify.error(`Không thể tải file lên: ${err.message}`);
         setSendingGroup(false);
         return;
       }
@@ -1005,7 +1006,7 @@ export default function UserMessages() {
 
   // Tạo nhóm mới
   const handleCreateGroup = async () => {
-    if (!createGroupName.trim()) { alert('Vui lòng nhập tên nhóm'); return; }
+    if (!createGroupName.trim()) { notify.error('Vui lòng nhập tên nhóm'); return; }
     setCreatingGroup(true);
     try {
       const res = await groupChatApi.createGroup(
@@ -1021,7 +1022,7 @@ export default function UserMessages() {
       setShowListOnMobile(false);
       setActiveTab('groups');
     } catch (err) {
-      alert('Không thể tạo nhóm. Vui lòng thử lại: ' + err.message);
+      notify.error('Không thể tạo nhóm. Vui lòng thử lại: ' + err.message);
     } finally {
       setCreatingGroup(false);
     }
@@ -1063,7 +1064,7 @@ export default function UserMessages() {
 
   // Thêm thành viên vào nhóm
   const handleAddMembers = async () => {
-    if (!addMemberSelected.length) { alert('Vui lòng chọn ít nhất 1 người'); return; }
+    if (!addMemberSelected.length) { notify.error('Vui lòng chọn ít nhất 1 người'); return; }
     setAddingMembers(true);
     try {
       await groupChatApi.addMembers(
@@ -1073,9 +1074,9 @@ export default function UserMessages() {
       setShowAddMemberModal(false);
       loadGroupMessages(selectedGroupId);
       loadGroups();
-      alert(`✅ Đã thêm ${addMemberSelected.length} thành viên vào nhóm!`);
+      notify.success(`✅ Đã thêm ${addMemberSelected.length} thành viên vào nhóm!`);
     } catch (err) {
-      alert('Không thể thêm thành viên: ' + err.message);
+      notify.error('Không thể thêm thành viên: ' + err.message);
     } finally {
       setAddingMembers(false);
     }
@@ -1085,16 +1086,16 @@ export default function UserMessages() {
   const handleLeaveGroup = async () => {
     if (!selectedGroupId) return;
     const currentGroup = groups.find((g) => g.groupId === selectedGroupId);
-    if (!window.confirm(`Bạn có chắc muốn rời nhóm "${currentGroup?.name}"?`)) return;
+    if (!(await confirmDialog(`Bạn có chắc muốn rời nhóm "${currentGroup?.name}"?`, { confirmText: 'Rời nhóm', danger: true }))) return;
     try {
       await groupChatApi.leaveGroup(selectedGroupId);
       setGroups((prev) => prev.filter((g) => g.groupId !== selectedGroupId));
       setSelectedGroupId(null);
       setGroupMessages([]);
       setGroupInfo(null);
-      alert('Bạn đã rời nhóm thành công');
+      notify.success('Bạn đã rời nhóm thành công');
     } catch (err) {
-      alert('Không thể rời nhóm: ' + err.message);
+      notify.error('Không thể rời nhóm: ' + err.message);
     }
   };
 

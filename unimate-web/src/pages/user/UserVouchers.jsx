@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { voucherApi } from '../../services/api';
 import { trackEvent } from '../../utils/analytics';
+import { notify } from '../../utils/notify';
 
 const QR_STATUS_POLL_MS = 4000;
 
@@ -108,9 +109,9 @@ export default function UserVouchers() {
       trackEvent('voucher_claim', { voucher_id: String(voucherId), source: 'voucher_list' });
       if (reloadUser) await reloadUser();
       await fetchData(); // refresh wallet
-      alert(res?.message || 'Đã nhận voucher thành công!');
+      notify.success(res?.message || 'Đã nhận voucher thành công!');
     } catch (err) {
-      alert('Không thể nhận voucher: ' + err.message);
+      notify.error('Không thể nhận voucher: ' + err.message);
     } finally {
       setClaimingId(null);
     }

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { orderApi, userApi } from '../../services/api';
 import UnmatchedPayments from '../../components/admin/UnmatchedPayments';
+import { notify } from '../../utils/notify';
 
 export default function OrderManagement() {
   const [orders, setOrders] = useState([]);
@@ -72,12 +73,12 @@ export default function OrderManagement() {
     setActionLoading(true);
     try {
       const res = await orderApi.confirmOrderAdmin(confirmingOrder.code, confirmNote);
-      alert(res.message || `Đã xác nhận đơn hàng ${confirmingOrder.code} thành công!`);
+      notify.success(res.message || `Đã xác nhận đơn hàng ${confirmingOrder.code} thành công!`);
       setConfirmingOrder(null);
       setConfirmNote('');
       fetchOrders();
     } catch (err) {
-      alert('Không thể xác nhận đơn: ' + (err.response?.data?.message || err.message));
+      notify.error('Không thể xác nhận đơn: ' + (err.response?.data?.message || err.message));
     } finally {
       setActionLoading(false);
     }
@@ -89,12 +90,12 @@ export default function OrderManagement() {
     setActionLoading(true);
     try {
       const res = await orderApi.cancelOrderAdmin(cancellingOrder.code, cancelNote);
-      alert(res.message || `Đã huỷ đơn hàng ${cancellingOrder.code}!`);
+      notify.success(res.message || `Đã huỷ đơn hàng ${cancellingOrder.code}!`);
       setCancellingOrder(null);
       setCancelNote('');
       fetchOrders();
     } catch (err) {
-      alert('Không thể huỷ đơn: ' + (err.response?.data?.message || err.message));
+      notify.error('Không thể huỷ đơn: ' + (err.response?.data?.message || err.message));
     } finally {
       setActionLoading(false);
     }
@@ -115,7 +116,7 @@ export default function OrderManagement() {
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Lỗi xuất file Excel đơn hàng: ' + err.message);
+      notify.error('Lỗi xuất file Excel đơn hàng: ' + err.message);
     } finally {
       setExportingOrders(false);
     }
@@ -135,7 +136,7 @@ export default function OrderManagement() {
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Lỗi xuất file Excel người dùng: ' + err.message);
+      notify.error('Lỗi xuất file Excel người dùng: ' + err.message);
     } finally {
       setExportingUsers(false);
     }

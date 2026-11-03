@@ -7,6 +7,7 @@ import {
 import { voucherApi } from '../../services/api';
 import VoucherStatusBadge from '../../components/VoucherStatusBadge';
 import { describeVoucher } from '../../utils/voucher';
+import { notify } from '../../utils/notify';
 
 export default function VoucherOversight() {
   const [vouchers, setVouchers] = useState([]);
@@ -55,7 +56,7 @@ export default function VoucherOversight() {
       // Trạng thái (chờ duyệt quán, hết hạn...) do backend tính → tải lại cho đúng
       await fetchVouchers();
     } catch (err) {
-      alert('Không thể cập nhật trạng thái voucher: ' + err.message);
+      notify.error('Không thể cập nhật trạng thái voucher: ' + err.message);
     }
   };
 

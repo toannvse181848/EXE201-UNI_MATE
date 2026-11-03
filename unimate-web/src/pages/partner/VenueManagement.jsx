@@ -25,6 +25,7 @@ import PartnerPlanModal from '../../components/partner/PartnerPlanModal';
 import { describeVoucher } from '../../utils/voucher';
 import { extractDistrict } from '../../utils/addressUtils';
 import VenueImageCarousel from '../../components/VenueImageCarousel';
+import { notify, confirmDialog } from '../../utils/notify';
 
 export default function VenueManagement() {
   const [venueId, setVenueId] = useState(null);
@@ -138,12 +139,12 @@ export default function VenueManagement() {
     if (!files.length) return;
 
     if (files.length > 10) {
-      alert('Chỉ được tải tối đa 10 ảnh mỗi lần');
+      notify.error('Chỉ được tải tối đa 10 ảnh mỗi lần');
       return;
     }
     const tooLarge = files.find((file) => file.size > 10 * 1024 * 1024);
     if (tooLarge) {
-      alert(`Ảnh "${tooLarge.name}" vượt quá 10MB`);
+      notify.error(`Ảnh "${tooLarge.name}" vượt quá 10MB`);
       return;
     }
 
@@ -156,7 +157,7 @@ export default function VenueManagement() {
         images: [...prev.images, ...urls],
       }));
     } catch (err) {
-      alert('Tải ảnh thất bại: ' + err.message);
+      notify.error('Tải ảnh thất bại: ' + err.message);
     } finally {
       setIsUploading(false);
     }
@@ -252,7 +253,7 @@ export default function VenueManagement() {
       );
       setTimeout(() => setSavedSuccess(false), 6000);
     } catch (err) {
-      alert('Lưu thông tin quán thất bại: ' + err.message);
+      notify.error('Lưu thông tin quán thất bại: ' + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -260,7 +261,7 @@ export default function VenueManagement() {
 
   const handleOpenCheckinQr = async () => {
     if (!venueId) {
-      alert('Vui lòng lưu thông tin địa điểm trước khi lấy mã QR');
+      notify.error('Vui lòng lưu thông tin địa điểm trước khi lấy mã QR');
       return;
     }
     setShowCheckinQrModal(true);
@@ -269,7 +270,7 @@ export default function VenueManagement() {
       const res = await venueApi.getCheckinQr(venueId);
       setCheckinQrData(res.data);
     } catch (err) {
-      alert('Lỗi lấy mã QR check-in: ' + err.message);
+      notify.error('Lỗi lấy mã QR check-in: ' + err.message);
     } finally {
       setLoadingQr(false);
     }
@@ -277,14 +278,14 @@ export default function VenueManagement() {
 
   const handleRegenerateQr = async () => {
     if (!venueId) return;
-    if (!window.confirm('Bạn có chắc chắn muốn tạo lại mã QR mới? Mã QR cũ đã in sẽ hết hiệu lực ngay lập tức!')) return;
+    if (!(await confirmDialog('Bạn có chắc chắn muốn tạo lại mã QR mới? Mã QR cũ đã in sẽ hết hiệu lực ngay lập tức!', { confirmText: 'Tạo mã mới', danger: true }))) return;
     setRegeneratingQr(true);
     try {
       const res = await venueApi.regenerateCheckinQr(venueId);
       setCheckinQrData(res.data);
-      alert('Đã tạo mã QR check-in mới thành công! Vui lòng in lại mã mới dán tại quán.');
+      notify.success('Đã tạo mã QR check-in mới thành công! Vui lòng in lại mã mới dán tại quán.');
     } catch (err) {
-      alert('Lỗi tạo lại mã QR: ' + err.message);
+      notify.error('Lỗi tạo lại mã QR: ' + err.message);
     } finally {
       setRegeneratingQr(false);
     }
@@ -294,7 +295,7 @@ export default function VenueManagement() {
     if (!checkinQrData?.qrImageUrl) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert('Vui lòng cho phép popup để mở trang in ấn.');
+      notify.error('Vui lòng cho phép popup để mở trang in ấn.');
       return;
     }
     printWindow.document.write(`

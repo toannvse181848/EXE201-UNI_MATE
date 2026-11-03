@@ -27,6 +27,7 @@ import {
 } from '../constants/academic';
 import { HEARD_FROM_OPTIONS } from '../constants/acquisition';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import { notify } from '../utils/notify';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -124,7 +125,7 @@ export default function Register() {
         navigate('/partner/dashboard');
       }
     } catch (err) {
-      alert('Đăng ký thất bại: ' + err.message);
+      notify.error('Đăng ký thất bại: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -138,7 +139,7 @@ export default function Register() {
       if (isNewUser) navigate('/onboarding');
       else navigate(account.role === 'partner' ? '/partner/dashboard' : '/user/discover');
     } catch (err) {
-      alert('Đăng ký Google thất bại: ' + err.message);
+      notify.error('Đăng ký Google thất bại: ' + err.message);
     } finally {
       setLoading(false);
     }

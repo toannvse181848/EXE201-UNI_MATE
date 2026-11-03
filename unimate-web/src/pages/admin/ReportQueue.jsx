@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle, Clock, Loader2, ShieldOff, Store, Ticket, User, XCircle } from 'lucide-react';
 import { reportApi } from '../../services/api';
+import { confirmDialog } from '../../utils/notify';
 
 const TABS = [
   { id: 'pending', label: 'Chờ xử lý' },
@@ -73,7 +74,7 @@ export default function ReportQueue() {
 
   // Gọi API rồi mới cập nhật danh sách (không giả vờ thành công khi lỗi)
   const handleAction = async (report, status, { targetAction = false } = {}) => {
-    if (targetAction && !window.confirm(TARGET_ACTION[report.targetType]?.confirm(report.target?.name))) return;
+    if (targetAction && !(await confirmDialog(TARGET_ACTION[report.targetType]?.confirm(report.target?.name), { danger: true }))) return;
     setBusyId(report._id);
     try {
       const res = await reportApi.resolveReport(report._id, status, notes[report._id] || '', targetAction);

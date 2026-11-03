@@ -18,6 +18,7 @@ import { trackEvent } from '../../utils/analytics';
 import { formatStudentYear } from '../../constants/academic';
 import { getAvatarUrl, DEFAULT_AVATAR } from '../../constants/avatar';
 import { useAuth } from '../../context/AuthContext';
+import { notify } from '../../utils/notify';
 
 
 /**
@@ -163,13 +164,13 @@ export default function UserDiscover() {
 
       if (res.isMatch) {
         if (res.data?._id) setFriendMatchIds((prev) => ({ ...prev, [String(student.id)]: res.data._id }));
-        alert(`🎉 TUYỆT VỜI! Bạn và ${student.name} đều đã thích nhau! Hai bạn đã được kết bạn thành công, hãy vào mục Tin nhắn để trò chuyện và hẹn cafe nhé! ☕`);
+        notify.success(`🎉 TUYỆT VỜI! Bạn và ${student.name} đều đã thích nhau! Hai bạn đã được kết bạn thành công, hãy vào mục Tin nhắn để trò chuyện và hẹn cafe nhé! ☕`);
       } else {
-        alert(`💖 Đã gửi lượt thích đến ${student.name}! Khi bạn ấy thích lại, cả hai sẽ được kết bạn.`);
+        notify.success(`💖 Đã gửi lượt thích đến ${student.name}! Khi bạn ấy thích lại, cả hai sẽ được kết bạn.`);
       }
     } catch (err) {
       // Lỗi thì báo lỗi (trước đây vẫn báo "đã gửi thành công" và đánh dấu đã thích)
-      alert(`Chưa gửi được lời kết bạn: ${err.message}`);
+      notify.error(`Chưa gửi được lời kết bạn: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
