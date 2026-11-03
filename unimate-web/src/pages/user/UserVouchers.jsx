@@ -453,6 +453,8 @@ export default function UserVouchers() {
               const alreadyClaimed = myVouchers.some((mv) => (mv.voucherId?._id || mv.voucherId) === raw._id);
               // Voucher độc quyền Premium: sinh viên thường thấy nhưng phải nâng cấp mới lưu được
               const lockedForPremium = Boolean(raw.premiumOnly) && !hasActivePremium && !alreadyClaimed;
+              // Mã riêng: số mã còn trống. Mã chung: số lượt còn phát. Không giới hạn thì backend trả null.
+              const remaining = raw.freeCodes ?? raw.remainingCount;
               return (
                 <div key={vch.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', padding: '22px', border: '1.5px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
@@ -472,6 +474,11 @@ export default function UserVouchers() {
                     {vch.isUnlimited && (
                       <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
                         Không giới hạn
+                      </span>
+                    )}
+                    {typeof remaining === 'number' && (
+                      <span style={{ fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#F1F5F9', color: '#475569' }}>
+                        Còn {remaining.toLocaleString('vi-VN')} lượt
                       </span>
                     )}
                     {raw.premiumOnly && (
