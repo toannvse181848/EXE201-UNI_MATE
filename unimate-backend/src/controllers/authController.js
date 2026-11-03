@@ -97,12 +97,13 @@ exports.registerPartner = catchAsync(async (req, res) => {
 });
 
 // POST /api/auth/register (Universal register endpoint)
-exports.register = catchAsync(async (req, res) => {
+exports.register = catchAsync(async (req, res, next) => {
   const { role } = req.body;
+  // Phải truyền next: thiếu thì lỗi (VD: trùng email) không có nơi xử lý và làm sập cả tiến trình server
   if (role === 'partner') {
-    return exports.registerPartner(req, res);
+    return exports.registerPartner(req, res, next);
   }
-  return exports.registerStudent(req, res);
+  return exports.registerStudent(req, res, next);
 });
 
 // POST /api/auth/login

@@ -7,6 +7,7 @@ const { computeMatchScore, commonInterests, sortByRank } = require('../utils/mat
 const { isPremiumActive } = require('../utils/subscription');
 const { isVenueVisible } = require('../utils/visibility');
 const { revokeMeetupVouchers } = require('../utils/meetupRewards');
+const { isUnmatched } = require('../utils/blocking');
 const { toPublicStudent } = require('../utils/publicProfile');
 const { saveLocationFromQuery } = require('../utils/userLocation');
 
@@ -147,6 +148,10 @@ const swipe = catchAsync(async (req, res) => {
   if (existingMatch && ['blocked', 'matched'].includes(existingMatch.status)) {
     // Đã chặn nhau: không quẹt lại được. Đã là bạn: huỷ kết bạn qua API riêng, không quẹt đè.
     throw new ApiError(400, existingMatch.status === 'blocked' ? 'Không thể tương tác với người này' : 'Hai bạn đã kết bạn rồi');
+  }
+  // Bấm thích lại sẽ khớp ngay với lượt thích cũ của bên kia, thành kết bạn lại mà bên kia không đồng ý
+  if (existingMatch && isUnmatched(existingMatch)) {
+    throw new ApiError(400, 'Hai bạn đã huỷ kết bạn nên không kết bạn lại được');
   }
 
   if (existingMatch) {

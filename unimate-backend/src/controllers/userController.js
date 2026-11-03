@@ -1,5 +1,5 @@
 const User = require('../models/User');
-const { getBlockedUserIds } = require('../utils/blocking');
+const { getHiddenUserIds } = require('../utils/blocking');
 const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
@@ -32,7 +32,7 @@ const getSuggestedStudents = catchAsync(async (req, res) => {
   };
 
   if (currentUserId) {
-    query._id = { $nin: [currentUserId, ...(await getBlockedUserIds(currentUserId))] };
+    query._id = { $nin: [currentUserId, ...(await getHiddenUserIds(currentUserId))] };
   }
 
   const students = await User.find(query)

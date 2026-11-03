@@ -55,7 +55,7 @@ const savePreferences = catchAsync(async (req, res) => {
 //    Thuật toán Weighted Hybrid Matching — tính điểm tương đồng
 // =============================================================
 
-const { getBlockedUserIds } = require('../utils/blocking');
+const { getHiddenUserIds } = require('../utils/blocking');
 const { saveLocationFromQuery } = require('../utils/userLocation');
 const { computeMatchScore, commonInterests, sortByRank } = require('../utils/matchingAlgorithm');
 const { isPremiumActive } = require('../utils/subscription');
@@ -73,7 +73,7 @@ const getRecommendations = catchAsync(async (req, res) => {
 
   // Lấy tất cả sinh viên (loại trừ bản thân)
   const candidates = await User.find({
-    _id: { $nin: [currentUserId, ...(await getBlockedUserIds(currentUserId))] },
+    _id: { $nin: [currentUserId, ...(await getHiddenUserIds(currentUserId))] },
     role: { $in: ['student', 'user'] },
     status: 'active',
   })
