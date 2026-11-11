@@ -13,6 +13,7 @@ const PORTAL_HOME = {
   user: '/user/discover',
   partner: '/partner/dashboard',
   admin: '/admin/dashboard',
+  cashier: '/cashier/scan',
 };
 
 // adminPortal = true: trang đăng nhập riêng cho quản trị viên (/admin/login),
@@ -48,9 +49,9 @@ export default function Login({ adminPortal = false }) {
     },
     partner: {
       title: 'Đối tác Quán Cafe',
-      desc: 'Dành cho chủ quán quản lý chi nhánh, phát hành voucher & quét mã QR',
+      desc: 'Dành cho chủ quán quản lý chi nhánh, phát hành voucher & quét mã QR. Thu ngân đăng nhập bằng tên đăng nhập chủ quán cấp.',
       email: '',
-      placeholder: 'vd: partner@quancafe.vn',
+      placeholder: 'vd: partner@quancafe.vn hoặc tên thu ngân',
       color: '#FF5722',
       bgLight: '#FFECE6',
       icon: Coffee,
@@ -364,7 +365,7 @@ export default function Login({ adminPortal = false }) {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
-              Email tài khoản
+              {role === 'partner' ? 'Email hoặc tên đăng nhập thu ngân' : 'Email tài khoản'}
             </label>
             <div
               style={{
@@ -378,7 +379,8 @@ export default function Login({ adminPortal = false }) {
             >
               <Mail size={18} color="var(--text-muted)" style={{ marginRight: '10px' }} />
               <input
-                type="email"
+                type={role === 'partner' ? 'text' : 'email'}
+                autoCapitalize="none"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const coinRoutes = require('./routes/coinRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const meetupRoutes = require('./routes/meetupRoutes');
+const cashierRoutes = require('./routes/cashierRoutes');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 
 const helmet = require('helmet');
@@ -110,6 +111,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/coins', coinRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/meetups', meetupRoutes);
+app.use('/api/cashiers', cashierRoutes);
 
 // Hai dòng này phải nằm CUỐI CÙNG
 app.use(notFound);

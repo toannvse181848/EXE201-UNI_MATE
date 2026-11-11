@@ -156,6 +156,16 @@ export default function UserManagement() {
             <Store size={12} /> Đối tác Quán
           </span>
         );
+      case 'cashier':
+        return (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            backgroundColor: '#FFF7ED', color: '#C2410C',
+            padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700'
+          }}>
+            <Store size={12} /> Thu ngân của quán
+          </span>
+        );
       default:
         return (
           <span style={{
@@ -276,6 +286,7 @@ export default function UserManagement() {
             <option value="">Tất cả vai trò</option>
             <option value="student">🎓 Sinh viên</option>
             <option value="partner">☕ Đối tác quán</option>
+            <option value="cashier">🧾 Thu ngân của quán</option>
             <option value="admin">🛡️ Quản trị viên</option>
           </select>
         </div>

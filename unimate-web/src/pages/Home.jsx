@@ -44,6 +44,7 @@ export default function Home() {
     if (!user) return '/user/discover';
     if (user.role === 'admin') return '/admin/dashboard';
     if (user.role === 'partner') return '/partner/dashboard';
+    if (user.role === 'cashier') return '/cashier/scan';
     return '/user/discover';
   };
 
@@ -178,7 +179,7 @@ export default function Home() {
                       {user.name}
                     </span>
                     <span className="home-nav-user-role" style={{ fontSize: '10px', color: '#FF5722', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                      {user.role === 'admin' ? 'Quản trị viên' : user.role === 'partner' ? 'Đối tác Cafe' : 'Sinh viên'}
+                      {user.role === 'admin' ? 'Quản trị viên' : user.role === 'partner' ? 'Đối tác Cafe' : user.role === 'cashier' ? 'Thu ngân' : 'Sinh viên'}
                     </span>
                   </div>
                 </div>

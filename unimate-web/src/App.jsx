@@ -8,6 +8,7 @@ import AnalyticsTracker from './components/AnalyticsTracker';
 import UserLayout from './components/UserLayout';
 import PartnerLayout from './components/PartnerLayout';
 import AdminLayout from './components/AdminLayout';
+import CashierLayout from './components/CashierLayout';
 
 // Public Pages
 import Home from './pages/Home';
@@ -33,6 +34,7 @@ import VenueManagement from './pages/partner/VenueManagement';
 import VoucherManagement from './pages/partner/VoucherManagement';
 import QRScanner from './pages/partner/QRScanner';
 import PendingReview from './pages/partner/PendingReview';
+import CashierAccounts from './pages/partner/CashierAccounts';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -53,6 +55,9 @@ function RootRedirect() {
   }
   if (user.role === 'partner') {
     return <Navigate to="/partner/dashboard" replace />;
+  }
+  if (user.role === 'cashier') {
+    return <Navigate to="/cashier/scan" replace />;
   }
   return <Navigate to="/user/discover" replace />;
 }
@@ -107,7 +112,21 @@ export default function App() {
             <Route path="venues" element={<VenueManagement />} />
             <Route path="vouchers" element={<VoucherManagement />} />
             <Route path="qr-scanner" element={<QRScanner />} />
+            <Route path="cashiers" element={<CashierAccounts />} />
             <Route path="pending-review" element={<PendingReview />} />
+          </Route>
+
+          {/* 🧾 Thu ngân: chỉ màn quét voucher của chi nhánh được gắn */}
+          <Route
+            path="/cashier"
+            element={
+              <RoleRoute allowedRole="cashier">
+                <CashierLayout />
+              </RoleRoute>
+            }
+          >
+            <Route index element={<Navigate to="/cashier/scan" replace />} />
+            <Route path="scan" element={<QRScanner />} />
           </Route>
 
           {/* 🛡️ Admin Management Portal Routes */}

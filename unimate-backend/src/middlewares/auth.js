@@ -1,8 +1,29 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Venue = require('../models/Venue');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { recordActivity } = require('../utils/activityTracker');
+
+// Thu ngân chỉ được quét voucher và xem lịch sử quét của chi nhánh mình. Chặn ở đây để route nào
+// quên ghi authorize cũng không lộ dữ liệu quán (sửa voucher, số liệu, đổi mật khẩu...)
+const CASHIER_ALLOWED_PATHS = [
+  /^\/api\/auth\/me\/?$/,
+  /^\/api\/vouchers\/(verify|redeem|partner\/redemptions)\/?$/,
+];
+
+/** Tài khoản thu ngân còn dùng được: chủ quán còn hoạt động và chi nhánh vẫn thuộc chủ quán */
+const assertCashierUsable = async (user) => {
+  const { partnerId, venueId } = user.cashierProfile || {};
+  const [owner, venue] = await Promise.all([
+    partnerId ? User.findById(partnerId).select('status role') : null,
+    venueId ? Venue.findById(venueId).select('partnerId') : null,
+  ]);
+  if (!owner || owner.role !== 'partner' || !venue || String(venue.partnerId) !== String(partnerId)) {
+    throw new ApiError(403, 'Tài khoản thu ngân không còn gắn với chi nhánh nào. Nhờ chủ quán kiểm tra lại.');
+  }
+  if (owner.status === 'suspended') throw new ApiError(403, 'Tài khoản quán đã bị khoá nên thu ngân không dùng được');
+};
 
 const protect = catchAsync(async (req, res, next) => {
   const header = req.headers.authorization;
@@ -16,6 +37,13 @@ const protect = catchAsync(async (req, res, next) => {
   const user = await User.findById(decoded.id);
   if (!user) throw new ApiError(401, 'Vui lòng đăng nhập');
   if (user.status === 'suspended') throw new ApiError(403, 'Tài khoản đã bị khoá');
+  if (user.role === 'cashier') {
+    const path = req.baseUrl + req.path;
+    if (!CASHIER_ALLOWED_PATHS.some((pattern) => pattern.test(path))) {
+      throw new ApiError(403, 'Tài khoản thu ngân chỉ dùng để quét voucher');
+    }
+    await assertCashierUsable(user);
+  }
 
   // Cập nhật lastActiveAt (throttle 30 giây để tối ưu hiệu năng DB)
   const now = Date.now();
@@ -52,4 +80,4 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { protect, authorize };
+module.exports = { protect, authorize, assertCashierUsable };

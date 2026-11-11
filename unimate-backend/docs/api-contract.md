@@ -115,7 +115,7 @@ Bắt buộc: `email`, `password`, `fullName`, `businessName`.
 
 `POST /api/auth/login`
 
-Dùng chung cho cả 3 loại tài khoản.
+Dùng chung cho mọi loại tài khoản. Thu ngân gửi tên đăng nhập trong ô `email` (không phân biệt hoa thường).
 
 Request:
 ```json
@@ -140,8 +140,11 @@ Lỗi:
 | `student` | App sinh viên |
 | `partner` | Partner Portal |
 | `admin` | Admin Portal |
+| `cashier` | Màn quét voucher của chi nhánh (`/cashier/scan`) |
 
 Nếu `data.user.isProfileCompleted` = `false` thì đưa sinh viên vào màn hình hoàn thiện hồ sơ trước.
+
+Thu ngân: `user` có thêm `cashierVenue: { id, name }` (chi nhánh được gắn) và `businessName` (tên quán). `GET /api/auth/me` cũng vậy. Thu ngân bị khoá, chủ quán bị khoá, hoặc chi nhánh không còn thuộc chủ quán thì trả `403`. Thu ngân không dùng được "Quên mật khẩu" (`400`), chủ quán đặt lại mật khẩu.
 
 ---
 
@@ -240,13 +243,18 @@ Sau đó gửi danh sách URL này trong `images` của `POST /api/venues` hoặ
 
 ---
 
-## 8. Đối soát voucher tại quán (partner)
+## 8. Đối soát voucher tại quán (partner, thu ngân)
 
 Mỗi voucher sinh viên lưu vào ví có một mã riêng `qrPayload` dạng `UVM-xxxxxxxxxxxxxxxx`. Mã QR trong ví mã hoá chuỗi này. Partner chỉ thao tác được với voucher của quán mình.
 
+Đúng chi nhánh: voucher chỉ dùng được ở chi nhánh (`venueId`) phát hành nó.
+- Thu ngân luôn quét tại chi nhánh được gắn, không cần gửi gì thêm.
+- Chủ quán gửi thêm `venueId` (chi nhánh đang đứng quét) trong body `/verify` và `/redeem`. Không gửi thì nhận voucher của mọi chi nhánh (app cũ).
+- Sai chi nhánh trả `403` kèm `code: "VOUCHER_OTHER_BRANCH"`, câu báo có tên chi nhánh đúng.
+
 ### Kiểm tra trước khi áp dụng (không trừ lượt)
 
-`POST /api/vouchers/verify` — partner/admin
+`POST /api/vouchers/verify` — partner/admin/thu ngân
 
 Request: `{ "qrPayload": "UVM-..." }` hoặc `{ "code": "MAVOUCHER" }`. Gửi `UVM-...` trong `code` cũng được.
 
@@ -269,7 +277,7 @@ Lỗi: `400` voucher đã dùng / hết hạn / tạm ngưng / hết lượt / b
 
 ### Áp dụng voucher
 
-`POST /api/vouchers/redeem` — partner/admin, body giống `/verify`. Sinh viên không tự gọi được. Mỗi voucher áp dụng thành công tạo một bản ghi lịch sử check-in.
+`POST /api/vouchers/redeem` — partner/admin/thu ngân, body giống `/verify`. Sinh viên không tự gọi được. Mỗi voucher áp dụng thành công tạo một bản ghi lịch sử check-in.
 
 Ưu đãi hẹn cafe (`/verify` trả `meetup.requiresCompanion: true`): phải có mặt từ 2 bạn trở lên, gửi thêm mã của các bạn đi cùng trong cùng một lần gọi:
 
@@ -281,9 +289,18 @@ Mọi voucher cùng được dùng hoặc không voucher nào được dùng. Th
 
 ### Lịch sử check-in
 
-`GET /api/vouchers/partner/redemptions?limit=50` — partner
+`GET /api/vouchers/partner/redemptions?limit=50&venueId=` — partner/thu ngân. Thu ngân chỉ thấy chi nhánh của mình. Chủ quán thấy mọi chi nhánh, hoặc một chi nhánh khi có `venueId`.
 
-Response `200`: `{ "success": true, "total": 12, "data": [ { "_id", "method", "createdAt", "voucherId": { "code", "title" }, "userId": { "fullName", "avatar" } | null, "redeemedBy": { "fullName" } } ] }`
+Response `200`: `{ "success": true, "total": 12, "data": [ { "_id", "method", "createdAt", "voucherId": { "code", "title" }, "venueId": { "name" }, "userId": { "fullName", "avatar" } | null, "redeemedBy": { "fullName" } } ] }`. `redeemedBy` là người bấm xác nhận (chủ quán hoặc tên thu ngân).
+
+### Tài khoản thu ngân (chủ quán quản lý)
+
+Thu ngân chỉ gọi được `/api/auth/me`, `/verify`, `/redeem` và lịch sử check-in ở trên, mọi API khác trả `403` (chặn trong `protect`). Không sửa hay xoá voucher, không xem số liệu, không đổi mật khẩu được. Tài khoản thu ngân không tính vào số liệu người dùng OC3.
+
+- `GET /api/cashiers` — `data: [{ "id", "fullName", "username", "venue": { "id", "name" }, "status": "active" | "suspended", "lastActiveAt", "createdAt", "redemptionCount" }]`
+- `POST /api/cashiers` — `{ "fullName", "username", "password", "venueId" }`. `username` 3–30 ký tự: chữ thường không dấu, số, `.`, `-`, `_` (không có `@` nên không trùng email). Mật khẩu từ 6 ký tự. Chi nhánh phải của chính chủ quán. Tối đa 20 thu ngân mỗi quán. Trùng tên đăng nhập trả `409`.
+- `PATCH /api/cashiers/:id` — `{ "fullName"?, "venueId"?, "password"?, "status"? }`. `status: "suspended"` khoá ngay, kể cả máy đang đăng nhập. Đổi `venueId` thì các lượt quét cũ vẫn giữ chi nhánh cũ.
+- `DELETE /api/cashiers/:id` — chỉ xoá được khi chưa quét lượt nào, đã quét thì trả `400` và nên khoá để giữ tên trong lịch sử.
 
 `GET /api/vouchers/partner/my-vouchers` và `GET /api/vouchers/admin/all` trả thêm `claimedCount` (số lượt sinh viên đã lưu vào ví).
 

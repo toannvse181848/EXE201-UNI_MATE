@@ -28,7 +28,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["student", "user", "partner", "admin"],
+      // cashier: nhân viên thu ngân do chủ quán tạo, chỉ quét voucher tại 1 chi nhánh (xem cashierProfile)
+      enum: ["student", "user", "partner", "admin", "cashier"],
       required: true,
       default: "user",
     },
@@ -105,6 +106,13 @@ const userSchema = new mongoose.Schema(
       // Gói Đối tác trả phí (xem config/plans.js)
       plan: { type: String, default: null },
       planExpiresAt: { type: Date, default: null },
+    },
+
+    // Tài khoản thu ngân: đăng nhập bằng tên đăng nhập (lưu ở trường email, không có @),
+    // chỉ quét voucher và xem lịch sử quét của đúng chi nhánh venueId
+    cashierProfile: {
+      partnerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      venueId: { type: mongoose.Schema.Types.ObjectId, ref: "Venue", default: null },
     },
 
     lastActiveAt: { type: Date, default: Date.now },
@@ -188,6 +196,7 @@ userSchema.methods.toPublicJSON = function () {
     // Nested objects
     studentProfile: (this.role === "student" || this.role === "user") ? this.studentProfile : undefined,
     partnerProfile: this.role === "partner" ? this.partnerProfile : undefined,
+    cashierProfile: this.role === "cashier" ? this.cashierProfile : undefined,
   };
 };
 

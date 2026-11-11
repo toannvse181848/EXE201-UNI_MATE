@@ -67,6 +67,8 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
   const excludeReason = (u) => {
     const email = String(u.email || '').toLowerCase();
     if (u.role === 'admin') return 'admin';
+    // Nhân viên quầy do chủ quán tạo, không phải người dùng tự đăng ký
+    if (u.role === 'cashier') return 'tài khoản thu ngân của quán';
     if (SEED_EMAILS.includes(email)) return 'tài khoản mẫu (seed)';
     if (excluded.has(email)) return 'thành viên nhóm / tài khoản test';
     return '';

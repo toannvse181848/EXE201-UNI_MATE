@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const Venue = require('../models/Venue');
+const { assertCashierUsable } = require('../middlewares/auth');
 const { generateToken } = require('../utils/jwt');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
@@ -9,6 +11,20 @@ const { recordActivity } = require('../utils/activityTracker');
 const { OAuth2Client } = require('google-auth-library');
 
 const googleClient = new OAuth2Client();
+
+// Thu ngân: kèm tên chi nhánh và tên quán để màn quét hiện "Đang quét tại ..."
+const toPublicUser = async (user) => {
+  const data = user.toPublicJSON();
+  if (user.role === 'cashier') {
+    const [venue, owner] = await Promise.all([
+      Venue.findById(user.cashierProfile?.venueId).select('name'),
+      User.findById(user.cashierProfile?.partnerId).select('fullName partnerProfile.businessName'),
+    ]);
+    data.cashierVenue = venue ? { id: venue._id, name: venue.name } : null;
+    data.businessName = owner?.partnerProfile?.businessName || owner?.fullName || '';
+  }
+  return data;
+};
 
 
 // POST /api/auth/register/student
@@ -108,7 +124,9 @@ exports.register = catchAsync(async (req, res, next) => {
 
 // POST /api/auth/login
 exports.login = catchAsync(async (req, res) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  // Email đã lưu dạng chữ thường; tên đăng nhập thu ngân cũng vậy nên gõ hoa / thường đều được
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
 
   if (!email || !password) {
     throw new ApiError(400, 'Vui lòng nhập email và mật khẩu');
@@ -120,8 +138,11 @@ exports.login = catchAsync(async (req, res) => {
   }
 
   if (user.status === 'suspended') {
-    throw new ApiError(403, 'Tài khoản đã bị khoá do vi phạm tiêu chuẩn cộng đồng');
+    throw new ApiError(403, user.role === 'cashier'
+      ? 'Tài khoản thu ngân này đã bị chủ quán khoá'
+      : 'Tài khoản đã bị khoá do vi phạm tiêu chuẩn cộng đồng');
   }
+  if (user.role === 'cashier') await assertCashierUsable(user);
 
   user.lastActiveAt = Date.now();
   await user.save({ validateBeforeSave: false });
@@ -131,7 +152,7 @@ exports.login = catchAsync(async (req, res) => {
     success: true,
     data: {
       token: generateToken(user),
-      user: user.toPublicJSON(),
+      user: await toPublicUser(user),
       isPendingReview: user.status === 'pending',
     },
   });
@@ -194,7 +215,7 @@ exports.googleLogin = catchAsync(async (req, res) => {
 
 // GET /api/auth/me
 exports.getMe = catchAsync(async (req, res) => {
-  res.status(200).json({ success: true, data: { user: req.user.toPublicJSON() } });
+  res.status(200).json({ success: true, data: { user: await toPublicUser(req.user) } });
 });
 
 // POST /api/auth/change-password
@@ -229,6 +250,10 @@ exports.forgotPassword = catchAsync(async (req, res) => {
   if (!email) throw new ApiError(400, 'Vui lòng nhập email');
 
   const user = await User.findOne({ email });
+  // Thu ngân không có email thật: chủ quán đặt lại mật khẩu ở trang Tài khoản thu ngân
+  if (user?.role === 'cashier') {
+    throw new ApiError(400, 'Tài khoản thu ngân không có email. Nhờ chủ quán đặt lại mật khẩu trong mục Tài khoản thu ngân.');
+  }
   // Luôn trả 200 để tránh lộ thông tin email tồn tại hay không
   if (!user) {
     return res.status(200).json({

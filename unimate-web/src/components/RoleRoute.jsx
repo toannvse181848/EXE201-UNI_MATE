@@ -24,12 +24,14 @@ export default function RoleRoute({ allowedRole, children }) {
     user: 'Sinh viên / Người dùng',
     partner: 'Đối tác Quán Cafe',
     admin: 'Quản trị viên (Admin)',
+    cashier: 'Thu ngân của quán',
   };
 
   const portalHome = {
     user: '/user/discover',
     partner: '/partner/dashboard',
     admin: '/admin/dashboard',
+    cashier: '/cashier/scan',
   };
 
   const handleLogoutAndLogin = () => {

@@ -62,7 +62,9 @@ export const AuthProvider = ({ children }) => {
       university: dbUser.university || dbUser.studentProfile?.university || '',
       major: dbUser.major || dbUser.studentProfile?.major || '',
       year: dbUser.year || dbUser.studentProfile?.year || '',
-      businessName: dbUser.partnerProfile?.businessName || '',
+      businessName: dbUser.partnerProfile?.businessName || dbUser.businessName || '',
+      // Thu ngân: chi nhánh được gắn { id, name }
+      cashierVenue: dbUser.cashierVenue || null,
       status: dbUser.status || 'active',
       uniCoin: dbUser.uniCoin || 0,
       // Backend đã tính isPremium / isVerifiedStudent theo hạn gói. Cờ thô studentProfile.isPremium

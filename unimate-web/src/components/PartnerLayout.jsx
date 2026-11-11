@@ -9,6 +9,7 @@ import {
   QrCode,
   FileCheck,
   Headphones,
+  Users,
   LogOut,
   Menu,
   X,
@@ -33,6 +34,7 @@ export default function PartnerLayout() {
     { to: '/partner/venues', label: 'Quản lý Địa điểm', icon: Store },
     { to: '/partner/vouchers', label: 'Quản lý Voucher', icon: Ticket },
     { to: '/partner/qr-scanner', label: 'Quét QR Scanner', icon: QrCode },
+    { to: '/partner/cashiers', label: 'Tài khoản thu ngân', icon: Users },
     { to: '/partner/pending-review', label: 'Hồ sơ chờ duyệt', icon: FileCheck },
   ];
 

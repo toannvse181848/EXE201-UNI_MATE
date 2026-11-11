@@ -8,9 +8,11 @@ import {
   Camera,
   CameraOff,
   Upload,
+  Store,
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { voucherApi } from '../../services/api';
+import { voucherApi, venueApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../utils/analytics';
 import { getAvatarUrl } from '../../constants/avatar';
 import { describeVoucher, formatVnd } from '../../utils/voucher';
@@ -21,6 +23,23 @@ const CAMERA_READER_ID = 'partner-qr-reader';
 const PHOTO_READER_ID = 'partner-qr-photo-reader';
 // Chỉ đọc mã QR, bỏ qua mã vạch trên ly / hoá đơn
 const READER_CONFIG = { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE], verbose: false };
+
+// Chủ quán nhiều chi nhánh: nhớ chi nhánh đang quét trên máy này
+const SCAN_VENUE_KEY = 'unimate_scan_venue';
+const readSavedVenue = () => {
+  try {
+    return localStorage.getItem(SCAN_VENUE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+const saveVenue = (id) => {
+  try {
+    localStorage.setItem(SCAN_VENUE_KEY, id);
+  } catch {
+    // Trình duyệt chặn lưu trữ: lần sau chọn lại chi nhánh
+  }
+};
 
 // Lỗi mở camera → câu hướng dẫn thu ngân tự xử lý được
 const cameraErrorMessage = (err) => {
@@ -71,6 +90,11 @@ const coinResultText = ({ fullName, coinAwarded, coinCapped }, maxDailyEarn) => 
 };
 
 export default function QRScanner() {
+  const { user } = useAuth();
+  // Thu ngân luôn quét tại chi nhánh được gắn, backend tự biết; chủ quán chọn chi nhánh đang đứng quét
+  const isCashier = user?.role === 'cashier';
+  const [venues, setVenues] = useState([]);
+  const [venueId, setVenueId] = useState(readSavedVenue);
   const [inputCode, setInputCode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
@@ -108,9 +132,9 @@ export default function QRScanner() {
   const companionName = meetupInfo?.isGroup ? 'bạn khác trong nhóm' : meetupInfo?.companions?.[0]?.fullName || 'bạn đi cùng';
   const peopleCount = companionResults.length + 1;
 
-  const loadHistory = async () => {
+  const loadHistory = async (venue = venueId) => {
     try {
-      const res = await voucherApi.getPartnerRedemptions(50);
+      const res = await voucherApi.getPartnerRedemptions(50, isCashier ? null : venue || null);
       setHistory(res?.data || []);
     } catch (err) {
       console.log('Lỗi tải lịch sử check-in:', err.message);
@@ -120,8 +144,27 @@ export default function QRScanner() {
   };
 
   useEffect(() => {
-    loadHistory();
+    if (isCashier) {
+      loadHistory();
+      return;
+    }
+    venueApi
+      .getMyVenues()
+      .then((res) => {
+        const list = res?.data || [];
+        setVenues(list);
+        const chosen = list.some((v) => v._id === venueId) ? venueId : list[0]?._id || '';
+        setVenueId(chosen);
+        loadHistory(chosen);
+      })
+      .catch(() => loadHistory(''));
   }, []);
+
+  // Gửi kèm chi nhánh đang quét: voucher của chi nhánh khác sẽ bị từ chối
+  const scanScope = !isCashier && venueId ? { venueId } : {};
+  const currentVenueName = isCashier
+    ? user?.cashierVenue?.name
+    : venues.find((v) => v._id === venueId)?.name;
 
   // Chuyển nội dung quét/nhập thành payload gửi backend.
   // QR trong ví sinh viên có dạng UVM-xxxx, còn lại coi là mã voucher chung của quán.
@@ -158,7 +201,7 @@ export default function QRScanner() {
     const payload = toRedeemPayload(rawInput);
 
     try {
-      const res = await voucherApi.verifyVoucher(payload);
+      const res = await voucherApi.verifyVoucher({ ...payload, ...scanScope });
       const result = toScanResult(res?.data, payload);
 
       if (!firstScan) {
@@ -312,6 +355,7 @@ export default function QRScanner() {
       const res = await voucherApi.redeemVoucher({
         ...scanResult.payload,
         ...(companionResults.length > 0 ? { companions: companionResults.map((r) => r.payload) } : {}),
+        ...scanScope,
       });
       // Quán quét QR áp voucher = sinh viên thực sự ra quán (mỗi voucher tính 1 lượt)
       for (let i = 0; i < peopleCount; i += 1) trackEvent('voucher_redeem');
@@ -326,7 +370,7 @@ export default function QRScanner() {
   };
 
 
-  const handleReset = () => {
+  const clearScan = () => {
     setInputCode('');
     setScanResult(null);
     setScanError(null);
@@ -335,7 +379,20 @@ export default function QRScanner() {
     setNextCode('');
     setConfirmed(false);
     setRedeemInfo(null);
+  };
+
+  const handleReset = () => {
+    clearScan();
     if (lastSourceRef.current === 'camera') handleStartCamera();
+  };
+
+  // Đổi chi nhánh: bỏ kết quả đang dở (đã kiểm tra theo chi nhánh cũ) và tải lịch sử của chi nhánh mới
+  const handleChangeVenue = (id) => {
+    setVenueId(id);
+    saveVenue(id);
+    clearScan();
+    setHistoryLoading(true);
+    loadHistory(id);
   };
 
   return (
@@ -349,6 +406,40 @@ export default function QRScanner() {
           Quét mã QR từ điện thoại sinh viên UNI-MATE để xác thực ưu đãi giảm giá tại quán.
         </p>
       </div>
+
+      {/* Chi nhánh đang quét: voucher của chi nhánh khác sẽ bị từ chối */}
+      {(isCashier || venues.length > 1) && (
+        <div
+          className="portal-card"
+          style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '14px 18px' }}
+        >
+          <Store size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
+          <label htmlFor="scan-venue" style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
+            Đang quét tại chi nhánh:
+          </label>
+          {isCashier ? (
+            <strong id="scan-venue" style={{ fontSize: '14px', color: 'var(--primary)' }}>
+              {currentVenueName || 'Chi nhánh được chủ quán gắn'}
+            </strong>
+          ) : (
+            <select
+              id="scan-venue"
+              value={venueId}
+              onChange={(e) => handleChangeVenue(e.target.value)}
+              style={{ flex: '1 1 220px', minWidth: 0, padding: '8px 12px', borderRadius: '8px', border: '1.5px solid var(--primary)', fontSize: '14px', fontWeight: '700', backgroundColor: '#FFFFFF' }}
+            >
+              {venues.map((v) => (
+                <option key={v._id} value={v._id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <span style={{ flexBasis: '100%', fontSize: '12px', color: 'var(--text-muted)' }}>
+            Chỉ nhận voucher phát hành cho chi nhánh này. Voucher của chi nhánh khác sẽ báo lỗi.
+          </span>
+        </div>
+      )}
 
       {/* Main Grid: Scanner Viewfinder & Verification Card (điện thoại: xếp 1 cột) */}
       <div className="grid-scanner-main">
@@ -751,7 +842,7 @@ export default function QRScanner() {
       {/* Check-in History Table */}
       <div className="portal-card">
         <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '14px' }}>
-          Lịch sử check-in gần đây
+          Lịch sử check-in gần đây{(isCashier || venues.length > 1) && currentVenueName ? ` · ${currentVenueName}` : ''}
         </h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>

@@ -271,9 +271,34 @@ const getMeetupContext = async (userVoucher) => {
  * Partner chỉ được đối soát voucher của chính mình, admin thì được tất cả.
  * Kiểm tra quyền trước trạng thái: quét nhầm mã quán khác luôn báo không thuộc quán, không lộ tình trạng mã.
  */
-const assertOwnVoucher = (req, voucher) => {
-  if (req.user.role !== 'admin' && String(voucher?.partnerId) !== String(req.user._id)) {
+
+/**
+ * Nơi đang quét: thu ngân luôn là chi nhánh được gắn; chủ quán gửi venueId của chi nhánh đang chọn
+ * trên màn quét (app cũ không gửi thì nhận voucher của mọi chi nhánh); admin không giới hạn.
+ */
+const getScanScope = (req) => {
+  if (req.user.role === 'cashier') {
+    return { partnerId: req.user.cashierProfile.partnerId, venueId: req.user.cashierProfile.venueId };
+  }
+  if (req.user.role === 'admin') return { partnerId: null, venueId: null };
+  const venueId = typeof req.body?.venueId === 'string' && req.body.venueId ? req.body.venueId : null;
+  return { partnerId: req.user._id, venueId };
+};
+
+/** voucher cần có partnerId và venueId (populate hoặc id) */
+const assertOwnVoucher = async (req, voucher) => {
+  const { partnerId, venueId } = getScanScope(req);
+  if (partnerId && String(voucher?.partnerId) !== String(partnerId)) {
     throw new ApiError(403, 'Voucher này không thuộc quán của bạn');
+  }
+  const voucherVenueId = voucher?.venueId?._id || voucher?.venueId;
+  if (venueId && String(voucherVenueId) !== String(venueId)) {
+    const venue = voucher.venueId?.name ? voucher.venueId : await Venue.findById(voucherVenueId).select('name');
+    throw new ApiError(
+      403,
+      `Voucher này chỉ dùng tại ${venue?.name || 'chi nhánh khác'}, không dùng ở chi nhánh đang quét`,
+      'VOUCHER_OTHER_BRANCH'
+    );
   }
 };
 
@@ -301,7 +326,7 @@ const findRedeemTarget = async (req, payload) => {
     if (!isSharedCode) {
       const voucherCode = await VoucherCode.findOne({ code });
       if (voucherCode) {
-        assertOwnVoucher(req, await Voucher.findById(voucherCode.voucherId).select('partnerId'));
+        await assertOwnVoucher(req, await Voucher.findById(voucherCode.voucherId).select('partnerId venueId'));
         if (!voucherCode.userVoucherId) throw new ApiError(400, 'Mã này chưa được phát cho sinh viên nào');
         const owned = await UserVoucher.findById(voucherCode.userVoucherId).select('qrPayload assignedCode');
         // Ví đã được cấp mã khác cho buổi hẹn sau (hoặc voucher đó đã bị thu hồi): mã cũ này đã dùng rồi,
@@ -322,13 +347,13 @@ const findRedeemTarget = async (req, payload) => {
 
     voucher = await Voucher.findById(userVoucher.voucherId).populate('venueId', 'name address');
     if (!voucher) throw new ApiError(404, 'Voucher không còn tồn tại');
-    assertOwnVoucher(req, voucher);
+    await assertOwnVoucher(req, voucher);
     if (userVoucher.status === 'used') throw new ApiError(400, 'Voucher này đã được sử dụng');
     if (userVoucher.status === 'expired') throw new ApiError(400, 'Voucher đã hết hạn');
   } else {
     voucher = await Voucher.findOne({ code }).populate('venueId', 'name address');
     if (!voucher) throw new ApiError(404, 'Mã voucher không tồn tại');
-    assertOwnVoucher(req, voucher);
+    await assertOwnVoucher(req, voucher);
     if (voucher.codeType === 'unique') {
       throw new ApiError(400, 'Đây là mã chiến dịch. Vui lòng nhập mã riêng hoặc mã UVM-... trong ví của sinh viên');
     }
@@ -496,15 +521,25 @@ const redeemVoucher = catchAsync(async (req, res) => {
   });
 });
 
-/** Partner: Lịch sử check-in / đối soát voucher tại quán */
+/**
+ * Lịch sử check-in / đối soát voucher tại quán.
+ * Thu ngân: chỉ chi nhánh của mình. Chủ quán: tất cả chi nhánh, hoặc một chi nhánh với ?venueId=
+ */
 const getPartnerRedemptions = catchAsync(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
-  const filter = { partnerId: req.user._id };
+  const filter =
+    req.user.role === 'cashier'
+      ? { partnerId: req.user.cashierProfile.partnerId, venueId: req.user.cashierProfile.venueId }
+      : { partnerId: req.user._id };
+  if (req.user.role === 'partner' && typeof req.query.venueId === 'string' && /^[a-f\d]{24}$/i.test(req.query.venueId)) {
+    filter.venueId = req.query.venueId;
+  }
 
   const [total, redemptions] = await Promise.all([
     Redemption.countDocuments(filter),
     Redemption.find(filter)
       .populate('voucherId', 'code title discountPercent discountAmount')
+      .populate('venueId', 'name')
       .populate('userId', 'fullName avatar studentProfile.studentId studentProfile.university')
       .populate('redeemedBy', 'fullName')
       .sort({ createdAt: -1 })

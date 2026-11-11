@@ -330,7 +330,7 @@ const exportUsers = catchAsync(async (req, res) => {
 
   const users = await User.find(filter).sort({ createdAt: 1 });
 
-  const ROLE_LABEL = { student: 'Sinh viên', user: 'Sinh viên', partner: 'Đối tác', admin: 'Quản trị' };
+  const ROLE_LABEL = { student: 'Sinh viên', user: 'Sinh viên', partner: 'Đối tác', admin: 'Quản trị', cashier: 'Thu ngân' };
   const STATUS_LABEL = { active: 'Hoạt động', pending: 'Chờ duyệt', suspended: 'Bị khoá' };
 
   const rows = users.map((u, i) => {

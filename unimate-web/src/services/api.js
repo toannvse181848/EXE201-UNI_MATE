@@ -174,7 +174,8 @@ export const voucherApi = {
     const res = await client.post('/api/vouchers', data);
     return res.data;
   },
-  // Partner: kiểm tra mã voucher / QR payload trước khi áp dụng (không trừ lượt)
+  // Partner / thu ngân: kiểm tra mã voucher / QR payload trước khi áp dụng (không trừ lượt).
+  // payload.venueId = chi nhánh đang quét (chủ quán nhiều chi nhánh); thu ngân không cần gửi
   verifyVoucher: async (payload) => {
     const res = await client.post('/api/vouchers/verify', payload);
     return res.data;
@@ -183,8 +184,11 @@ export const voucherApi = {
     const res = await client.post('/api/vouchers/redeem', payload);
     return res.data;
   },
-  getPartnerRedemptions: async (limit = 50) => {
-    const res = await client.get('/api/vouchers/partner/redemptions', { params: { limit } });
+  // venueId: chỉ lấy lịch sử của một chi nhánh (thu ngân luôn chỉ thấy chi nhánh của mình)
+  getPartnerRedemptions: async (limit = 50, venueId = null) => {
+    const res = await client.get('/api/vouchers/partner/redemptions', {
+      params: { limit, ...(venueId ? { venueId } : {}) },
+    });
     return res.data;
   },
   toggleVoucher: async (id) => {
@@ -562,6 +566,28 @@ export const adminApi = {
   },
   exportOc3: async () => {
     const res = await client.get('/api/admin/oc3/export', { responseType: 'blob' });
+    return res.data;
+  },
+};
+
+// === TÀI KHOẢN THU NGÂN (chủ quán quản lý) ===
+export const cashierApi = {
+  list: async () => {
+    const res = await client.get('/api/cashiers');
+    return res.data;
+  },
+  // { fullName, username, password, venueId }
+  create: async (data) => {
+    const res = await client.post('/api/cashiers', data);
+    return res.data;
+  },
+  // { fullName?, venueId?, password?, status?: 'active' | 'suspended' }
+  update: async (id, data) => {
+    const res = await client.patch(`/api/cashiers/${id}`, data);
+    return res.data;
+  },
+  remove: async (id) => {
+    const res = await client.delete(`/api/cashiers/${id}`);
     return res.data;
   },
 };
