@@ -61,8 +61,14 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Đổi mật khẩu làm mọi token cũ hết hiệu lực: lưu token mới server trả về để máy này dùng tiếp
   const changePassword = async (currentPassword, newPassword) => {
-    await authApi.changePassword({ currentPassword, newPassword });
+    const res = await authApi.changePassword({ currentPassword, newPassword });
+    const newToken = res.data?.data?.token;
+    if (newToken) {
+      await AsyncStorage.setItem('token', newToken);
+      setToken(newToken);
+    }
   };
 
   const forgotPassword = async (email) => {

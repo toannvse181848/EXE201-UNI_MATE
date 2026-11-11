@@ -136,6 +136,9 @@ export default function UserVouchers() {
     const v = isWalletItem ? raw.voucherId : raw;
     const venue = v.venueId && typeof v.venueId === 'object' ? v.venueId : null;
     const displayCode = raw.displayCode || raw.assignedCode || v.code || '';
+    // Voucher miễn phí chỉ được giữ trong ví 7 ngày (hoặc tới hạn voucher nếu sớm hơn), quá hạn lượt trả lại cho quán
+    const holdUntil = isWalletItem && raw.holdUntil ? new Date(raw.holdUntil) : null;
+    const endDate = holdUntil || (v.validUntil ? new Date(v.validUntil) : null);
     return {
       id: raw._id || raw.id,
       voucherId: v._id || v.id,
@@ -149,7 +152,8 @@ export default function UserVouchers() {
       title: v.title || 'Voucher',
       brand: venue?.name || '—',
       logo: '🎟️',
-      expiry: v.validUntil ? new Date(v.validUntil).toLocaleDateString('vi-VN') : '—',
+      expiry: endDate ? endDate.toLocaleDateString('vi-VN') : '—',
+      expiryLabel: holdUntil ? 'Dùng trước' : 'HSD',
       // Nhãn giá trị do backend tính, giống hệt trang quán
       discount: describeVoucher(v).discountShort,
       discountLabel: describeVoucher(v).discountLabel,
@@ -349,7 +353,7 @@ export default function UserVouchers() {
                       {vch.brand}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      HSD: {vch.expiry}
+                      {vch.expiryLabel || 'HSD'}: {vch.expiry}
                     </div>
                   </div>
                 </div>
@@ -426,7 +430,11 @@ export default function UserVouchers() {
                         fontWeight: '800',
                       }}
                     >
-                      {vch.status === 'used' ? 'Đã sử dụng' : vch.status === 'expired' ? 'Hết hạn' : 'Quán tạm ngưng'}
+                      {vch.status === 'used'
+                        ? 'Đã sử dụng'
+                        : vch.status === 'expired'
+                          ? vch.expiryLabel === 'Dùng trước' ? 'Quá hạn giữ, lưu lại ở Kho nếu còn lượt' : 'Hết hạn'
+                          : 'Quán tạm ngưng'}
                     </span>
                   )}
                 </div>
@@ -491,7 +499,7 @@ export default function UserVouchers() {
                   <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '2px' }}>{vch.title}</h4>
                   <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#E64A19', marginBottom: '6px' }}>{vch.discountLabel}</div>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.5', flex: 1 }}>{vch.description}</p>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px' }}>Điều kiện: {vch.minOrder} · HSD: {vch.expiry}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px' }}>Điều kiện: {vch.minOrder} · {vch.expiryLabel || 'HSD'}: {vch.expiry}</div>
                   {lockedForPremium ? (
                     <button
                       onClick={() => navigate('/user/profile?upgrade=monthly')}

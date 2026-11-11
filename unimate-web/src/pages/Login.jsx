@@ -25,6 +25,8 @@ export default function Login({ adminPortal = false }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  // Bị đưa về đây vì phiên hết hạn / mật khẩu đổi ở máy khác (services/api.js)
+  const [sessionExpired] = useState(() => new URLSearchParams(window.location.search).get('expired') === '1');
 
   // === Forgot Password Modal State ===
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -363,6 +365,11 @@ export default function Login({ adminPortal = false }) {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {sessionExpired && (
+            <div role="status" style={{ padding: '10px 12px', borderRadius: '10px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', fontSize: '13px', fontWeight: '600' }}>
+              Phiên đăng nhập đã hết hoặc mật khẩu vừa được đổi. Vui lòng đăng nhập lại.
+            </div>
+          )}
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
               {role === 'partner' ? 'Email hoặc tên đăng nhập thu ngân' : 'Email tài khoản'}

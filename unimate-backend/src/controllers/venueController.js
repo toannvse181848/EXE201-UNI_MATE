@@ -13,6 +13,7 @@ const User = require('../models/User');
 const Redemption = require('../models/Redemption');
 const VenueCheckin = require('../models/VenueCheckin');
 const Meetup = require('../models/Meetup');
+const UserVoucher = require('../models/UserVoucher');
 
 
 // Tự động chuẩn hoá trường district nếu bị gán cứng 'Quận 10' sai
@@ -433,7 +434,43 @@ const getPartnerInsights = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * GET /api/venues/my/upcoming-meetups — các buổi hẹn đã chốt tại quán, chưa diễn ra hoặc đang diễn ra.
+ * Để quán chuẩn bị bàn cho nhóm. Chỉ trả giờ hẹn, chi nhánh, số người, ưu đãi; không trả tên hay thông tin sinh viên.
+ */
+const getUpcomingMeetups = catchAsync(async (req, res) => {
+  const venues = await Venue.find({ partnerId: req.user._id }).select('name');
+  const venueName = new Map(venues.map((v) => [String(v._id), v.name]));
+  const meetups = await Meetup.find({ venueId: { $in: venues.map((v) => v._id) }, status: 'accepted' })
+    .select('venueId groupId participants scheduledAt respondedAt rewardVoucherId')
+    .populate('rewardVoucherId', 'title code')
+    .limit(100);
+  const used = await UserVoucher.aggregate([
+    { $match: { meetupId: { $in: meetups.map((m) => m._id) }, status: 'used' } },
+    { $group: { _id: '$meetupId', count: { $sum: 1 } } },
+  ]);
+  const arrived = new Map(used.map((u) => [String(u._id), u.count]));
+
+  // Có giờ hẹn thì xếp theo giờ, chưa đặt giờ để cuối
+  const data = meetups
+    .map((m) => ({
+      id: m._id,
+      venueId: m.venueId,
+      venueName: venueName.get(String(m.venueId)) || '',
+      scheduledAt: m.scheduledAt,
+      agreedAt: m.respondedAt,
+      isGroup: Boolean(m.groupId),
+      people: m.groupId ? m.participants.length : 2,
+      arrived: arrived.get(String(m._id)) || 0,
+      reward: m.rewardVoucherId ? { title: m.rewardVoucherId.title, code: m.rewardVoucherId.code } : null,
+    }))
+    .sort((a, b) => (a.scheduledAt ? new Date(a.scheduledAt).getTime() : Infinity) - (b.scheduledAt ? new Date(b.scheduledAt).getTime() : Infinity));
+
+  res.status(200).json({ success: true, count: data.length, data });
+});
+
 module.exports = {
+  getUpcomingMeetups,
   getPartnerInsights,
   getCheckinQr,
   regenerateCheckinQr,

@@ -80,10 +80,12 @@ const apiLimiter = rateLimit({
   },
 });
 
-// Giới hạn nghiêm ngặt cho Đăng nhập (15 lần / 15 phút) — Chống Brute Force mật khẩu
+// Giới hạn Đăng nhập (15 lần sai / 15 phút) — Chống Brute Force mật khẩu.
+// Chỉ đếm lần sai: cả lớp, cả quán dùng chung WiFi đăng nhập đúng thì không bị khoá lây
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -92,10 +94,11 @@ const authLimiter = rateLimit({
   },
 });
 
-// Giới hạn Đăng ký tài khoản (10 lần / 1 giờ) — Chống spam tạo tài khoản ảo
+// Giới hạn Đăng ký tài khoản (50 lần / 1 giờ) — Chống spam tạo tài khoản ảo.
+// Trước là 10: buổi tuyển người tại trường, CLB dùng chung WiFi thì người thứ 11 trong giờ bị chặn
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 10,
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

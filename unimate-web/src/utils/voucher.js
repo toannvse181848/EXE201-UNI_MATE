@@ -48,7 +48,8 @@ export const describeVoucher = (v = {}) => {
     discountShort = 'Quà tặng';
   }
   const minBill = Number(v.minBill) || 0;
-  const billLabel = minBill > 0 ? `Hoá đơn từ ${formatVnd(minBill)}` : 'Không yêu cầu hoá đơn tối thiểu';
+  // Cùng luật với backend: hoá đơn tối thiểu tính trên phần của người dùng mã
+  const billLabel = minBill > 0 ? `${v.meetupReward ? 'Mỗi bạn gọi từ' : 'Hoá đơn từ'} ${formatVnd(minBill)}` : 'Không yêu cầu hoá đơn tối thiểu';
   const scheduleLabel = describeSchedule(v);
   return {
     discountType: type,
@@ -56,6 +57,35 @@ export const describeVoucher = (v = {}) => {
     discountShort: v.discountShort || discountShort,
     conditionLabel: v.conditionLabel || (scheduleLabel ? `${billLabel} · Chỉ dùng ${scheduleLabel}` : billLabel),
   };
+};
+
+/**
+ * Thu ngân nhập gì vào máy tính tiền khi áp dụng `people` mã cùng một voucher. Giống hệt backend
+ * (describeCounterDiscount trong voucherFormat.js): mỗi mã giảm trên phần gọi của người có mã.
+ */
+export const describeCounterDiscount = (v = {}, people = 1) => {
+  const n = Math.max(1, Number(people) || 1);
+  const type = getDiscountType(v);
+  const max = Number(v.maxDiscount) || 0;
+  let posLabel;
+  if (type === 'percent') {
+    const scope = n > 1 ? `trên phần gọi của ${n} bạn có mã` : 'hoá đơn';
+    posLabel = `Giảm ${v.discountPercent}% ${scope}${max > 0 ? `, ${n > 1 ? 'mỗi bạn ' : ''}tối đa ${formatVnd(max)}` : ''}`;
+  } else if (type === 'amount') {
+    const amount = Number(v.discountAmount) || 0;
+    posLabel = n > 1 ? `Giảm ${formatVnd(amount * n)} (${n} × ${formatVnd(amount)})` : `Giảm ${formatVnd(amount)}`;
+  } else {
+    const gift = v.giftItem || 'quà tặng';
+    posLabel = n > 1 ? `Tặng ${gift} cho mỗi bạn (${n} bạn)` : `Tặng ${gift}`;
+  }
+  const minBill = Number(v.minBill) || 0;
+  const minBillLabel =
+    minBill > 0
+      ? n > 1
+        ? `Mỗi bạn gọi từ ${formatVnd(minBill)} (${n} bạn chung hoá đơn: từ ${formatVnd(minBill * n)})`
+        : `Hoá đơn từ ${formatVnd(minBill)}`
+      : null;
+  return { posLabel, minBillLabel };
 };
 
 // Ô nhập tiền: chỉ giữ chữ số, hiển thị có dấu chấm ngăn cách ("50000" → "50.000")

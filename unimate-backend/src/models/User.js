@@ -128,6 +128,9 @@ const userSchema = new mongoose.Schema(
       landingPath: { type: String, default: null },
     },
 
+    // Lần đổi / đặt lại mật khẩu gần nhất: token cấp trước mốc này bị từ chối (đăng xuất mọi máy cũ)
+    passwordChangedAt: { type: Date, default: null },
+
     // Reset password
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },
@@ -141,6 +144,8 @@ userSchema.index({ "studentProfile.location": "2dsphere" }, { sparse: true });
 userSchema.pre("save", async function () {
   if (!this.isModified("password") || !this.password) return;
   this.password = await bcrypt.hash(this.password, 10);
+  // Lùi 1 giây: token cấp ngay sau khi đổi (iat làm tròn xuống giây) vẫn hợp lệ
+  if (!this.isNew) this.passwordChangedAt = new Date(Date.now() - 1000);
 });
 
 // So sánh password khi login

@@ -23,10 +23,24 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+// Các API đăng nhập / mật khẩu tự trả 401 khi gõ sai: không coi là hết phiên
+const AUTH_FORM_URLS = ['/api/auth/login', '/api/auth/google', '/api/auth/register', '/api/auth/change-password', '/api/auth/reset-password'];
+
+// Phiên không còn hợp lệ (hết hạn, đổi mật khẩu ở máy khác): xoá phiên và về trang đăng nhập thay vì báo lỗi khó hiểu
+const handleExpiredSession = (error) => {
+  const url = error.config?.url || '';
+  if (error.response?.status !== 401 || AUTH_FORM_URLS.some((u) => url.startsWith(u))) return;
+  if (!localStorage.getItem('unimate_token')) return;
+  ['unimate_portal_user', 'unimate_token', 'unimate_login_time'].forEach((key) => localStorage.removeItem(key));
+  const loginPath = window.location.pathname.startsWith('/admin') ? '/admin/login' : '/login';
+  if (window.location.pathname !== loginPath) window.location.assign(`${loginPath}?expired=1`);
+};
+
 // Xử lý response
 client.interceptors.response.use(
   (res) => res,
   (error) => {
+    handleExpiredSession(error);
     const message =
       error.response?.data?.message || error.message || 'Lỗi kết nối máy chủ';
     const wrapped = new Error(message);
@@ -84,8 +98,10 @@ export const authApi = {
     const res = await client.post('/api/auth/reset-password', { token, newPassword });
     return res.data;
   },
+  // Đổi mật khẩu làm mọi token cũ hết hiệu lực: lưu token mới để máy này không bị đăng xuất
   changePassword: async (currentPassword, newPassword) => {
     const res = await client.post('/api/auth/change-password', { currentPassword, newPassword });
+    if (res.data?.data?.token) localStorage.setItem('unimate_token', res.data.data.token);
     return res.data;
   },
 };
@@ -100,6 +116,11 @@ export const venueApi = {
   },
   getVenueById: async (id) => {
     const res = await client.get(`/api/venues/${id}`);
+    return res.data;
+  },
+  // Buổi hẹn đã chốt sắp tới tại quán (không có tên sinh viên)
+  getUpcomingMeetups: async () => {
+    const res = await client.get('/api/venues/my/upcoming-meetups');
     return res.data;
   },
   getMyVenues: async () => {
@@ -185,9 +206,18 @@ export const voucherApi = {
     return res.data;
   },
   // venueId: chỉ lấy lịch sử của một chi nhánh (thu ngân luôn chỉ thấy chi nhánh của mình)
-  getPartnerRedemptions: async (limit = 50, venueId = null) => {
+  // range: { from, to } là ngày giờ Việt Nam dạng '2026-11-11'
+  getPartnerRedemptions: async (limit = 50, venueId = null, range = {}) => {
     const res = await client.get('/api/vouchers/partner/redemptions', {
-      params: { limit, ...(venueId ? { venueId } : {}) },
+      params: { limit, ...(venueId ? { venueId } : {}), ...range },
+    });
+    return res.data;
+  },
+  // Chủ quán: Excel đối soát với máy tính tiền
+  exportPartnerRedemptions: async (venueId = null, range = {}) => {
+    const res = await client.get('/api/vouchers/partner/redemptions/export', {
+      params: { ...(venueId ? { venueId } : {}), ...range },
+      responseType: 'blob',
     });
     return res.data;
   },
@@ -604,6 +634,9 @@ export const onboardingApi = {
     return res.data;
   },
 };
+
+// Gọi nhẹ để đánh thức / giữ server Render gói miễn phí không ngủ (ngủ sau 15 phút không có ai gọi)
+export const pingServer = () => client.get('/', { timeout: 90000 }).then(() => true).catch(() => false);
 
 export default client;
 

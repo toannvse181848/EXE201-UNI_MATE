@@ -28,8 +28,12 @@ const {
   describeSchedule,
   isWithinSchedule,
   describeVoucherValue,
+  describeCounterDiscount,
   withVoucherLabels,
 } = require('../utils/voucherFormat');
+const { holdUntilFor } = require('../config/wallet');
+const { expireHold, isHoldOverdue } = require('../utils/walletHold');
+const { formatDateTime, buildWorkbook, sendXlsx, datedFilename } = require('../utils/excelExport');
 const { VOUCHER_STATUS_LABEL, annotateVouchers } = require('../utils/voucherStatus');
 const { visibleVenueFilter } = require('../utils/visibility');
 const { issuedOf, hasSharedStock, reserveSharedSlot, releaseSharedSlot } = require('../utils/voucherStock');
@@ -85,8 +89,16 @@ const claimVoucher = catchAsync(async (req, res) => {
     throw new ApiError(403, 'Voucher này chỉ dành cho thành viên Premium. Nâng cấp Premium để nhận nhé!');
   }
 
-  // Kiểm tra đã claim chưa
-  const existing = await UserVoucher.findOne({ userId, voucherId });
+  // Kiểm tra đã claim chưa. Voucher đã quá hạn giữ trong ví (lượt đã trả cho quán) thì được lưu lại nếu kho còn lượt.
+  let existing = await UserVoucher.findOne({ userId, voucherId });
+  if (isHoldOverdue(existing)) {
+    await expireHold(existing._id);
+    existing = await UserVoucher.findById(existing._id);
+  }
+  if (existing?.status === 'expired' && existing.holdUntil) {
+    await UserVoucher.deleteOne({ _id: existing._id, status: 'expired' });
+    existing = null;
+  }
   if (existing) throw new ApiError(400, 'Bạn đã lưu voucher này vào ví rồi');
 
   const coinCost = voucher.coinCost || 0;
@@ -129,6 +141,7 @@ const claimVoucher = catchAsync(async (req, res) => {
       voucherId,
       qrPayload,
       assignedCode: reservedCode?.code || null,
+      holdUntil: holdUntilFor(voucher),
     });
   } catch (err) {
     await releaseReservedCode();
@@ -168,11 +181,14 @@ const claimVoucher = catchAsync(async (req, res) => {
 
   const populated = await userVoucher.populate('voucherId', 'title code codeType discountPercent discountAmount validUntil minBill coinCost');
 
+  const holdNote = userVoucher.holdUntil
+    ? ` Dùng trước ${new Date(userVoucher.holdUntil).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}, quá hạn thì lượt được trả lại cho quán.`
+    : '';
   res.status(201).json({
     success: true,
     message: coinCost > 0
       ? `Đã đổi ${coinCost} UniCoin lấy voucher thành công!`
-      : 'Đã lưu voucher vào ví thành công!',
+      : `Đã lưu voucher vào ví thành công!${holdNote}`,
     data: populated,
   });
 });
@@ -189,8 +205,13 @@ const getMyWallet = catchAsync(async (req, res) => {
     })
     .sort({ claimedAt: -1 });
 
-  // Auto-expire phía JS: nếu voucher hết hạn, đánh dấu expired
+  // Quá hạn giữ trong ví: trả lượt cho quán ngay (việc định kỳ cũng làm, đây để ví luôn đúng)
   const now = new Date();
+  for (const uv of wallet) {
+    if (isHoldOverdue(uv, now) && (await expireHold(uv._id))) uv.status = 'expired';
+  }
+
+  // Auto-expire phía JS: nếu voucher hết hạn, đánh dấu expired
   const expiredIds = [];
   const enriched = wallet.map((uv) => {
     const obj = uv.toObject();
@@ -341,17 +362,28 @@ const findRedeemTarget = async (req, payload) => {
   if (qrPayload) {
     userVoucher = await UserVoucher.findOne({ qrPayload }).populate(
       'userId',
-      'fullName avatar studentProfile'
+      'fullName avatar studentProfile status'
     );
     if (!userVoucher) throw new ApiError(404, 'Mã QR không hợp lệ');
 
-    voucher = await Voucher.findById(userVoucher.voucherId).populate('venueId', 'name address');
+    voucher = await Voucher.findById(userVoucher.voucherId).populate('venueId', 'name address status');
     if (!voucher) throw new ApiError(404, 'Voucher không còn tồn tại');
     await assertOwnVoucher(req, voucher);
     if (userVoucher.status === 'used') throw new ApiError(400, 'Voucher này đã được sử dụng');
+    if (isHoldOverdue(userVoucher)) {
+      await expireHold(userVoucher._id);
+      throw new ApiError(
+        400,
+        'Voucher đã quá hạn giữ trong ví nên lượt đã trả lại cho quán. Sinh viên lưu lại được nếu quán còn lượt.',
+        'VOUCHER_HOLD_EXPIRED'
+      );
+    }
     if (userVoucher.status === 'expired') throw new ApiError(400, 'Voucher đã hết hạn');
+    if (userVoucher.userId?.status === 'suspended') {
+      throw new ApiError(403, 'Tài khoản của sinh viên này đã bị khoá nên không dùng được voucher', 'STUDENT_SUSPENDED');
+    }
   } else {
-    voucher = await Voucher.findOne({ code }).populate('venueId', 'name address');
+    voucher = await Voucher.findOne({ code }).populate('venueId', 'name address status');
     if (!voucher) throw new ApiError(404, 'Mã voucher không tồn tại');
     await assertOwnVoucher(req, voucher);
     if (voucher.codeType === 'unique') {
@@ -370,6 +402,10 @@ const findRedeemTarget = async (req, payload) => {
     }
   }
 
+  // Admin tạm khoá chi nhánh (vi phạm) thì voucher của chi nhánh đó cũng dừng. Chờ duyệt lại sau khi sửa tên thì vẫn dùng được.
+  if (voucher.venueId?.status === 'rejected') {
+    throw new ApiError(400, 'Chi nhánh này đang bị UNI-MATE tạm khoá nên chưa áp dụng được voucher', 'VENUE_SUSPENDED');
+  }
   if (!voucher.isActive) throw new ApiError(400, 'Voucher đã bị tạm ngưng');
   if (new Date(voucher.validUntil) < new Date()) throw new ApiError(400, 'Voucher đã hết hạn sử dụng');
   if (!isWithinSchedule(voucher)) {
@@ -393,9 +429,15 @@ const verifyVoucher = catchAsync(async (req, res) => {
       description: voucher.description,
       discountPercent: voucher.discountPercent,
       discountAmount: voucher.discountAmount,
+      maxDiscount: voucher.maxDiscount || 0,
+      giftItem: voucher.giftItem || '',
       minBill: voucher.minBill,
+      meetupReward: Boolean(voucher.meetupReward),
       ...describeVoucherValue(voucher),
+      // Một mã: nhập gì vào máy tính tiền. Quét thêm bạn thì màn quét tự cộng dồn (cùng luật describeCounterDiscount)
+      counter: describeCounterDiscount(voucher, 1),
       validUntil: voucher.validUntil,
+      holdUntil: userVoucher?.holdUntil || null,
       venueName: voucher.venueId?.name || null,
       assignedCode: userVoucher?.assignedCode || null,
       // Voucher nhận qua "Rủ cafe": requiresCompanion = phải quét thêm mã của bạn đi cùng rồi mới áp dụng được
@@ -504,6 +546,8 @@ const redeemVoucher = catchAsync(async (req, res) => {
         return { id: student._id, fullName: student.fullName, coinAwarded, coinCapped: coinAwarded < coinPlanned };
       }),
       maxDailyEarn: MAX_DAILY_EARN,
+      // Nhập vào máy tính tiền của quán cho đúng số mã vừa áp dụng
+      counter: describeCounterDiscount(voucher, Math.max(1, walletVouchers.length)),
       id: redemption._id,
       code: voucher.code,
       title: voucher.title,
@@ -521,12 +565,15 @@ const redeemVoucher = catchAsync(async (req, res) => {
   });
 });
 
+const VN_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const vnDayStart = (day) => new Date(`${day}T00:00:00.000+07:00`);
+const vnToday = () => new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 /**
- * Lịch sử check-in / đối soát voucher tại quán.
- * Thu ngân: chỉ chi nhánh của mình. Chủ quán: tất cả chi nhánh, hoặc một chi nhánh với ?venueId=
+ * Phạm vi lịch sử: thu ngân chỉ chi nhánh của mình; chủ quán mọi chi nhánh hoặc ?venueId=.
+ * ?from=&to= là ngày giờ Việt Nam dạng 2026-11-11 (tính cả ngày `to`).
  */
-const getPartnerRedemptions = catchAsync(async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+const redemptionScope = (req) => {
   const filter =
     req.user.role === 'cashier'
       ? { partnerId: req.user.cashierProfile.partnerId, venueId: req.user.cashierProfile.venueId }
@@ -534,24 +581,81 @@ const getPartnerRedemptions = catchAsync(async (req, res) => {
   if (req.user.role === 'partner' && typeof req.query.venueId === 'string' && /^[a-f\d]{24}$/i.test(req.query.venueId)) {
     filter.venueId = req.query.venueId;
   }
+  return filter;
+};
+const withDateRange = (filter, { from, to }) => {
+  const createdAt = {};
+  if (typeof from === 'string' && VN_DAY.test(from)) createdAt.$gte = vnDayStart(from);
+  if (typeof to === 'string' && VN_DAY.test(to)) createdAt.$lt = new Date(vnDayStart(to).getTime() + 24 * 60 * 60 * 1000);
+  return Object.keys(createdAt).length ? { ...filter, createdAt } : filter;
+};
 
-  const [total, redemptions] = await Promise.all([
+const REDEMPTION_VOUCHER_FIELDS = 'code title discountType discountPercent discountAmount maxDiscount giftItem minBill meetupReward';
+const findRedemptions = (filter, limit) =>
+  Redemption.find(filter)
+    .populate('voucherId', REDEMPTION_VOUCHER_FIELDS)
+    .populate('venueId', 'name')
+    .populate('userId', 'fullName avatar studentProfile.studentId studentProfile.university')
+    .populate('redeemedBy', 'fullName role')
+    .sort({ createdAt: -1 })
+    .limit(limit);
+
+/** Mỗi lượt là một người dùng một mã: ghi ưu đãi của đúng mã đó để quán đối soát với máy tính tiền */
+const withDiscountLabel = (redemption) => {
+  const obj = redemption.toObject();
+  obj.discountLabel = obj.voucherId ? describeVoucherValue(obj.voucherId).discountLabel : null;
+  return obj;
+};
+
+/** Lịch sử check-in / đối soát voucher tại quán, kèm số lượt hôm nay trong cùng phạm vi chi nhánh */
+const getPartnerRedemptions = catchAsync(async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const scope = redemptionScope(req);
+  const filter = withDateRange(scope, req.query);
+
+  const [total, today, redemptions] = await Promise.all([
     Redemption.countDocuments(filter),
-    Redemption.find(filter)
-      .populate('voucherId', 'code title discountPercent discountAmount')
-      .populate('venueId', 'name')
-      .populate('userId', 'fullName avatar studentProfile.studentId studentProfile.university')
-      .populate('redeemedBy', 'fullName')
-      .sort({ createdAt: -1 })
-      .limit(limit),
+    Redemption.countDocuments({ ...scope, createdAt: { $gte: vnDayStart(vnToday()) } }),
+    findRedemptions(filter, limit),
   ]);
 
   res.status(200).json({
     success: true,
     total,
+    today,
     count: redemptions.length,
-    data: redemptions,
+    data: redemptions.map(withDiscountLabel),
   });
+});
+
+/** GET /partner/redemptions/export?from=&to=&venueId= — chủ quán tải Excel để so với máy tính tiền */
+const exportPartnerRedemptions = catchAsync(async (req, res) => {
+  const filter = withDateRange(redemptionScope(req), req.query);
+  const rows = (await findRedemptions(filter, 5000)).map(withDiscountLabel).reverse();
+  const buffer = buildWorkbook('Doi_soat', [
+    { header: 'STT', key: 'stt', width: 6 },
+    { header: 'Thời gian', key: 'time', width: 20 },
+    { header: 'Chi nhánh', key: 'venue', width: 28 },
+    { header: 'Mã voucher', key: 'code', width: 14 },
+    { header: 'Chương trình', key: 'title', width: 28 },
+    { header: 'Ưu đãi của mã này', key: 'discount', width: 28 },
+    { header: 'Hoá đơn tối thiểu', key: 'minBill', width: 16 },
+    { header: 'Sinh viên', key: 'student', width: 22 },
+    { header: 'Cách dùng', key: 'method', width: 14 },
+    { header: 'Người xác nhận', key: 'by', width: 20 },
+  ], rows.map((r, i) => ({
+    stt: i + 1,
+    time: formatDateTime(r.createdAt),
+    venue: r.venueId?.name || '',
+    code: r.voucherId?.code || '',
+    title: r.voucherId?.title || '',
+    discount: r.discountLabel || '',
+    minBill: r.voucherId?.minBill ? `${Number(r.voucherId.minBill).toLocaleString('vi-VN')}đ` : '',
+    student: r.userId?.fullName || 'Khách dùng mã chung',
+    method: r.method === 'qr' ? 'Ví UNI-MATE' : 'Gõ mã chung',
+    by: r.redeemedBy ? `${r.redeemedBy.fullName}${r.redeemedBy.role === 'cashier' ? ' (thu ngân)' : ''}` : '',
+  })));
+  sendXlsx(res, buffer, datedFilename('unimate_doi_soat_voucher'));
 });
 
 // ─── PARTNER ─────────────────────────────────────────────────────────────────
@@ -1237,6 +1341,7 @@ module.exports = {
   verifyVoucher,
   redeemVoucher,
   getPartnerRedemptions,
+  exportPartnerRedemptions,
   getMyPartnerVouchers,
   createVoucher,
   toggleVoucherStatus,

@@ -8,12 +8,23 @@ const AuthContext = createContext();
 
 // Token expiry: 8 giờ (ms)
 const TOKEN_EXPIRY_MS = 8 * 60 * 60 * 1000;
+// Thu ngân đứng quầy cả ngày, không nên bị đăng xuất giữa ca. Tài khoản chỉ quét được voucher,
+// chủ quán Khoá hoặc đặt lại mật khẩu là máy đó ra ngay (server từ chối), nên cho giữ phiên 7 ngày.
+const SESSION_MS_BY_ROLE = { cashier: 7 * 24 * 60 * 60 * 1000 };
+
+const savedRole = () => {
+  try {
+    return JSON.parse(localStorage.getItem('unimate_portal_user') || 'null')?.role || null;
+  } catch {
+    return null;
+  }
+};
 
 const isSessionValid = () => {
   const loginTime = localStorage.getItem('unimate_login_time');
   if (!loginTime) return false;
   const elapsed = Date.now() - parseInt(loginTime, 10);
-  return elapsed < TOKEN_EXPIRY_MS;
+  return elapsed < (SESSION_MS_BY_ROLE[savedRole()] || TOKEN_EXPIRY_MS);
 };
 
 const clearSession = () => {

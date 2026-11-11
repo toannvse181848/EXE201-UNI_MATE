@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export default function UserLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, reloadUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -56,7 +56,9 @@ export default function UserLayout() {
           if (uv.status !== 'saved') return false;
           const claimedTime = new Date(uv.claimedAt || uv.createdAt || 0).getTime();
           const isNewlyClaimed = claimedTime > lastViewed;
-          const expireTime = uv.voucherId?.validUntil ? new Date(uv.voucherId.validUntil).getTime() : null;
+          // Hạn giữ trong ví (voucher miễn phí) đến trước hạn voucher thì nhắc theo hạn giữ
+          const endAt = uv.holdUntil || uv.voucherId?.validUntil;
+          const expireTime = endAt ? new Date(endAt).getTime() : null;
           const isExpiringSoon = expireTime && expireTime - now > 0 && expireTime - now < 48 * 3600 * 1000;
           return isNewlyClaimed || isExpiringSoon;
         });
@@ -75,6 +77,8 @@ export default function UserLayout() {
       setVoucherNotificationCount(0);
     }
     fetchNotificationCounts();
+    // Coin có thể tăng ở nơi khác (quán quét voucher, buổi hẹn hoàn tất): chuyển trang là lấy lại số dư thật
+    reloadUser();
   }, [location.pathname, fetchNotificationCounts]);
 
   useEffect(() => {

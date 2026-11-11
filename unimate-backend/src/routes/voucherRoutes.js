@@ -7,6 +7,7 @@ const {
   verifyVoucher,
   redeemVoucher,
   getPartnerRedemptions,
+  exportPartnerRedemptions,
   getMyPartnerVouchers,
   createVoucher,
   toggleVoucherStatus,
@@ -33,6 +34,8 @@ router.get('/my-wallet', authorize('student'), getMyWallet);
 // ─── PARTNER ─────────────────────────────────────────────────────────────────
 router.get('/partner/my-vouchers', authorize('partner'), getMyPartnerVouchers);
 router.get('/partner/redemptions', authorize('partner', 'cashier'), getPartnerRedemptions);
+// Excel đối soát với máy tính tiền của quán (chỉ chủ quán)
+router.get('/partner/redemptions/export', authorize('partner'), exportPartnerRedemptions);
 router.get('/partner/template', authorize('partner', 'admin'), downloadVoucherTemplate);
 router.post(
   '/partner/preview',

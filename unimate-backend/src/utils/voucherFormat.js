@@ -64,17 +64,51 @@ const describeVoucherValue = (voucher) => {
     discountShort = 'Quà tặng';
   }
   const minBill = Number(voucher.minBill) || 0;
-  const billLabel = minBill > 0 ? `Hoá đơn từ ${formatVnd(minBill)}` : 'Không yêu cầu hoá đơn tối thiểu';
+  // Hoá đơn tối thiểu tính trên phần của người dùng mã: ưu đãi hẹn cafe mỗi bạn một mã nên ghi rõ "mỗi bạn"
+  const billLabel =
+    minBill > 0
+      ? `${voucher.meetupReward ? 'Mỗi bạn gọi từ' : 'Hoá đơn từ'} ${formatVnd(minBill)}`
+      : 'Không yêu cầu hoá đơn tối thiểu';
   const scheduleLabel = describeSchedule(voucher);
   const conditionLabel = scheduleLabel ? `${billLabel} · Chỉ dùng ${scheduleLabel}` : billLabel;
   return { discountType, discountLabel, discountShort, conditionLabel, scheduleLabel };
 };
 
 /** Gắn nhãn hiển thị vào bản ghi voucher (document hoặc object thường) */
+/**
+ * Thu ngân cần nhập gì vào máy tính tiền của quán khi áp dụng `people` mã cùng một voucher (UNI-MATE không đụng tới tiền).
+ * Mỗi mã giảm trên phần gọi của người có mã: 2 mã "giảm 10.000đ" là giảm 20.000đ, 2 mã "tặng 1 bánh" là mỗi bạn 1 bánh.
+ * @returns { posLabel, minBillLabel | null }
+ */
+const describeCounterDiscount = (voucher, people = 1) => {
+  const n = Math.max(1, Number(people) || 1);
+  const type = getDiscountType(voucher);
+  const max = Number(voucher.maxDiscount) || 0;
+  let posLabel;
+  if (type === 'percent') {
+    const scope = n > 1 ? `trên phần gọi của ${n} bạn có mã` : 'hoá đơn';
+    posLabel = `Giảm ${voucher.discountPercent}% ${scope}${max > 0 ? `, ${n > 1 ? 'mỗi bạn ' : ''}tối đa ${formatVnd(max)}` : ''}`;
+  } else if (type === 'amount') {
+    const amount = Number(voucher.discountAmount) || 0;
+    posLabel = n > 1 ? `Giảm ${formatVnd(amount * n)} (${n} × ${formatVnd(amount)})` : `Giảm ${formatVnd(amount)}`;
+  } else {
+    const gift = voucher.giftItem || 'quà tặng';
+    posLabel = n > 1 ? `Tặng ${gift} cho mỗi bạn (${n} bạn)` : `Tặng ${gift}`;
+  }
+  const minBill = Number(voucher.minBill) || 0;
+  const minBillLabel =
+    minBill > 0
+      ? n > 1
+        ? `Mỗi bạn gọi từ ${formatVnd(minBill)} (${n} bạn chung hoá đơn: từ ${formatVnd(minBill * n)})`
+        : `Hoá đơn từ ${formatVnd(minBill)}`
+      : null;
+  return { posLabel, minBillLabel };
+};
+
 const withVoucherLabels = (voucher) => {
   if (!voucher) return voucher;
   const plain = typeof voucher.toObject === 'function' ? voucher.toObject() : { ...voucher };
   return { ...plain, ...describeVoucherValue(plain) };
 };
 
-module.exports = { DISCOUNT_TYPES, formatVnd, getDiscountType, describeSchedule, isWithinSchedule, describeVoucherValue, withVoucherLabels };
+module.exports = { DISCOUNT_TYPES, formatVnd, getDiscountType, describeSchedule, isWithinSchedule, describeVoucherValue, describeCounterDiscount, withVoucherLabels };

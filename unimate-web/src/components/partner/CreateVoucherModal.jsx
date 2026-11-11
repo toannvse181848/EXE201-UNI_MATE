@@ -452,7 +452,10 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
               <div>
                 <label style={labelStyle}>Hoá đơn tối thiểu (đ)</label>
                 <input style={field} inputMode="numeric" disabled={locked} value={groupDigits(form.minBill)} onChange={(e) => set('minBill', onlyDigits(e.target.value))} placeholder="Để trống = không yêu cầu" />
-                <div style={hint}>Thu ngân tự kiểm tra: hệ thống không biết số tiền hoá đơn</div>
+                <div style={hint}>
+                  Thu ngân tự kiểm tra: hệ thống không biết số tiền hoá đơn.
+                  {form.kind === 'meetup' ? ' Tính trên phần gọi của mỗi bạn (2 bạn chung hoá đơn thì gấp đôi).' : ''}
+                </div>
               </div>
               <div>
                 <label style={labelStyle}>Hạn sử dụng *</label>

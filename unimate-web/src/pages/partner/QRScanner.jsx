@@ -9,13 +9,15 @@ import {
   CameraOff,
   Upload,
   Store,
+  Download,
+  Receipt,
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { voucherApi, venueApi } from '../../services/api';
+import { voucherApi, venueApi, pingServer } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../utils/analytics';
 import { getAvatarUrl } from '../../constants/avatar';
-import { describeVoucher, formatVnd } from '../../utils/voucher';
+import { describeVoucher, describeCounterDiscount } from '../../utils/voucher';
 import { notify } from '../../utils/notify';
 
 // html5-qrcode tự vẽ video vào các div này (xoá sạch nội dung bên trong), nên React không render con vào đó
@@ -56,6 +58,18 @@ const cameraErrorMessage = (err) => {
   return 'Không mở được camera trên máy này. Dùng nút chụp ảnh mã QR hoặc nhập mã bên dưới.';
 };
 
+// Ngày giờ Việt Nam dạng 2026-11-11, lùi `daysAgo` ngày
+const vnDay = (daysAgo = 0) => new Date(Date.now() + 7 * 3600 * 1000 - daysAgo * 86400 * 1000).toISOString().slice(0, 10);
+const HISTORY_RANGES = [
+  { id: 'today', label: 'Hôm nay', range: () => ({ from: vnDay(), to: vnDay() }) },
+  { id: '7d', label: '7 ngày', range: () => ({ from: vnDay(6), to: vnDay() }) },
+  { id: '30d', label: '30 ngày', range: () => ({ from: vnDay(29), to: vnDay() }) },
+];
+const rangeOf = (id) => (HISTORY_RANGES.find((r) => r.id === id) || HISTORY_RANGES[0]).range();
+
+// Giữ server không ngủ khi đang mở màn quét (Render gói miễn phí ngủ sau 15 phút không có ai gọi)
+const KEEP_AWAKE_MS = 10 * 60 * 1000;
+
 // Kết quả kiểm tra mã từ backend → dữ liệu hiển thị trên thẻ kết quả
 const toScanResult = (found, payload) => {
   const student = found?.student;
@@ -68,6 +82,16 @@ const toScanResult = (found, payload) => {
     discountLabel: describeVoucher(found).discountLabel,
     conditionLabel: describeVoucher(found).conditionLabel,
     minBill: Number(found.minBill) || 0,
+    // Đủ dữ liệu để tính ưu đãi nhập vào máy tính tiền khi quét nhiều bạn cùng lúc
+    voucher: {
+      discountType: found.discountType,
+      discountPercent: found.discountPercent,
+      discountAmount: found.discountAmount,
+      maxDiscount: found.maxDiscount,
+      giftItem: found.giftItem,
+      minBill: found.minBill,
+      meetupReward: found.meetupReward,
+    },
     note: found.description || '',
     studentId: student?.id || null,
     studentName: student?.fullName || 'Khách dùng mã chung (không qua ví)',
@@ -110,6 +134,12 @@ export default function QRScanner() {
   const [redeeming, setRedeeming] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  // Đối soát: khoảng ngày đang xem, tổng lượt trong khoảng đó và số lượt hôm nay
+  const [historyRange, setHistoryRange] = useState('today');
+  const [historyMeta, setHistoryMeta] = useState({ total: 0, today: 0 });
+  const [exporting, setExporting] = useState(false);
+  // Server vừa thức dậy sau khi ngủ: báo để thu ngân biết lượt đầu chậm
+  const [serverWaking, setServerWaking] = useState(false);
   // Camera thật: bật khi thu ngân bấm nút, tự tắt sau khi đọc được 1 mã
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
@@ -132,10 +162,11 @@ export default function QRScanner() {
   const companionName = meetupInfo?.isGroup ? 'bạn khác trong nhóm' : meetupInfo?.companions?.[0]?.fullName || 'bạn đi cùng';
   const peopleCount = companionResults.length + 1;
 
-  const loadHistory = async (venue = venueId) => {
+  const loadHistory = async (venue = venueId, rangeId = historyRange) => {
     try {
-      const res = await voucherApi.getPartnerRedemptions(50, isCashier ? null : venue || null);
+      const res = await voucherApi.getPartnerRedemptions(200, isCashier ? null : venue || null, rangeOf(rangeId));
       setHistory(res?.data || []);
+      setHistoryMeta({ total: res?.total || 0, today: res?.today || 0 });
     } catch (err) {
       console.log('Lỗi tải lịch sử check-in:', err.message);
     } finally {
@@ -159,6 +190,46 @@ export default function QRScanner() {
       })
       .catch(() => loadHistory(''));
   }, []);
+
+  // Đánh thức server ngay khi mở màn quét, rồi gọi nhẹ 10 phút một lần để server không ngủ trong giờ quán mở
+  useEffect(() => {
+    let alive = true;
+    const slow = setTimeout(() => alive && setServerWaking(true), 2500);
+    pingServer().finally(() => {
+      clearTimeout(slow);
+      if (alive) setServerWaking(false);
+    });
+    const timer = setInterval(pingServer, KEEP_AWAKE_MS);
+    return () => {
+      alive = false;
+      clearTimeout(slow);
+      clearInterval(timer);
+    };
+  }, []);
+
+  const handleChangeRange = (rangeId) => {
+    setHistoryRange(rangeId);
+    setHistoryLoading(true);
+    loadHistory(venueId, rangeId);
+  };
+
+  // Chủ quán tải Excel để so với máy tính tiền của quán cuối ngày
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await voucherApi.exportPartnerRedemptions(venueId || null, rangeOf(historyRange));
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `doi-soat-voucher-${rangeOf(historyRange).from}_${rangeOf(historyRange).to}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      notify.error('Không xuất được file: ' + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Gửi kèm chi nhánh đang quét: voucher của chi nhánh khác sẽ bị từ chối
   const scanScope = !isCashier && venueId ? { venueId } : {};
@@ -392,7 +463,7 @@ export default function QRScanner() {
     saveVenue(id);
     clearScan();
     setHistoryLoading(true);
-    loadHistory(id);
+    loadHistory(id, historyRange);
   };
 
   return (
@@ -406,6 +477,12 @@ export default function QRScanner() {
           Quét mã QR từ điện thoại sinh viên UNI-MATE để xác thực ưu đãi giảm giá tại quán.
         </p>
       </div>
+
+      {serverWaking && (
+        <div role="status" style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', fontSize: '13px', fontWeight: '600' }}>
+          Máy chủ đang khởi động lại sau thời gian không ai dùng, lượt quét đầu có thể chậm 30–50 giây. Cứ để mở trang này, máy chủ sẽ không ngủ lại.
+        </div>
+      )}
 
       {/* Chi nhánh đang quét: voucher của chi nhánh khác sẽ bị từ chối */}
       {(isCashier || venues.length > 1) && (
@@ -706,11 +783,30 @@ export default function QRScanner() {
                   </div>
                 )}
 
+                {/* UNI-MATE không đụng tới tiền: ghi rõ thu ngân cần giảm gì trên máy tính tiền của quán cho đủ số bạn */}
+                {!needsCompanion && (
+                  <div
+                    data-testid="counter-box"
+                    style={{ padding: '12px 14px', backgroundColor: confirmed ? '#ECFDF5' : '#EFF6FF', border: `1.5px solid ${confirmed ? '#10B981' : '#93C5FD'}`, borderRadius: '12px', fontSize: '13px', color: confirmed ? '#065F46' : '#1E3A8A', lineHeight: '1.5' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: '800', letterSpacing: '0.3px' }}>
+                      <Receipt size={14} />
+                      {confirmed ? 'GIẢM NGAY TRÊN MÁY TÍNH TIỀN CỦA QUÁN' : 'SAU KHI XÁC NHẬN, GIẢM TRÊN MÁY TÍNH TIỀN'}
+                    </div>
+                    <div style={{ fontSize: '15px', fontWeight: '900', marginTop: '2px' }}>
+                      {(confirmed && redeemInfo?.counter?.posLabel) || describeCounterDiscount(scanResult.voucher, peopleCount).posLabel}
+                    </div>
+                    <div style={{ fontSize: '11.5px', marginTop: '2px', opacity: 0.85 }}>
+                      UNI-MATE không trừ tiền. Mỗi mã giảm trên phần gọi của người có mã, rồi quán thu tiền như bình thường.
+                    </div>
+                  </div>
+                )}
+
                 {/* Điều kiện chỉ thu ngân kiểm tra được: hệ thống không biết số tiền hoá đơn, không đọc được ghi chú */}
                 {!confirmed && (scanResult.minBill > 0 || scanResult.note) && (
                   <div style={{ padding: '12px 14px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '12px', fontSize: '12.5px', color: '#92400E', lineHeight: '1.5' }}>
                     <strong>Thu ngân tự kiểm tra trước khi áp dụng</strong> (hệ thống không tự chặn được):
-                    {scanResult.minBill > 0 && <div>• Hoá đơn từ {formatVnd(scanResult.minBill)}</div>}
+                    {scanResult.minBill > 0 && <div>• {describeCounterDiscount(scanResult.voucher, peopleCount).minBillLabel}</div>}
                     {scanResult.note && <div>• {scanResult.note}</div>}
                   </div>
                 )}
@@ -820,8 +916,8 @@ export default function QRScanner() {
                 {redeeming
                   ? 'Đang áp dụng...'
                   : companionResults.length > 0
-                    ? `Xác nhận áp dụng cho cả ${peopleCount} bạn & Trừ tiền hóa đơn`
-                    : 'Xác nhận áp dụng voucher & Trừ tiền hóa đơn'}
+                    ? `Xác nhận áp dụng cho cả ${peopleCount} bạn`
+                    : 'Xác nhận áp dụng voucher'}
               </span>
             </button>
           )}
@@ -841,9 +937,37 @@ export default function QRScanner() {
 
       {/* Check-in History Table */}
       <div className="portal-card">
-        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '14px' }}>
-          Lịch sử check-in gần đây{(isCashier || venues.length > 1) && currentVenueName ? ` · ${currentVenueName}` : ''}
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
+              Lịch sử check-in{(isCashier || venues.length > 1) && currentVenueName ? ` · ${currentVenueName}` : ''}
+            </h3>
+            <div data-testid="history-summary" style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              Hôm nay: <strong>{historyMeta.today}</strong> lượt
+              {historyRange !== 'today' && <> · {HISTORY_RANGES.find((r) => r.id === historyRange)?.label}: <strong>{historyMeta.total}</strong> lượt</>}
+              {' '}· Cuối ngày so số lượt này với số đơn có khuyến mãi UNI-MATE trên máy tính tiền.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {HISTORY_RANGES.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => handleChangeRange(r.id)}
+                className={historyRange === r.id ? 'btn btn-primary' : 'btn btn-secondary'}
+                style={{ padding: '6px 12px', fontSize: '12.5px' }}
+              >
+                {r.label}
+              </button>
+            ))}
+            {!isCashier && (
+              <button type="button" onClick={handleExport} disabled={exporting} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12.5px' }}>
+                <Download size={14} />
+                <span>{exporting ? 'Đang xuất...' : 'Xuất Excel đối soát'}</span>
+              </button>
+            )}
+          </div>
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
@@ -862,7 +986,12 @@ export default function QRScanner() {
                   <td style={{ padding: '12px 14px', fontWeight: '700', color: 'var(--text-primary)' }}>
                     {h.userId?.fullName || 'Khách dùng mã chung'}
                   </td>
-                  <td style={{ padding: '12px 14px', color: '#059669', fontWeight: '700' }}>{h.voucherId?.title || 'Voucher'}</td>
+                  <td style={{ padding: '12px 14px', color: '#059669', fontWeight: '700' }}>
+                    {h.discountLabel || h.voucherId?.title || 'Voucher'}
+                    {h.discountLabel && h.voucherId?.title && (
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{h.voucherId.title}</div>
+                    )}
+                  </td>
                   <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>
                     {new Date(h.createdAt).toLocaleString('vi-VN')}
                   </td>
@@ -872,7 +1001,7 @@ export default function QRScanner() {
               {!historyLoading && history.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Chưa có lượt check-in nào
+                    Chưa có lượt check-in nào trong khoảng này
                   </td>
                 </tr>
               )}

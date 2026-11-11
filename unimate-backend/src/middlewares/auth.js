@@ -36,6 +36,10 @@ const protect = catchAsync(async (req, res, next) => {
 
   const user = await User.findById(decoded.id);
   if (!user) throw new ApiError(401, 'Vui lòng đăng nhập');
+  // Đã đổi hoặc đặt lại mật khẩu sau khi token này được cấp: mọi máy cũ phải đăng nhập lại
+  if (user.passwordChangedAt && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
+    throw new ApiError(401, 'Mật khẩu đã được đổi, vui lòng đăng nhập lại', 'SESSION_REVOKED');
+  }
   if (user.status === 'suspended') throw new ApiError(403, 'Tài khoản đã bị khoá');
   if (user.role === 'cashier') {
     const path = req.baseUrl + req.path;

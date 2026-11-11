@@ -12,6 +12,7 @@ const {
   getCheckinQr,
   regenerateCheckinQr,
   getPartnerInsights,
+  getUpcomingMeetups,
 } = require('../controllers/venueController');
 const { protect, authorize } = require('../middlewares/auth');
 const { uploadVenueImages: uploadImages } = require('../config/cloudinary');
@@ -24,6 +25,8 @@ router.get('/:id', getVenueById);
 router.get('/my/list', protect, authorize('partner'), getMyVenues);
 // Hiệu quả UNI-MATE mang lại: sinh viên tới quán, buổi hẹn cafe, lượt xem
 router.get('/my/insights', protect, authorize('partner'), getPartnerInsights);
+// Buổi hẹn đã chốt sắp tới tại quán: giờ, chi nhánh, số người (không có tên sinh viên)
+router.get('/my/upcoming-meetups', protect, authorize('partner'), getUpcomingMeetups);
 router.post(
   '/images',
   protect,

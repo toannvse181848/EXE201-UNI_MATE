@@ -8,6 +8,7 @@ const { isPremiumActive } = require('../utils/subscription');
 const { isVenueVisible } = require('../utils/visibility');
 const { revokeMeetupVouchers } = require('../utils/meetupRewards');
 const { isUnmatched } = require('../utils/blocking');
+const { findMatchCandidates } = require('../utils/matchCandidates');
 const { toPublicStudent } = require('../utils/publicProfile');
 const { saveLocationFromQuery } = require('../utils/userLocation');
 
@@ -72,23 +73,7 @@ const getDiscoveryDeck = catchAsync(async (req, res) => {
   // Tìm các sinh viên khác chưa từng được currentUserId quẹt.
   // Lấy 2 nhóm rồi mới xếp hạng: cùng trường trước, phần còn lại theo người hoạt động gần đây
   // (trước đây lấy 100 người đầu theo thứ tự trong DB nên người đăng ký sau gần như không được gợi ý).
-  const baseFilter = {
-    _id: { $nin: Array.from(excludedIds) },
-    role: { $in: ['student', 'user'] },
-    status: 'active',
-  };
-  const myUniversity = me?.studentProfile?.university;
-  const sameSchool = myUniversity
-    ? await User.find({ ...baseFilter, 'studentProfile.university': myUniversity })
-        .select('fullName avatar studentProfile lastActiveAt')
-        .sort({ lastActiveAt: -1 })
-        .limit(100)
-    : [];
-  const others = await User.find({ ...baseFilter, _id: { $nin: [...excludedIds, ...sameSchool.map((u) => String(u._id))] } })
-    .select('fullName avatar studentProfile lastActiveAt')
-    .sort({ lastActiveAt: -1 })
-    .limit(100);
-  const candidates = [...sameSchool, ...others];
+  const candidates = await findMatchCandidates(me, Array.from(excludedIds));
 
   const scoredCandidates = candidates.map((them) => {
     const matchPercentage = me ? computeMatchScore(me, them) : 0;

@@ -186,8 +186,14 @@ Request:
 
 Response `200`:
 ```json
-{ "success": true, "message": "Đổi mật khẩu thành công" }
+{ "success": true, "message": "Đổi mật khẩu thành công. ...", "data": { "token": "<token mới>" } }
 ```
+
+Đổi hoặc đặt lại mật khẩu (kể cả chủ quán đặt lại mật khẩu thu ngân) làm mọi token cấp trước đó hết hiệu lực: các máy khác nhận `401` kèm `code: "SESSION_REVOKED"` ở yêu cầu kế tiếp. Máy đang đổi phải lưu `data.token` để dùng tiếp. Web tự xoá phiên và chuyển về trang đăng nhập (`?expired=1`) khi gặp `401` ở API không phải đăng nhập / mật khẩu.
+
+Token trong link đặt lại mật khẩu chỉ lưu bản băm SHA-256 trong database.
+
+Giới hạn tần suất (theo IP): đăng nhập 15 lần **sai** / 15 phút (lần đúng không bị đếm), đăng ký 50 lần / giờ, quên mật khẩu 5 lần / giờ.
 
 Lỗi:
 - `400` — `"Mật khẩu mới phải từ 6 ký tự"`
@@ -273,7 +279,11 @@ Response `200`:
 }
 ```
 
-Lỗi: `400` voucher đã dùng / hết hạn / tạm ngưng / hết lượt / buổi hẹn đã huỷ · `403` voucher không thuộc quán của bạn · `404` mã không tồn tại
+Lỗi: `400` voucher đã dùng / hết hạn / tạm ngưng / hết lượt / buổi hẹn đã huỷ · `400 VOUCHER_HOLD_EXPIRED` quá hạn giữ trong ví (lượt đã trả cho quán) · `400 VENUE_SUSPENDED` chi nhánh đang bị admin tạm khoá (`status: "rejected"`; chi nhánh chờ duyệt lại sau khi sửa tên vẫn quét được) · `403 STUDENT_SUSPENDED` tài khoản sinh viên bị khoá · `403` voucher không thuộc quán của bạn · `404` mã không tồn tại
+
+Response có thêm `maxDiscount`, `giftItem`, `meetupReward`, `holdUntil` và `counter: { posLabel, minBillLabel }` cho 1 mã. `/redeem` trả `counter` cho đúng số mã vừa áp dụng, ví dụ `"Giảm 20% trên phần gọi của 2 bạn có mã, mỗi bạn tối đa 30.000đ"`, `"Giảm 20.000đ (2 × 10.000đ)"`, `"Tặng 1 bánh flan cho mỗi bạn (2 bạn)"`. UNI-MATE không trừ tiền: thu ngân giảm trên máy tính tiền của quán theo câu này.
+
+**Luật hoá đơn tối thiểu:** tính trên phần gọi của người dùng mã. Ưu đãi hẹn cafe ghi `"Mỗi bạn gọi từ 50.000đ"`; 2 bạn chung hoá đơn thì `minBillLabel` ghi cả mức `100.000đ`. Hệ thống không biết số tiền hoá đơn, thu ngân tự kiểm tra.
 
 ### Áp dụng voucher
 
@@ -289,7 +299,11 @@ Mọi voucher cùng được dùng hoặc không voucher nào được dùng. Th
 
 ### Lịch sử check-in
 
-`GET /api/vouchers/partner/redemptions?limit=50&venueId=` — partner/thu ngân. Thu ngân chỉ thấy chi nhánh của mình. Chủ quán thấy mọi chi nhánh, hoặc một chi nhánh khi có `venueId`.
+`GET /api/vouchers/partner/redemptions?limit=50&venueId=&from=&to=` — partner/thu ngân. Thu ngân chỉ thấy chi nhánh của mình. Chủ quán thấy mọi chi nhánh, hoặc một chi nhánh khi có `venueId`. `from`, `to` là ngày giờ Việt Nam dạng `2026-11-11` (tính cả ngày `to`). Response có thêm `today` (số lượt hôm nay trong cùng phạm vi chi nhánh) và mỗi dòng có `discountLabel` (ưu đãi của đúng mã đó).
+
+`GET /api/vouchers/partner/redemptions/export?venueId=&from=&to=` — chỉ chủ quán: file Excel đối soát (thời gian, chi nhánh, mã, ưu đãi, hoá đơn tối thiểu, tên sinh viên, cách dùng, người xác nhận). Không có MSSV, email. Dùng để so với số đơn có khuyến mãi UNI-MATE trên máy tính tiền của quán.
+
+`GET /api/venues/my/upcoming-meetups` — chỉ chủ quán: buổi hẹn đã chốt (`accepted`) tại các chi nhánh, xếp theo giờ hẹn: `{ id, venueName, scheduledAt, isGroup, people, arrived, reward: { title, code } | null }`. Không có tên hay thông tin sinh viên.
 
 Response `200`: `{ "success": true, "total": 12, "data": [ { "_id", "method", "createdAt", "voucherId": { "code", "title" }, "venueId": { "name" }, "userId": { "fullName", "avatar" } | null, "redeemedBy": { "fullName" } } ] }`. `redeemedBy` là người bấm xác nhận (chủ quán hoặc tên thu ngân).
 
@@ -443,6 +457,7 @@ Sửa và xoá voucher (partner chủ voucher hoặc admin). Danh sách voucher 
 Voucher mã riêng:
 - `POST /api/vouchers/:id/codes` — nạp danh sách mã: JSON `{ "codes": ["BT-001", "BT-002"] }` (hoặc chuỗi mỗi mã một dòng), hoặc form-data `file` là Excel/CSV có mã ở cột đầu tiên. Chỉ nhận voucher loại mã riêng. Mã trùng nằm trong `skippedExisting`, mã sai định dạng nằm trong `skippedInvalid`.
 - `GET /api/vouchers/:id/codes` — tình trạng từng mã: `available` / `assigned` / `used`, kèm tên sinh viên.
+- **Hạn giữ trong ví:** voucher miễn phí sinh viên tự lưu chỉ giữ được `WALLET_HOLD_DAYS` ngày (mặc định 7, không quá hạn voucher), lưu ở `holdUntil` của item trong ví. Quá hạn chưa dùng thì chuyển `expired` và trả lượt (mã chung) hoặc trả mã (mã riêng) cho quán, chạy trong việc định kỳ 15 phút và ngay khi mở ví / quét. Sinh viên lưu lại được nếu quán còn lượt. Voucher đổi UniCoin và ưu đãi hẹn cafe không có hạn giữ (`holdUntil: null`). Đặt `WALLET_HOLD_DAYS=0` để tắt.
 - Sinh viên nhận voucher thì response có `assignedCode`. Trong ví (`/my-wallet`) mỗi item có `displayCode`, là mã cần hiện cho sinh viên đọc ở quầy khi không quét được QR: mã riêng nếu có, không thì `qrPayload` (`UVM-...`). Không hiện mã chung, vì gõ mã chung tại quầy không trừ voucher trong ví.
 - Thu ngân gõ mã riêng (VD `BT-001`) vào trang đối soát như gõ mã chung, hệ thống tự tìm đúng voucher của sinh viên.
 

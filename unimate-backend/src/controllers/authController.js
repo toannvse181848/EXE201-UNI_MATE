@@ -12,6 +12,9 @@ const { OAuth2Client } = require('google-auth-library');
 
 const googleClient = new OAuth2Client();
 
+// Token đặt lại mật khẩu chỉ lưu bản băm: lộ database cũng không dùng được link đặt lại đang chờ
+const hashResetToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+
 // Thu ngân: kèm tên chi nhánh và tên quán để màn quét hiện "Đang quét tại ..."
 const toPublicUser = async (user) => {
   const data = user.toPublicJSON();
@@ -241,7 +244,12 @@ exports.changePassword = catchAsync(async (req, res) => {
   user.password = newPassword;
   await user.save();
 
-  res.status(200).json({ success: true, message: 'Đổi mật khẩu thành công' });
+  // Các máy khác đang đăng nhập bị đăng xuất; máy đang đổi nhận token mới để dùng tiếp
+  res.status(200).json({
+    success: true,
+    message: 'Đổi mật khẩu thành công. Các máy khác đang đăng nhập tài khoản này đã bị đăng xuất.',
+    data: { token: generateToken(user) },
+  });
 });
 
 // POST /api/auth/forgot-password
@@ -264,7 +272,7 @@ exports.forgotPassword = catchAsync(async (req, res) => {
 
   // Sinh token ngẫu nhiên 32 bytes
   const resetToken = crypto.randomBytes(32).toString('hex');
-  user.resetPasswordToken = resetToken;
+  user.resetPasswordToken = hashResetToken(resetToken);
   user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 phút
   await user.save({ validateBeforeSave: false });
 
@@ -300,7 +308,7 @@ exports.resetPassword = catchAsync(async (req, res) => {
   }
 
   const user = await User.findOne({
-    resetPasswordToken: token,
+    resetPasswordToken: hashResetToken(token),
     resetPasswordExpires: { $gt: Date.now() },
   });
 

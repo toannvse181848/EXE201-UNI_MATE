@@ -3,6 +3,7 @@ const Order = require('../models/Order');
 const { INVITE_EXPIRE_HOURS, NO_SHOW_GRACE_HOURS, NO_TIME_MEETUP_DAYS, GROUP_LATECOMER_HOURS } = require('../config/meetup');
 const { migrateIssuedCount } = require('./voucherStock');
 const { revokeMeetupVouchers } = require('./meetupRewards');
+const { expireOverdueHolds } = require('./walletHold');
 
 /**
  * Đóng các trạng thái chờ không có lối ra theo thời gian (chạy định kỳ trong tiến trình server):
@@ -11,6 +12,7 @@ const { revokeMeetupVouchers } = require('./meetupRewards');
  *   mà chưa ghi nhận tới quán → no_show, thu hồi ưu đãi chưa dùng và trả lại lượt cho quán
  * - Buổi hẹn nhóm đã ghi nhận quá GROUP_LATECOMER_HOURS giờ → thu hồi ưu đãi của bạn chưa tới
  * - Đơn mua gói chờ thanh toán quá 24 giờ → tự huỷ (autoCancelled: tiền về muộn vẫn tự kích hoạt gói)
+ * - Voucher miễn phí quá hạn giữ trong ví (config/wallet.js) → expired, trả lượt / mã cho quán
  */
 const HOUR_MS = 60 * 60 * 1000;
 const RUN_EVERY_MS = 15 * 60 * 1000;
@@ -73,7 +75,9 @@ const runExpiryJobs = async (io) => {
     { status: 'cancelled', cancelledAt: new Date(), autoCancelled: true, note: `Tự huỷ sau ${ORDER_PENDING_HOURS} giờ chưa thanh toán` }
   );
 
-  return { expired, noShow, ordersCancelled: orders.modifiedCount };
+  const holdsExpired = await expireOverdueHolds();
+
+  return { expired, noShow, ordersCancelled: orders.modifiedCount, holdsExpired };
 };
 
 const startExpiryJobs = (io) => {
@@ -84,7 +88,7 @@ const startExpiryJobs = (io) => {
   const tick = () =>
     runExpiryJobs(io)
       .then((r) => {
-        if (r.expired || r.noShow || r.ordersCancelled) console.log('[Expiry]', r);
+        if (r.expired || r.noShow || r.ordersCancelled || r.holdsExpired) console.log('[Expiry]', r);
       })
       .catch((err) => console.error('[Expiry] Lỗi:', err.message));
 

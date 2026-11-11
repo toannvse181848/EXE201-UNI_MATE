@@ -60,6 +60,7 @@ const { saveLocationFromQuery } = require('../utils/userLocation');
 const { computeMatchScore, commonInterests, sortByRank } = require('../utils/matchingAlgorithm');
 const { isPremiumActive } = require('../utils/subscription');
 const { publicBio } = require('../utils/publicProfile');
+const { findMatchCandidates } = require('../utils/matchCandidates');
 
 
 const getRecommendations = catchAsync(async (req, res) => {
@@ -71,14 +72,8 @@ const getRecommendations = catchAsync(async (req, res) => {
 
   const limit = parseInt(req.query.limit, 10) || 20;
 
-  // Lấy tất cả sinh viên (loại trừ bản thân)
-  const candidates = await User.find({
-    _id: { $nin: [currentUserId, ...(await getHiddenUserIds(currentUserId))] },
-    role: { $in: ['student', 'user'] },
-    status: 'active',
-  })
-    .select('fullName avatar studentProfile')
-    .limit(100); // tối đa 100 người để tính toán
+  // Cùng trường trước, rồi người hoạt động gần đây (giống app), không còn chỉ lấy 100 người đầu database
+  const candidates = await findMatchCandidates(me, [currentUserId, ...(await getHiddenUserIds(currentUserId))]);
 
   // Tính điểm cho từng ứng viên
   const scored = candidates.map((them) => {
