@@ -42,10 +42,30 @@ export default function UserManagement() {
   const handleExportExcel = async () => {
     try {
       setExportLoading(true);
-      await userApi.exportUsersAdmin();
-      setToast({ type: 'success', text: 'Xuất file Excel danh sách người dùng thành công!' });
+      const blob = await userApi.exportUsersAdmin();
+      // API chỉ trả dữ liệu file → phải tự tạo link để trình duyệt tải về
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+      link.download = `unimate_danh_sach_nguoi_dung_${today}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setToast({ type: 'success', text: 'Đã tải file Excel danh sách người dùng' });
     } catch (err) {
-      setToast({ type: 'error', text: err.response?.data?.message || 'Không thể xuất file Excel' });
+      // Khi tải file, lỗi từ server cũng về dạng Blob → đọc ra để lấy câu báo lỗi
+      let message = 'Không thể xuất file Excel';
+      const data = err.response?.data;
+      if (data instanceof Blob) {
+        try {
+          message = JSON.parse(await data.text()).message || message;
+        } catch {
+          // không phải JSON thì giữ câu mặc định
+        }
+      }
+      setToast({ type: 'error', text: message });
     } finally {
       setExportLoading(false);
       setTimeout(() => setToast(null), 3000);
