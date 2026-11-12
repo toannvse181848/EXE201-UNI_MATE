@@ -100,6 +100,13 @@ const voucherSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Tối đa bấy nhiêu lượt dùng tại quầy mỗi ngày (giờ Việt Nam), 0 = không giới hạn.
+    // Ưu đãi hẹn cafe giữ chỗ theo ngày hẹn lúc chốt hẹn (utils/voucherDailyLimit.js)
+    dailyLimit: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     usedCount: {
       type: Number,
       default: 0,

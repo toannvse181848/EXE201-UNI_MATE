@@ -11,6 +11,7 @@ import {
   Store,
   Download,
   Receipt,
+  Undo2,
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { voucherApi, venueApi, pingServer } from '../../services/api';
@@ -18,7 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../utils/analytics';
 import { getAvatarUrl } from '../../constants/avatar';
 import { describeVoucher, describeCounterDiscount } from '../../utils/voucher';
-import { notify } from '../../utils/notify';
+import { notify, confirmDialog } from '../../utils/notify';
 
 // html5-qrcode tự vẽ video vào các div này (xoá sạch nội dung bên trong), nên React không render con vào đó
 const CAMERA_READER_ID = 'partner-qr-reader';
@@ -82,6 +83,9 @@ const toScanResult = (found, payload) => {
     discountLabel: describeVoucher(found).discountLabel,
     conditionLabel: describeVoucher(found).conditionLabel,
     minBill: Number(found.minBill) || 0,
+    // Quán giới hạn lượt mỗi ngày: còn bao nhiêu lượt hôm nay (null = không giới hạn)
+    dailyLimit: Number(found.dailyLimit) || 0,
+    todayRemaining: found.todayRemaining ?? null,
     // Đủ dữ liệu để tính ưu đãi nhập vào máy tính tiền khi quét nhiều bạn cùng lúc
     voucher: {
       discountType: found.discountType,
@@ -132,6 +136,8 @@ export default function QRScanner() {
   // Kết quả áp dụng từ backend: buổi hẹn đã hoàn tất chưa, UniCoin từng bạn thực nhận
   const [redeemInfo, setRedeemInfo] = useState(null);
   const [redeeming, setRedeeming] = useState(false);
+  // id lượt đang được huỷ (bấm xác nhận nhầm)
+  const [undoingId, setUndoingId] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   // Đối soát: khoảng ngày đang xem, tổng lượt trong khoảng đó và số lượt hôm nay
@@ -440,6 +446,29 @@ export default function QRScanner() {
     }
   };
 
+
+  // Còn trong thời gian được huỷ (backend trả undoUntil = lúc xác nhận + 30 phút)
+  const canUndo = (undoUntil) => Boolean(undoUntil) && Date.now() < new Date(undoUntil).getTime();
+
+  const handleUndo = async (id) => {
+    if (!id || undoingId) return;
+    const ok = await confirmDialog(
+      'Voucher sẽ trở lại ví sinh viên, UniCoin đã cộng cho lượt này bị trừ lại. Nếu lần xác nhận đó có nhiều mã (cả nhóm hẹn cafe) thì huỷ tất cả mã cùng lần.',
+      { title: 'Huỷ lượt vừa xác nhận?', confirmText: 'Huỷ lượt', cancelText: 'Giữ nguyên', danger: true }
+    );
+    if (!ok) return;
+    setUndoingId(id);
+    try {
+      const res = await voucherApi.undoRedemption(id);
+      notify.success(res?.message || 'Đã huỷ lượt này');
+      if (redeemInfo?.id === id) clearScan();
+      loadHistory();
+    } catch (err) {
+      notify.error('Không huỷ được: ' + err.message);
+    } finally {
+      setUndoingId(null);
+    }
+  };
 
   const clearScan = () => {
     setInputCode('');
@@ -824,6 +853,11 @@ export default function QRScanner() {
                     <br />
                     Áp dụng tại: <strong>{scanResult.venue}</strong> · HSD: {scanResult.expiry}
                   </p>
+                  {!confirmed && scanResult.todayRemaining !== null && (
+                    <div data-testid="today-remaining" style={{ fontSize: '12px', fontWeight: '700', color: scanResult.todayRemaining <= 3 ? '#B45309' : '#047857', marginTop: '6px' }}>
+                      Hôm nay còn {scanResult.todayRemaining}/{scanResult.dailyLimit} lượt
+                    </div>
+                  )}
                 </div>
 
                 {/* Student Customer Profile */}
@@ -932,6 +966,17 @@ export default function QRScanner() {
               <span>Quét lượt mới</span>
             </button>
           )}
+          {/* Bấm xác nhận nhầm: huỷ ngay được, không phải tìm trong lịch sử */}
+          {scanResult && confirmed && canUndo(redeemInfo?.undoUntil) && (
+            <button
+              onClick={() => handleUndo(redeemInfo.id)}
+              disabled={Boolean(undoingId)}
+              style={{ width: '100%', padding: '10px', fontSize: '13px', marginTop: '10px', background: 'none', border: 'none', color: '#B91C1C', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Undo2 size={15} />
+              <span>{undoingId ? 'Đang huỷ...' : 'Bấm nhầm? Huỷ lượt này (trong 30 phút)'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -977,6 +1022,7 @@ export default function QRScanner() {
                 <th style={{ padding: '10px 14px' }}>ƯU ĐÃI</th>
                 <th style={{ padding: '10px 14px' }}>THỜI GIAN</th>
                 <th style={{ padding: '10px 14px' }}>NGƯỜI XÁC NHẬN</th>
+                <th style={{ padding: '10px 14px' }} />
               </tr>
             </thead>
             <tbody>
@@ -996,18 +1042,30 @@ export default function QRScanner() {
                     {new Date(h.createdAt).toLocaleString('vi-VN')}
                   </td>
                   <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>{h.redeemedBy?.fullName || 'Quầy thu ngân'}</td>
+                  <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                    {canUndo(h.undoUntil) && (
+                      <button
+                        onClick={() => handleUndo(h._id)}
+                        disabled={Boolean(undoingId)}
+                        title="Huỷ lượt bấm nhầm, được trong 30 phút sau khi xác nhận"
+                        style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+                      >
+                        {undoingId === h._id ? 'Đang huỷ...' : 'Huỷ lượt'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {!historyLoading && history.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     Chưa có lượt check-in nào trong khoảng này
                   </td>
                 </tr>
               )}
               {historyLoading && (
                 <tr>
-                  <td colSpan={5} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     Đang tải lịch sử...
                   </td>
                 </tr>

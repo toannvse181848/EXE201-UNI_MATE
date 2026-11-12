@@ -297,6 +297,24 @@ Response có thêm `maxDiscount`, `giftItem`, `meetupReward`, `holdUntil` và `c
 
 Mọi voucher cùng được dùng hoặc không voucher nào được dùng. Thiếu `companions` trả `400` kèm `code: "MEETUP_NEEDS_BOTH"`; có mã không phải của bạn đi cùng trong buổi hẹn đó trả `400`. Buổi hẹn nhóm đã được ghi nhận thì bạn đến muộn quét một mình được (`requiresCompanion: false`).
 
+Response của `/redeem` có `undoUntil`: trước thời điểm này (30 phút sau khi xác nhận) quán huỷ được lần xác nhận đó.
+
+### Huỷ lượt quét nhầm
+
+`POST /api/vouchers/partner/redemptions/:id/undo` — chủ quán hoặc thu ngân (chỉ lượt trong phạm vi chi nhánh của mình), trong 30 phút sau khi xác nhận. Quá hạn trả `400` kèm `code: "UNDO_TOO_LATE"`, lượt không thuộc quán mình hoặc đã huỷ trả `404`.
+- Huỷ cả lần xác nhận chứa lượt đó (VD: cả nhóm hẹn cafe cùng một lần bấm).
+- Voucher trở lại ví (`saved`). Gõ mã chung thì trả lại lượt đã phát. Lượt bị xoá khỏi lịch sử và Excel đối soát.
+- Trừ lại UniCoin đã cộng cho lượt đó, gồm cả thưởng hẹn cafe, không trừ quá số coin đang có. Cùng ngày thì trả lại phần giới hạn kiếm coin trong ngày.
+- Buổi hẹn được ghi nhận nhờ lần xác nhận đó quay về `accepted`, quét lại thì ghi nhận và thưởng lại.
+- Response: `{ undone: số mã đã huỷ, coinRevoked: { [userId]: số coin đã trừ } }`.
+
+### Giới hạn lượt mỗi ngày
+
+Voucher có `dailyLimit` (0 = không giới hạn). Lượt của một ngày (giờ Việt Nam) = lượt đã quét tại quầy + ưu đãi hẹn cafe đang giữ chỗ cho buổi hẹn đặt giờ trong ngày đó.
+- Ở quầy: hết lượt thì `/verify` và `/redeem` trả `400` kèm `code: "VOUCHER_DAILY_LIMIT"`. `/verify` trả thêm `dailyLimit` và `todayRemaining` (`null` = không giới hạn). Voucher đã giữ chỗ cho buổi hẹn hôm nay không bị chặn.
+- Chốt hẹn có giờ: ngày hẹn không còn đủ chỗ thì buổi hẹn không nhận ưu đãi đó (hệ thống tìm ưu đãi khác của quán). Hẹn không đặt giờ thì không giữ chỗ trước, tới quầy mới tính.
+- Ưu đãi hẹn cafe cần `dailyLimit` từ 2 trở lên. Đổi được cả khi đã có người nhận.
+
 ### Lịch sử check-in
 
 `GET /api/vouchers/partner/redemptions?limit=50&venueId=&from=&to=` — partner/thu ngân. Thu ngân chỉ thấy chi nhánh của mình. Chủ quán thấy mọi chi nhánh, hoặc một chi nhánh khi có `venueId`. `from`, `to` là ngày giờ Việt Nam dạng `2026-11-11` (tính cả ngày `to`). Response có thêm `today` (số lượt hôm nay trong cùng phạm vi chi nhánh) và mỗi dòng có `discountLabel` (ưu đãi của đúng mã đó).
@@ -337,7 +355,7 @@ Giờ hẹn nằm ngoài ngày giờ áp dụng của ưu đãi hoặc sau hạn
 ### Rủ cả nhóm đi cafe (sinh viên, thành viên nhóm)
 
 - `POST /api/meetups/group` — `{ "groupId", "venueId", "scheduledAt"? }`: tạo lời mời và thẻ `type: "meetup"` trong chat nhóm. Tính vào lượt mời của người rủ.
-- `POST /api/meetups/:id/join`: tham gia. Có từ 2 người là chốt hẹn (`accepted`), mỗi người tham gia nhận 1 voucher, tối đa 8 người mỗi buổi.
+- `POST /api/meetups/:id/join`: tham gia. Có từ 2 người là chốt hẹn (`accepted`), mỗi người tham gia nhận 1 voucher. Số người tối đa mỗi buổi là `maxGroupSize` của quán (2–8, mặc định 8, chủ quán sửa trong `PUT /api/venues/:id`). Đủ người thì trả `400`. Thẻ trong chat có `maxPeople`.
 - `POST /api/meetups/:id/leave`: bạn đã tham gia đổi ý, voucher của người đó bị thu hồi và lượt vừa trả ưu tiên cho bạn đang tham gia mà chưa có voucher. Chỉ còn người rủ thì buổi hẹn quay về `proposed` và voucher của người rủ cũng bị thu hồi. Bạn vừa rời là người mới duy nhất so với buổi trước thì những bạn còn lại cũng bị thu hồi theo luật chống lặp.
 - `POST /api/meetups/:id/cancel`: buổi hẹn nhóm chỉ người rủ huỷ được.
 - Rời chat nhóm (`DELETE /api/group-chat/:groupId/members/me`): thành viên được tính như rời buổi hẹn, người rủ rời thì buổi hẹn đang mở bị huỷ.
@@ -445,13 +463,14 @@ Field mới của voucher:
 | `coinCost` | Số UniCoin bị trừ khi sinh viên nhận voucher (0 = miễn phí) |
 | `applyDays` | Ngày trong tuần được dùng, `0` = chủ nhật đến `6` = thứ 7. Rỗng = mọi ngày |
 | `applyFrom`, `applyTo` | Khung giờ được dùng, dạng `"14:00"` theo giờ Việt Nam, trong cùng một ngày. `null` = cả ngày |
+| `dailyLimit` | Tối đa bấy nhiêu lượt dùng mỗi ngày, `0` = không giới hạn. Xem "Giới hạn lượt mỗi ngày" ở mục 8 |
 
 Ngoài ngày giờ áp dụng thì `/verify` và `/redeem` trả `400` kèm `code: "VOUCHER_OUT_OF_SCHEDULE"`. Nhãn `conditionLabel` có thêm phần này, `scheduleLabel` là riêng phần ngày giờ.
 
 Tạo voucher (`POST /api/vouchers`) gửi thêm các field trên. Mã voucher và mã riêng không được trùng nhau, gồm 3–30 ký tự chữ không dấu, số, gạch ngang hoặc gạch dưới, không bắt đầu bằng `UVM-`. File Excel nhập voucher có thêm cột **Loại mã** (Chung / Riêng), **Giá UniCoin**, và cột Số lượng nhận chữ **Không giới hạn**. Tải lại file mẫu để có cột mới. Khi nhập file, dòng sai mã, sai mức giảm, sai số lượng hoặc hết hạn bị bỏ qua và trả lý do trong `skipped`; voucher mới mặc định `walletOnly: true`; chế độ `update` giữ nguyên loại mã và quán của voucher đang chạy.
 
 Sửa và xoá voucher (partner chủ voucher hoặc admin). Danh sách voucher trả thêm `hasRecipients`: `true` là đã có sinh viên nhận hoặc dùng.
-- `PUT /api/vouchers/:id` — không đổi được mã, loại voucher, cách phát mã. Khi `hasRecipients` là `true`, chỉ được sửa tên, ghi chú, gia hạn, tăng số lượng, bật `walletOnly`; đổi các ô khác trả `400`.
+- `PUT /api/vouchers/:id` — không đổi được mã, loại voucher, cách phát mã. Khi `hasRecipients` là `true`, chỉ được sửa tên, ghi chú, gia hạn, tăng số lượng, bật `walletOnly`, đổi `dailyLimit`; đổi các ô khác trả `400`.
 - `DELETE /api/vouchers/:id` — chỉ xoá được khi `hasRecipients` là `false`, xoá luôn các mã riêng đã nạp. Đã có người nhận thì trả `400`, dùng tạm dừng để giữ lịch sử.
 
 Voucher mã riêng:

@@ -6,6 +6,8 @@ const { describeVoucherValue, isWithinSchedule } = require('./voucherFormat');
 const Venue = require('../models/Venue');
 const { visibleVenueFilter } = require('./visibility');
 const { issuedOf, reserveSharedSlot, releaseSharedSlot } = require('./voucherStock');
+const { hasDailyRoom } = require('./voucherDailyLimit');
+const Meetup = require('../models/Meetup');
 
 // Mỗi buổi hẹn tặng ưu đãi cho ít nhất 2 người
 const SLOTS_PER_MEETUP = 2;
@@ -21,7 +23,8 @@ const hasStockForMeetup = async (voucher) => {
 
 /**
  * Ưu đãi hẹn cafe đang chạy của từng quán (mới nhất, còn hạn, còn đủ lượt cho 2 người).
- * Có scheduledAt thì ưu đãi phải dùng được vào đúng giờ hẹn đó (còn hạn, đúng ngày và giờ áp dụng).
+ * Có scheduledAt thì ưu đãi phải dùng được vào đúng giờ hẹn đó (còn hạn, đúng ngày và giờ áp dụng)
+ * và ngày hẹn còn đủ lượt cho 2 người nếu quán đặt giới hạn lượt mỗi ngày.
  * @returns Map<venueId string, Voucher>
  */
 const findMeetupRewards = async (venueIds, scheduledAt = null) => {
@@ -41,7 +44,9 @@ const findMeetupRewards = async (venueIds, scheduledAt = null) => {
   const rewards = new Map();
   for (const voucher of vouchers) {
     const key = String(voucher.venueId);
-    if (!rewards.has(key) && usableAtMeetup(voucher) && (await hasStockForMeetup(voucher))) rewards.set(key, voucher);
+    if (rewards.has(key) || !usableAtMeetup(voucher) || !(await hasStockForMeetup(voucher))) continue;
+    if (meetupTime !== null && !(await hasDailyRoom(voucher, meetupTime, SLOTS_PER_MEETUP))) continue;
+    rewards.set(key, voucher);
   }
   return rewards;
 };
@@ -67,10 +72,15 @@ const toRewardSummary = (voucher) =>
  * Đưa ưu đãi hẹn cafe vào ví của một sinh viên, gắn với buổi hẹn.
  * - Đang có sẵn trong ví (chưa dùng): chỉ gắn vào buổi hẹn mới.
  * - Đã dùng / hết hạn ở buổi hẹn trước: cấp lại lượt mới (lịch sử dùng vẫn nằm trong Redemption).
+ * - Quán giới hạn lượt mỗi ngày: buổi hẹn có giờ thì giữ chỗ cho ngày hẹn, ngày đó hết chỗ thì không tặng.
  * @returns UserVoucher, hoặc null nếu ưu đãi vừa hết lượt
  */
 const grantMeetupVoucher = async (voucher, userId, meetupId) => {
   const existing = await UserVoucher.findOne({ userId, voucherId: voucher._id });
+  if (voucher.dailyLimit > 0) {
+    const meetup = await Meetup.findById(meetupId).select('scheduledAt');
+    if (meetup?.scheduledAt && !(await hasDailyRoom(voucher, meetup.scheduledAt, 1, [existing?._id]))) return null;
+  }
   if (existing && existing.status === 'saved') {
     existing.meetupId = meetupId;
     await existing.save();

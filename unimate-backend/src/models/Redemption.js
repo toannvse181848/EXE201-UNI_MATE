@@ -42,10 +42,39 @@ const redemptionSchema = new mongoose.Schema(
       enum: ['qr', 'code'],
       required: true,
     },
+    // Các lượt của cùng một lần bấm xác nhận (VD: cả nhóm hẹn cafe) có chung batchId, huỷ lượt là huỷ cả lần đó
+    batchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    // UniCoin sinh viên thực nhận vì dùng voucher ở lượt này, để trừ lại khi huỷ lượt
+    coinAwarded: {
+      type: Number,
+      default: 0,
+    },
+    // Chỉ ghi ở lượt đầu tiên của lần xác nhận: buổi hẹn được ghi nhận nhờ lần này và thưởng hẹn cafe đã cộng
+    meetupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Meetup',
+      default: null,
+    },
+    completedMeetup: {
+      type: Boolean,
+      default: false,
+    },
+    meetupCoins: [
+      {
+        _id: false,
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        coin: Number,
+      },
+    ],
   },
   { timestamps: true }
 );
 
 redemptionSchema.index({ partnerId: 1, createdAt: -1 });
+redemptionSchema.index({ voucherId: 1, createdAt: -1 });
+redemptionSchema.index({ batchId: 1 });
 
 module.exports = mongoose.model('Redemption', redemptionSchema);

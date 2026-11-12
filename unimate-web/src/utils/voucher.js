@@ -55,7 +55,11 @@ export const describeVoucher = (v = {}) => {
     discountType: type,
     discountLabel: v.discountLabel || discountLabel,
     discountShort: v.discountShort || discountShort,
-    conditionLabel: v.conditionLabel || (scheduleLabel ? `${billLabel} · Chỉ dùng ${scheduleLabel}` : billLabel),
+    conditionLabel:
+      v.conditionLabel ||
+      [billLabel, scheduleLabel && `Chỉ dùng ${scheduleLabel}`, Number(v.dailyLimit) > 0 && `Tối đa ${Number(v.dailyLimit)} lượt/ngày`]
+        .filter(Boolean)
+        .join(' · '),
   };
 };
 

@@ -205,6 +205,11 @@ export const voucherApi = {
     const res = await client.post('/api/vouchers/redeem', payload);
     return res.data;
   },
+  // Huỷ lần xác nhận vừa bấm nhầm (trong 30 phút): voucher trở lại ví, trừ lại UniCoin đã cộng
+  undoRedemption: async (id) => {
+    const res = await client.post(`/api/vouchers/partner/redemptions/${id}/undo`);
+    return res.data;
+  },
   // venueId: chỉ lấy lịch sử của một chi nhánh (thu ngân luôn chỉ thấy chi nhánh của mình)
   // range: { from, to } là ngày giờ Việt Nam dạng '2026-11-11'
   getPartnerRedemptions: async (limit = 50, venueId = null, range = {}) => {

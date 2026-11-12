@@ -70,7 +70,10 @@ const describeVoucherValue = (voucher) => {
       ? `${voucher.meetupReward ? 'Mỗi bạn gọi từ' : 'Hoá đơn từ'} ${formatVnd(minBill)}`
       : 'Không yêu cầu hoá đơn tối thiểu';
   const scheduleLabel = describeSchedule(voucher);
-  const conditionLabel = scheduleLabel ? `${billLabel} · Chỉ dùng ${scheduleLabel}` : billLabel;
+  const dailyLimit = Number(voucher.dailyLimit) || 0;
+  const conditionLabel = [billLabel, scheduleLabel && `Chỉ dùng ${scheduleLabel}`, dailyLimit > 0 && `Tối đa ${dailyLimit} lượt/ngày`]
+    .filter(Boolean)
+    .join(' · ');
   return { discountType, discountLabel, discountShort, conditionLabel, scheduleLabel };
 };
 

@@ -10,6 +10,7 @@ const { recordActivity } = require('../utils/activityTracker');
 const CASHIER_ALLOWED_PATHS = [
   /^\/api\/auth\/me\/?$/,
   /^\/api\/vouchers\/(verify|redeem|partner\/redemptions)\/?$/,
+  /^\/api\/vouchers\/partner\/redemptions\/[a-f\d]{24}\/undo\/?$/i,
 ];
 
 /** Tài khoản thu ngân còn dùng được: chủ quán còn hoạt động và chi nhánh vẫn thuộc chủ quán */

@@ -110,6 +110,8 @@ const initialForm = (venues, kind = 'normal') => ({
   codeType: 'shared',
   quantity: '100',
   isUnlimited: false,
+  // Trống = không giới hạn lượt mỗi ngày
+  dailyLimit: '',
   // Mặc định an toàn: gõ mã chung thì không biết ai dùng và một mã dùng lại được nhiều lần
   walletOnly: true,
   coinCost: '0',
@@ -141,6 +143,7 @@ const formFromVoucher = (v) => ({
   codeType: v.codeType || 'shared',
   quantity: String(v.quantity || 100),
   isUnlimited: Boolean(v.isUnlimited),
+  dailyLimit: v.dailyLimit ? String(v.dailyLimit) : '',
   walletOnly: Boolean(v.walletOnly),
   coinCost: String(v.coinCost || 0),
   expiry: v.validUntil ? toDateInput(v.validUntil) : endOfYear(),
@@ -177,8 +180,9 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
         applyDays: form.applyDays,
         applyFrom: form.applyFrom,
         applyTo: form.applyTo,
+        dailyLimit: Number(form.dailyLimit) || 0,
       }),
-    [form.discountType, form.discountPercent, form.maxDiscount, form.discountAmount, form.giftItem, form.minBill, form.applyDays, form.applyFrom, form.applyTo]
+    [form.discountType, form.discountPercent, form.maxDiscount, form.discountAmount, form.giftItem, form.minBill, form.applyDays, form.applyFrom, form.applyTo, form.dailyLimit]
   );
 
   const toggleDay = (day) =>
@@ -207,6 +211,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
     if (form.codeType === 'shared' && !form.isUnlimited && !(Number(form.quantity) >= 1)) return 'Số lượng phát hành phải từ 1 trở lên';
     if (form.kind === 'meetup' && form.codeType === 'shared' && !form.isUnlimited && Number(form.quantity) < 2) return 'Ưu đãi hẹn cafe cần ít nhất 2 lượt: mỗi buổi hẹn tặng cho 2 bạn';
     if (locked && !form.isUnlimited && Number(form.quantity) < Number(voucher.quantity)) return `Đã có sinh viên nhận nên chỉ được tăng số lượng, tối thiểu ${voucher.quantity}`;
+    if (form.kind === 'meetup' && Number(form.dailyLimit) === 1) return 'Ưu đãi hẹn cafe cần ít nhất 2 lượt mỗi ngày: mỗi buổi hẹn tặng cho 2 bạn';
     if (!form.expiry) return 'Vui lòng chọn hạn sử dụng';
     if (Boolean(form.applyFrom) !== Boolean(form.applyTo)) return 'Vui lòng nhập đủ giờ bắt đầu và giờ kết thúc';
     if (form.applyFrom && form.applyFrom >= form.applyTo) return 'Giờ kết thúc phải sau giờ bắt đầu';
@@ -229,6 +234,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
           title: form.title.trim(),
           description: form.description.trim(),
           walletOnly: form.codeType === 'shared' && form.walletOnly,
+          dailyLimit: Number(form.dailyLimit) || 0,
           ...(form.codeType === 'shared' ? { isUnlimited: form.isUnlimited, quantity: Number(form.quantity) || 0 } : {}),
           ...(expiryChanged ? { validUntil: new Date(`${form.expiry}T23:59:59`).toISOString() } : {}),
           ...(locked
@@ -267,6 +273,7 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
         isUnlimited: form.codeType === 'shared' && form.isUnlimited,
         walletOnly: form.codeType === 'shared' && form.walletOnly,
         quantity: Number(form.quantity) || 0,
+        dailyLimit: Number(form.dailyLimit) || 0,
         coinCost: form.kind === 'meetup' ? 0 : Number(form.coinCost) || 0,
         premiumOnly: form.kind === 'premium',
         meetupReward: form.kind === 'meetup',
@@ -530,6 +537,15 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
                     {form.kind === 'meetup' && !form.isUnlimited && <div style={hint}>Mỗi bạn tham gia dùng 1 lượt, mỗi buổi hẹn ít nhất 2 lượt</div>}
                   </>
                 )}
+              </div>
+              <div>
+                <label style={labelStyle}>Tối đa lượt mỗi ngày</label>
+                <input style={field} inputMode="numeric" value={form.dailyLimit} onChange={(e) => set('dailyLimit', onlyDigits(e.target.value))} placeholder="Trống = không giới hạn" />
+                <div style={hint}>
+                  {form.kind === 'meetup'
+                    ? 'Đếm cả lượt đã giữ cho buổi hẹn trong ngày. Ngày hẹn hết chỗ thì buổi hẹn không nhận ưu đãi này.'
+                    : 'Đủ lượt trong ngày thì màn quét báo hết, sinh viên dùng lại từ ngày mai.'}
+                </div>
               </div>
               {form.kind !== 'meetup' && (
                 <div>

@@ -5,6 +5,7 @@ const GroupChat = require('../models/GroupChat');
 const GroupMessage = require('../models/GroupMessage');
 const { findVisibleVenue } = require('../utils/visibility');
 const User = require('../models/User');
+const Venue = require('../models/Venue');
 const UserVoucher = require('../models/UserVoucher');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
@@ -27,6 +28,9 @@ const {
 } = require('../config/meetup');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Số người tối đa một buổi hẹn nhóm tại quán: quán tự chọn (2–8), không vượt mức chung */
+const maxPeopleAt = (venue) => Math.min(GROUP_MEETUP_MAX_PEOPLE, Math.max(2, Number(venue?.maxGroupSize) || GROUP_MEETUP_MAX_PEOPLE));
 
 /** Ưu đãi hẹn cafe dùng được cho buổi hẹn: quán đang có ưu đãi còn lượt, còn hạn và đúng ngày giờ áp dụng tại giờ hẹn */
 const findRewardFor = async (venueId, scheduledAt) =>
@@ -302,7 +306,7 @@ const createGroupMeetup = catchAsync(async (req, res) => {
       scheduledAt,
       status: 'proposed',
       rewardTitle: reward?.title || null,
-      maxPeople: GROUP_MEETUP_MAX_PEOPLE,
+      maxPeople: maxPeopleAt(venue),
       participants: await toCardParticipants([me]),
     },
   });
@@ -329,7 +333,8 @@ const joinMeetup = catchAsync(async (req, res) => {
   await findGroupFor(existing.groupId, me);
   if (!['proposed', 'accepted'].includes(existing.status)) throw new ApiError(400, 'Buổi hẹn này đã kết thúc hoặc đã huỷ');
   if (existing.participants.some((id) => String(id) === String(me))) throw new ApiError(400, 'Bạn đã tham gia buổi hẹn này rồi');
-  if (existing.participants.length >= GROUP_MEETUP_MAX_PEOPLE) throw new ApiError(400, `Buổi hẹn này đã đủ ${GROUP_MEETUP_MAX_PEOPLE} bạn`);
+  const maxPeople = maxPeopleAt(await Venue.findById(existing.venueId).select('maxGroupSize'));
+  if (existing.participants.length >= maxPeople) throw new ApiError(400, `Buổi hẹn này đã đủ ${maxPeople} bạn, quán nhận tối đa ${maxPeople} bạn mỗi nhóm`);
 
   // Chưa ai có voucher thì tìm ưu đãi của quán; đã có thì bạn tham gia sau nhận đúng ưu đãi của buổi này
   const isFirstGrant = !existing.rewardVoucherId;
@@ -353,7 +358,7 @@ const joinMeetup = catchAsync(async (req, res) => {
       _id: existing._id,
       status: { $in: ['proposed', 'accepted'] },
       participants: { $ne: me },
-      [`participants.${GROUP_MEETUP_MAX_PEOPLE - 1}`]: { $exists: false },
+      [`participants.${maxPeople - 1}`]: { $exists: false },
     },
     { $addToSet: { participants: me }, status: 'accepted', respondedAt: existing.respondedAt || new Date() },
     { returnDocument: 'after' }
@@ -374,6 +379,7 @@ const joinMeetup = catchAsync(async (req, res) => {
   const message = await syncMeetupMessage(req, meetup, {
     status: meetup.status,
     participants: await toCardParticipants(meetup.participants),
+    maxPeople,
     ...(isFirstGrant ? { rewardTitle: rewardGranted > 0 ? reward.title : null, rewardNote: repeated ? REPEAT_NOTE : null } : {}),
   });
 
@@ -608,7 +614,8 @@ const completeMeetup = async (req, meetupId, attendees = null) => {
   const coinAwarded = await rewardAttendees(meetup, attendees || [meetup.proposedBy, meetup.invitee]);
 
   await syncMeetupMessage(req, meetup, { status: 'completed' });
-  return { meetup, coinAwarded };
+  // justCompleted: buổi hẹn vừa chuyển sang "đã diễn ra" ở lần này (quán huỷ lượt thì quay về "đã chốt")
+  return { meetup, coinAwarded, justCompleted: true };
 };
 
 /**

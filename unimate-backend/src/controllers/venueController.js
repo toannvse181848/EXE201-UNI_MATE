@@ -125,6 +125,7 @@ const getMyVenues = catchAsync(async (req, res) => {
 
 // Các trường partner được phép tự sửa. status / rejectionReason / rating chỉ admin đổi qua API riêng.
 const EDITABLE_FIELDS = [
+  'maxGroupSize',
   'name',
   'description',
   'address',

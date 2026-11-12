@@ -56,6 +56,13 @@ const venueSchema = new mongoose.Schema(
       type: String,
       default: '07:00 - 22:30',
     },
+    // Số người tối đa một buổi "Rủ cả nhóm" tại quán, không vượt GROUP_MEETUP_MAX_PEOPLE (config/meetup.js)
+    maxGroupSize: {
+      type: Number,
+      default: 8,
+      min: [2, 'Số người tối đa mỗi nhóm từ 2 đến 8'],
+      max: [8, 'Số người tối đa mỗi nhóm từ 2 đến 8'],
+    },
     priceRange: {
       type: String,
       default: '35.000 - 65.000 VNĐ',

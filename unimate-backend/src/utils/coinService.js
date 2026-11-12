@@ -53,9 +53,42 @@ async function earnCoins(userId, amount, { type, description }) {
   return 0;
 }
 
+/**
+ * Trừ lại coin đã cộng (quán huỷ lượt quét nhầm). Không trừ quá số coin đang có.
+ * Cùng ngày thì trả lại phần giới hạn ngày đã dùng, để sinh viên kiếm lại được khi quét đúng.
+ * @returns số coin đã trừ
+ */
+async function revokeCoins(userId, amount, { type, description }) {
+  if (!(amount > 0)) return 0;
+  const today = vnDay();
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
+    const user = await User.findById(userId).select('studentProfile.uniCoin studentProfile.dailyEarned studentProfile.earnDay');
+    if (!user) return 0;
+    const balance = user.studentProfile?.uniCoin || 0;
+    const taken = Math.min(amount, balance);
+    const earnedToday = getEarnedToday(user.studentProfile);
+    const $inc = {};
+    if (taken > 0) $inc['studentProfile.uniCoin'] = -taken;
+    if (earnedToday > 0) $inc['studentProfile.dailyEarned'] = -Math.min(amount, earnedToday);
+    if (!Object.keys($inc).length) return 0;
+
+    // Chỉ trừ khi số dư vẫn đúng như vừa đọc, để không trừ âm khi sinh viên vừa tiêu coin cùng lúc
+    const res = await User.updateOne(
+      { _id: userId, 'studentProfile.uniCoin': user.studentProfile?.uniCoin ?? { $exists: false } },
+      {
+        $inc,
+        ...(taken > 0 ? { $push: { 'studentProfile.coinLog': { $each: [logEntry(type, -taken, description)], $slice: -100 } } } : {}),
+      }
+    );
+    if (res.modifiedCount > 0) return taken;
+  }
+  return 0;
+}
+
 module.exports = {
   MAX_DAILY_EARN,
   getEarnedToday,
   earnCoins,
+  revokeCoins,
   vnDay,
 };

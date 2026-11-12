@@ -39,6 +39,8 @@ export default function VenueManagement() {
     district: '',
     openTime: '07:00',
     closeTime: '22:30',
+    // Số người tối đa mỗi buổi "Rủ cả nhóm" tại chi nhánh này (2–8)
+    maxGroupSize: 8,
     tags: ['Cafe', 'Học tập', 'Wifi mạnh', 'Yên tĩnh'],
     images: [],
   });
@@ -95,10 +97,11 @@ export default function VenueManagement() {
             district: v.district || extractDistrict(v.address) || '',
             tags: v.tags || [],
             images: v.images?.length ? v.images : v.image ? [v.image] : [],
+            maxGroupSize: v.maxGroupSize || 8,
             ...(([openTime, closeTime]) => ({ openTime, closeTime }))(splitRange(v.openHours, [prev.openTime, prev.closeTime])),
             ...(([priceMin, priceMax]) => ({ priceMin, priceMax }))(splitRange(v.priceRange, [prev.priceMin, prev.priceMax])),
           }
-        : { ...prev, branchName: '', description: '', phone: '', address: '', district: '', images: [] }
+        : { ...prev, branchName: '', description: '', phone: '', address: '', district: '', images: [], maxGroupSize: 8 }
     );
   };
 
@@ -226,6 +229,7 @@ export default function VenueManagement() {
       image: formData.images[0] || '',
       openHours: `${formData.openTime.trim()} - ${formData.closeTime.trim()}`,
       priceRange: `${formData.priceMin.trim()} - ${formData.priceMax.trim()} VNĐ`,
+      maxGroupSize: Number(formData.maxGroupSize) || 8,
     };
 
 
@@ -970,6 +974,31 @@ export default function VenueManagement() {
                       fontSize: '14px',
                     }}
                   />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                  Nhóm hẹn tối đa
+                </label>
+                <select
+                  value={formData.maxGroupSize}
+                  onChange={(e) => setFormData({ ...formData, maxGroupSize: Number(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    border: '1.5px solid var(--border-color)',
+                    fontSize: '14px',
+                    backgroundColor: '#FFFFFF',
+                  }}
+                >
+                  {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                    <option key={n} value={n}>{n} bạn</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Sinh viên "Rủ cả nhóm" tới chi nhánh này thì tối đa bấy nhiêu bạn tham gia, để quán đủ chỗ ngồi.
                 </div>
               </div>
             </div>
