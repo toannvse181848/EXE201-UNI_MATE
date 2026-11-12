@@ -155,7 +155,7 @@ export default function UserVenues() {
     setClaimingVenueId(venue.id);
     try {
       await voucherApi.claimVoucher(venue.voucherId);
-      trackEvent('voucher_claim', { voucher_id: String(venue.voucherId), source: 'venue' });
+      trackEvent('voucher_claim', { voucher_id: String(venue.voucherId), from_screen: 'venue' });
       setClaimedCodes((prev) => ({ ...prev, [venue.id]: true }));
       notify.success(`🎉 Đã lưu voucher "${venue.voucher}" vào ví! Mở "Ví Voucher của tôi" để đưa mã QR cho thu ngân.`);
     } catch (err) {

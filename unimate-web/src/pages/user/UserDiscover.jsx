@@ -160,7 +160,7 @@ export default function UserDiscover() {
       const res = await matchApi.swipe(student.id, 'like');
       setLikedMap((prev) => ({ ...prev, [student.id]: true }));
       trackEvent('friend_request_send');
-      if (res.isMatch) trackEvent('friend_match', { source: 'discover' });
+      if (res.isMatch) trackEvent('friend_match', { from_screen: 'discover' });
 
       if (res.isMatch) {
         if (res.data?._id) setFriendMatchIds((prev) => ({ ...prev, [String(student.id)]: res.data._id }));

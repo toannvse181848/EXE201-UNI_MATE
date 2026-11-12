@@ -47,6 +47,8 @@ export const trackPageView = (title) => {
   });
 };
 
+// Không đặt tham số tên source, medium, campaign, term, content: GA4 hiểu đó là nguồn truy cập
+// và ghi đè nguồn của phiên (VD: phiên từ facebook / social bị ghi thành discover / (not set))
 export const trackEvent = (name, params = {}) => {
   if (!isEnabled()) return;
   window.gtag('event', name, params);

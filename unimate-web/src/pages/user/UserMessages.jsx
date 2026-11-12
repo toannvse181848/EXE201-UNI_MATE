@@ -681,7 +681,7 @@ export default function UserMessages() {
       setActionLoadingId(item.matchId);
       const res = await matchApi.swipe(buddyId, 'like');
       const isMatch = res?.isMatch ?? true;
-      if (isMatch) trackEvent('friend_match', { source: 'accept_like' });
+      if (isMatch) trackEvent('friend_match', { from_screen: 'accept_like' });
 
       notify.success(
         `🎉 Kết bạn thành công!\nBạn và ${item.buddy?.fullName} đã thích nhau. Hãy bắt đầu trò chuyện ngay nhé! ☕`
