@@ -25,6 +25,7 @@ const {
   MEETUP_COMPLETE_COIN,
   GROUP_MEETUP_MAX_PEOPLE,
   REWARD_REPEAT_DAYS,
+  MAX_SCHEDULE_DAYS_AHEAD,
 } = require('../config/meetup');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -96,6 +97,9 @@ const parseScheduledAt = (value) => {
   const scheduledAt = new Date(value);
   if (Number.isNaN(scheduledAt.getTime())) throw new ApiError(400, 'Thời gian hẹn không hợp lệ');
   if (scheduledAt.getTime() < Date.now() - 60 * 60 * 1000) throw new ApiError(400, 'Thời gian hẹn đã qua');
+  if (scheduledAt.getTime() > Date.now() + MAX_SCHEDULE_DAYS_AHEAD * DAY_MS) {
+    throw new ApiError(400, `Chỉ hẹn được trong ${MAX_SCHEDULE_DAYS_AHEAD} ngày tới`);
+  }
   return scheduledAt;
 };
 

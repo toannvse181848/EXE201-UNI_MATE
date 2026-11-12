@@ -15,6 +15,7 @@ const minStockOf = (voucher) => (voucher.meetupReward ? 2 : 1);
  */
 const VOUCHER_STATUS_LABEL = {
   active: 'Đang chạy',
+  locked: 'UNI-MATE tạm khoá',
   paused: 'Tạm dừng',
   expired: 'Hết hạn',
   sold_out: 'Hết lượt',
@@ -33,6 +34,7 @@ const getVoucherStatus = (voucher, { partnerStatus, freeCodes, now = Date.now() 
   if (partnerStatus === 'suspended') return 'partner_suspended';
   if (venueStatus === 'rejected') return 'venue_rejected';
   if (venueStatus && venueStatus !== 'approved') return 'venue_pending';
+  if (voucher.lockedByAdmin) return 'locked';
   if (!voucher.isActive) return 'paused';
   if (voucher.validUntil && new Date(voucher.validUntil).getTime() < now) return 'expired';
   if (voucher.codeType === 'unique') {

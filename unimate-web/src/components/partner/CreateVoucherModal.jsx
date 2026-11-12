@@ -393,6 +393,12 @@ export default function CreateVoucherModal({ open, onClose, venues, onCreated, i
               ))}
             </div>
 
+            {form.kind === 'meetup' && form.discountType === 'percent' && (
+              <div style={{ ...hint, color: '#B45309' }}>
+                Gợi ý: ưu đãi hẹn cafe nên chọn giảm tiền cố định hoặc tặng món. Nhóm hay tính tiền chung, giảm % thì thu ngân phải chia hoá đơn theo đầu người.
+              </div>
+            )}
+
             {form.discountType === 'percent' && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 <div>

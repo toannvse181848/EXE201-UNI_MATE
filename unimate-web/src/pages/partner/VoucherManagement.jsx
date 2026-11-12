@@ -13,13 +13,13 @@ import CreateVoucherModal from '../../components/partner/CreateVoucherModal';
 import VoucherDetailModal from '../../components/partner/VoucherDetailModal';
 import { describeVoucher } from '../../utils/voucher';
 import VoucherStatusBadge from '../../components/VoucherStatusBadge';
-import { notify } from '../../utils/notify';
+import { notify, confirmDialog } from '../../utils/notify';
 
 // Tab lọc → các trạng thái backend thuộc tab đó
 const TAB_GROUPS = {
   active: ['active'],
   pending: ['venue_pending', 'venue_rejected', 'partner_suspended'],
-  paused: ['paused'],
+  paused: ['paused', 'locked'],
   expired: ['expired', 'sold_out'],
 };
 
@@ -107,8 +107,18 @@ export default function VoucherManagement() {
   }, []);
 
   const handleToggleStatus = async (id) => {
+    const item = vouchers.find((v) => v.id === id);
+    // Tạm dừng voucher đổi coin: sinh viên đang giữ được hoàn coin và voucher bị gỡ khỏi ví
+    if (item?.isActive && item.raw?.coinCost > 0 && item.raw?.claimedCount > 0) {
+      const ok = await confirmDialog(
+        'Sinh viên đã đổi voucher này bằng UniCoin mà chưa dùng sẽ được hoàn coin, voucher bị gỡ khỏi ví của họ. Bật lại thì họ phải đổi lại.',
+        { title: 'Tạm dừng voucher đổi coin?', confirmText: 'Tạm dừng', cancelText: 'Giữ nguyên', danger: true }
+      );
+      if (!ok) return;
+    }
     try {
-      await voucherApi.toggleVoucher(id);
+      const res = await voucherApi.toggleVoucher(id);
+      if (res?.message) notify.success(res.message);
       // Trạng thái hiển thị (chờ duyệt / hết hạn...) do backend tính → tải lại cho đúng
       await fetchVouchers();
     } catch (err) {
@@ -425,22 +435,28 @@ export default function VoucherManagement() {
                           Nạp mã
                         </button>
                       )}
-                      <button
-                        onClick={() => handleToggleStatus(item.id)}
-                        style={{
-                          padding: '5px 10px',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          border: '1px solid var(--border-color)',
-                          backgroundColor: '#FFFFFF',
-                          color: item.isActive ? '#DC2626' : '#059669',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {item.isActive ? 'Tạm dừng' : 'Bật chạy'}
-                      </button>
+                      {item.raw?.lockedByAdmin ? (
+                        <span title="UNI-MATE đã khoá voucher này. Liên hệ UNI-MATE để được mở lại." style={{ fontSize: '12px', fontWeight: '700', color: '#7F1D1D', whiteSpace: 'nowrap' }}>
+                          Liên hệ UNI-MATE
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleStatus(item.id)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            border: '1px solid var(--border-color)',
+                            backgroundColor: '#FFFFFF',
+                            color: item.isActive ? '#DC2626' : '#059669',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {item.isActive ? 'Tạm dừng' : 'Bật chạy'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

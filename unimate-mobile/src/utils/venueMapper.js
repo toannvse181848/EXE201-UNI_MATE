@@ -62,7 +62,8 @@ export const toWalletVoucher = (item) => {
     status: item.status, // saved | used | expired
     used: item.status !== 'saved',
     title: voucher.title || 'Voucher',
-    code: voucher.code || '',
+    // Mã đọc cho thu ngân: mã riêng hoặc mã UVM-... của chính voucher này (API không còn trả mã chung của quán)
+    code: item.displayCode || '',
     validUntil: voucher.validUntil || null,
     venueName: venue.name || 'Quán đối tác UNI-MATE',
     image: venue.image || DEFAULT_VENUE_IMAGE,

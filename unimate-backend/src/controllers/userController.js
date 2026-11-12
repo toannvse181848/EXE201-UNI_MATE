@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const { getHiddenUserIds } = require('../utils/blocking');
 const Venue = require('../models/Venue');
+const { refundCoinVouchers } = require('../utils/coinRefund');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { composeVenueName } = require('../utils/venueNaming');
@@ -117,6 +118,10 @@ const updateUserStatus = catchAsync(async (req, res) => {
 
   user.status = status;
   await user.save();
+  // Khoá tài khoản quán: voucher đổi coin chưa dùng của quán được hoàn coin cho sinh viên
+  if (status === 'suspended' && user.role === 'partner') {
+    await refundCoinVouchers({ partnerId: user._id }, 'tài khoản quán bị khoá');
+  }
 
   res.status(200).json({
     success: true,

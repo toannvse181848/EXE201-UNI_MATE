@@ -22,6 +22,8 @@ module.exports = {
   // Không đặt giờ hẹn thì tính từ lúc chốt + NO_TIME_MEETUP_DAYS ngày.
   NO_SHOW_GRACE_HOURS: 24,
   NO_TIME_MEETUP_DAYS: 7,
+  // Hẹn xa nhất bấy nhiêu ngày tới, để một buổi hẹn không giữ lượt ưu đãi của quán quá lâu
+  MAX_SCHEDULE_DAYS_AHEAD: 14,
   // Tối đa bấy nhiêu người trong một buổi hẹn nhóm, để một nhóm không lấy hết lượt ưu đãi của quán
   GROUP_MEETUP_MAX_PEOPLE: 8,
   // Buổi hẹn nhóm đã ghi nhận: quá bấy nhiêu giờ, bạn chưa tới bị thu hồi ưu đãi

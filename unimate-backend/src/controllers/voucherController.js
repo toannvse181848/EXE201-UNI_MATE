@@ -31,21 +31,25 @@ const {
   describeCounterDiscount,
   withVoucherLabels,
 } = require('../utils/voucherFormat');
-const { holdUntilFor } = require('../config/wallet');
+const { holdUntilFor, VOUCHER_STACK_GAP_HOURS } = require('../config/wallet');
+const { refundCoinVouchers } = require('../utils/coinRefund');
 const { expireHold, isHoldOverdue } = require('../utils/walletHold');
 const { formatDateTime, buildWorkbook, sendXlsx, datedFilename } = require('../utils/excelExport');
 const { VOUCHER_STATUS_LABEL, annotateVouchers } = require('../utils/voucherStatus');
 const { visibleVenueFilter } = require('../utils/visibility');
 const { issuedOf, hasSharedStock, reserveSharedSlot, releaseSharedSlot } = require('../utils/voucherStock');
-const { dailyRemaining, isBookedToday } = require('../utils/voucherDailyLimit');
+const { dailyRemaining, isBookedToday, vnDayRange } = require('../utils/voucherDailyLimit');
 const mongoose = require('mongoose');
 
 
 // ─── PUBLIC / STUDENT ────────────────────────────────────────────────────────
 
-/** Danh sách voucher sinh viên thấy: chỉ voucher có trạng thái "Đang chạy" (luật chung utils/voucherStatus.js) */
+/**
+ * Danh sách voucher sinh viên thấy: chỉ voucher có trạng thái "Đang chạy" (luật chung utils/voucherStatus.js).
+ * Không trả mã voucher của quán: API này không cần đăng nhập, lộ mã chung thì ai cũng gõ được ở quầy.
+ */
 const getPublicVouchers = catchAsync(async (req, res) => {
-  const { venueId, code } = req.query;
+  const { venueId } = req.query;
   // Quán đã duyệt + tài khoản quán không bị khoá; ưu đãi hẹn cafe không bày ở đây (chỉ nhận khi chốt hẹn)
   const visibleVenueIds = await Venue.find(await visibleVenueFilter()).distinct('_id');
   const filter = {
@@ -56,13 +60,13 @@ const getPublicVouchers = catchAsync(async (req, res) => {
       ? { $in: visibleVenueIds.filter((id) => String(id) === String(venueId)) }
       : { $in: visibleVenueIds },
   };
-  if (code) filter.code = String(code).toUpperCase().trim();
-
   const candidates = await Voucher.find(filter)
     .populate('venueId', 'name address image category status')
     .sort({ createdAt: -1 });
   // Bỏ voucher đã hết lượt / hết mã
-  const vouchers = (await annotateVouchers(candidates)).filter((v) => v.status === 'active');
+  const vouchers = (await annotateVouchers(candidates))
+    .filter((v) => v.status === 'active')
+    .map(({ code, ...rest }) => rest);
 
   res.status(200).json({
     success: true,
@@ -144,6 +148,7 @@ const claimVoucher = catchAsync(async (req, res) => {
       qrPayload,
       assignedCode: reservedCode?.code || null,
       holdUntil: holdUntilFor(voucher),
+      ...(coinCost > 0 ? { coinPaid: coinCost } : {}),
     });
   } catch (err) {
     await releaseReservedCode();
@@ -181,7 +186,7 @@ const claimVoucher = catchAsync(async (req, res) => {
     }
   }
 
-  const populated = await userVoucher.populate('voucherId', 'title code codeType discountPercent discountAmount validUntil minBill coinCost');
+  const populated = await userVoucher.populate('voucherId', 'title codeType discountPercent discountAmount validUntil minBill coinCost');
 
   const holdNote = userVoucher.holdUntil
     ? ` Dùng trước ${new Date(userVoucher.holdUntil).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}, quá hạn thì lượt được trả lại cho quán.`
@@ -202,7 +207,8 @@ const getMyWallet = catchAsync(async (req, res) => {
   const wallet = await UserVoucher.find({ userId })
     .populate({
       path: 'voucherId',
-      select: 'title description code codeType discountType discountPercent discountAmount maxDiscount giftItem validUntil applyDays applyFrom applyTo minBill terms isActive meetupReward walletOnly',
+      // Không đưa mã chung của quán (xem displayCode bên dưới)
+      select: 'title description codeType discountType discountPercent discountAmount maxDiscount giftItem validUntil applyDays applyFrom applyTo minBill dailyLimit terms isActive meetupReward walletOnly',
       populate: { path: 'venueId', select: 'name address image' },
     })
     .sort({ claimedAt: -1 });
@@ -264,9 +270,18 @@ const toStudentInfo = (student) =>
  */
 const getMeetupContext = async (userVoucher) => {
   if (!userVoucher?.meetupId) return null;
-  const meetup = await Meetup.findById(userVoucher.meetupId).select('status groupId');
+  const meetup = await Meetup.findById(userVoucher.meetupId).select('status groupId scheduledAt');
   if (!meetup || !['accepted', 'completed'].includes(meetup.status)) {
     throw new ApiError(400, 'Buổi hẹn của ưu đãi này đã huỷ hoặc không diễn ra nên ưu đãi không còn hiệu lực');
+  }
+  // Hẹn có đặt giờ: từ 0 giờ ngày hẹn (giờ Việt Nam) mới dùng được, lượt của quán được giữ cho đúng ngày đó
+  if (meetup.scheduledAt && Date.now() < vnDayRange(meetup.scheduledAt).$gte.getTime()) {
+    const day = new Date(meetup.scheduledAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+    throw new ApiError(
+      400,
+      `Buổi hẹn này đặt ngày ${day}, tới ngày đó mới dùng được ưu đãi. Muốn đi hôm nay thì rủ lại với giờ hẹn hôm nay.`,
+      'MEETUP_NOT_YET'
+    );
   }
   const others = await UserVoucher.find({ meetupId: meetup._id, _id: { $ne: userVoucher._id } }).populate(
     'userId',
@@ -323,6 +338,28 @@ const assertOwnVoucher = async (req, voucher) => {
       'VOUCHER_OTHER_BRANCH'
     );
   }
+};
+
+/**
+ * Không cộng dồn: mỗi lần tới quán, một bạn chỉ dùng 1 ưu đãi UNI-MATE tại chi nhánh đó
+ * (2 lượt cách nhau ít nhất VOUCHER_STACK_GAP_HOURS giờ, config/wallet.js).
+ */
+const assertNotStacked = async (userVoucher, voucher) => {
+  if (!VOUCHER_STACK_GAP_HOURS || !userVoucher.userId?._id) return;
+  const recent = await Redemption.findOne({
+    userId: userVoucher.userId._id,
+    venueId: voucher.venueId?._id || voucher.venueId,
+    createdAt: { $gte: new Date(Date.now() - VOUCHER_STACK_GAP_HOURS * 60 * 60 * 1000) },
+  })
+    .sort({ createdAt: -1 })
+    .populate('voucherId', 'title');
+  if (!recent) return;
+  const time = new Date(recent.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+  throw new ApiError(
+    400,
+    `${userVoucher.userId.fullName || 'Bạn này'} vừa dùng ưu đãi "${recent.voucherId?.title || 'khác'}" lúc ${time}. Mỗi lần tới quán chỉ dùng 1 ưu đãi UNI-MATE, không cộng dồn.`,
+    'VOUCHER_STACKED'
+  );
 };
 
 const findRedeemTarget = async (req, payload) => {
@@ -384,6 +421,7 @@ const findRedeemTarget = async (req, payload) => {
     if (userVoucher.userId?.status === 'suspended') {
       throw new ApiError(403, 'Tài khoản của sinh viên này đã bị khoá nên không dùng được voucher', 'STUDENT_SUSPENDED');
     }
+    await assertNotStacked(userVoucher, voucher);
   } else {
     voucher = await Voucher.findOne({ code }).populate('venueId', 'name address status');
     if (!voucher) throw new ApiError(404, 'Mã voucher không tồn tại');
@@ -461,7 +499,7 @@ const verifyVoucher = catchAsync(async (req, res) => {
       minBill: voucher.minBill,
       meetupReward: Boolean(voucher.meetupReward),
       ...describeVoucherValue(voucher),
-      // Một mã: nhập gì vào máy tính tiền. Quét thêm bạn thì màn quét tự cộng dồn (cùng luật describeCounterDiscount)
+      // Một mã: nhập gì vào máy tính tiền. Quét thêm bạn thì màn quét tự tính cho đủ số bạn (cùng luật describeCounterDiscount)
       counter: describeCounterDiscount(voucher, 1),
       validUntil: voucher.validUntil,
       holdUntil: userVoucher?.holdUntil || null,
@@ -484,6 +522,8 @@ const verifyVoucher = catchAsync(async (req, res) => {
       // Giới hạn lượt mỗi ngày của quán (0 = không giới hạn) và số lượt còn lại hôm nay
       dailyLimit: voucher.dailyLimit || 0,
       todayRemaining,
+      // Ưu đãi hẹn cafe đã giữ chỗ cho hôm nay: không tốn thêm lượt trong ngày
+      bookedToday: await isBookedToday(userVoucher),
       student: toStudentInfo(userVoucher?.userId),
     },
   });
@@ -972,13 +1012,27 @@ const toggleVoucherStatus = catchAsync(async (req, res) => {
     throw new ApiError(403, 'Bạn không có quyền chỉnh sửa voucher này');
   }
 
+  const isAdmin = req.user.role === 'admin';
+  // UNI-MATE khoá vì vi phạm: quán không tự bật lại được
+  if (!isAdmin && voucher.lockedByAdmin) {
+    throw new ApiError(403, 'UNI-MATE đang tạm khoá voucher này. Liên hệ UNI-MATE để được mở lại.', 'VOUCHER_LOCKED');
+  }
   voucher.isActive = !voucher.isActive;
+  // Admin tắt = khoá, admin bật = mở khoá. Quán tự tắt / bật thì không đụng tới khoá.
+  if (isAdmin) voucher.lockedByAdmin = !voucher.isActive;
   await voucher.save();
+
+  // Dừng voucher: sinh viên đã đổi bằng coin mà chưa dùng được hoàn coin, voucher gỡ khỏi ví
+  const refunded = voucher.isActive
+    ? 0
+    : await refundCoinVouchers({ _id: voucher._id }, isAdmin ? 'UNI-MATE tạm khoá voucher' : 'quán tạm dừng voucher');
 
   res.status(200).json({
     success: true,
-    message: `Đã ${voucher.isActive ? 'kích hoạt' : 'tạm ngưng'} voucher thành công`,
-    data: voucher,
+    message: `Đã ${voucher.isActive ? (isAdmin ? 'mở khoá' : 'kích hoạt') : isAdmin ? 'khoá' : 'tạm ngưng'} voucher thành công${
+      refunded > 0 ? `. Đã hoàn coin cho ${refunded} sinh viên đang giữ voucher này.` : ''
+    }`,
+    data: { ...voucher.toObject(), refunded },
   });
 });
 
@@ -1200,6 +1254,17 @@ const importVouchersSpreadsheet = catchAsync(async (req, res) => {
           skippedList.push({ code, reason: 'Mã voucher thuộc về đối tác khác' });
           continue;
         }
+        // Đã có sinh viên nhận: cùng luật với PUT /api/vouchers/:id, chỉ đổi tên, ghi chú, tăng số lượng, gia hạn.
+        // Mức ưu đãi, hoá đơn tối thiểu, giá coin ảnh hưởng tới quyền lợi người đã nhận nên giữ nguyên
+        const [{ hasRecipients }] = await annotateVouchers([existing]);
+        if (hasRecipients) {
+          for (const field of [...Object.keys(discountFields), 'minBill', 'coinCost']) delete voucherData[field];
+          if (voucherData.validUntil < existing.validUntil) delete voucherData.validUntil;
+          if (existing.isUnlimited) voucherData.isUnlimited = true;
+          if (!voucherData.isUnlimited) voucherData.quantity = Math.max(voucherData.quantity, existing.quantity);
+        }
+        // Bật / tắt chỉ qua nút trên trang quản lý: tắt thì hoàn coin, voucher bị UNI-MATE khoá không tự bật lại
+        delete voucherData.isActive;
         // Voucher đang chạy: giữ nguyên loại mã và quán, sinh viên đã nhận mã theo các thông tin này
         delete voucherData.codeType;
         delete voucherData.venueId;

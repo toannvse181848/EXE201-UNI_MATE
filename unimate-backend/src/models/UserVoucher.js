@@ -47,6 +47,11 @@ const userVoucherSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Số UniCoin sinh viên đã trả khi đổi voucher này, để hoàn đúng số khi quán dừng voucher (utils/coinRefund.js).
+    // Không có = voucher miễn phí, hoặc đổi trước khi có trường này
+    coinPaid: {
+      type: Number,
+    },
     // Nhận qua buổi "Rủ cafe" nào (null = tự lưu từ danh sách voucher)
     meetupId: {
       type: mongoose.Schema.Types.ObjectId,

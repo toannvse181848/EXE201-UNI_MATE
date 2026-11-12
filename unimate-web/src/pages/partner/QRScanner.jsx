@@ -86,6 +86,8 @@ const toScanResult = (found, payload) => {
     // Quán giới hạn lượt mỗi ngày: còn bao nhiêu lượt hôm nay (null = không giới hạn)
     dailyLimit: Number(found.dailyLimit) || 0,
     todayRemaining: found.todayRemaining ?? null,
+    // Ưu đãi hẹn cafe đã giữ chỗ cho hôm nay: không tốn thêm lượt trong ngày
+    bookedToday: Boolean(found.bookedToday),
     // Đủ dữ liệu để tính ưu đãi nhập vào máy tính tiền khi quét nhiều bạn cùng lúc
     voucher: {
       discountType: found.discountType,
@@ -285,10 +287,20 @@ export default function QRScanner() {
         setScanResult(result);
         // Để trống ô nhập cho mã của bạn đi cùng
         if (result.meetup?.requiresCompanion) setInputCode('');
-      } else if (result.meetup?.id !== firstScan.meetup.id) {
-        fail(`Mã này không thuộc buổi hẹn của ${firstScan.studentName}. Hãy quét mã của ${companionName}.`);
+      } else if (!result.meetup) {
+        // Voucher thường / Premium / đổi coin của một bạn khác: không gộp vào lần xác nhận của buổi hẹn
+        fail(`Mã của ${result.studentName} là voucher riêng, không thuộc buổi hẹn này. Xác nhận buổi hẹn trước, rồi bấm "Quét lượt mới" để quét mã này riêng.`);
+      } else if (result.meetup.id !== firstScan.meetup.id) {
+        fail(`Mã của ${result.studentName} thuộc một buổi hẹn khác. Xác nhận buổi hẹn này trước, rồi bấm "Quét lượt mới" để quét buổi hẹn kia.`);
       } else if ([firstScan, ...companionResults].some((scanned) => scanned.studentId === result.studentId)) {
         fail(`Đây vẫn là mã của ${result.studentName}. Hãy quét mã của ${companionName}.`);
+      } else if (
+        firstScan.todayRemaining !== null &&
+        [firstScan, ...companionResults, result].filter((scanned) => !scanned.bookedToday).length > firstScan.todayRemaining
+      ) {
+        // Quán giới hạn lượt mỗi ngày: báo ngay, không để thu ngân quét đủ cả nhóm rồi mới bị chặn lúc xác nhận
+        const count = 1 + companionResults.length;
+        fail(`Hôm nay ưu đãi này chỉ còn ${firstScan.todayRemaining} lượt, đủ cho ${count} bạn đã quét. Xác nhận cho ${count} bạn này, ${result.studentName} dùng vào hôm khác.`);
       } else {
         setCompanionResults((prev) => [...prev, result]);
         setInputCode('');
@@ -825,6 +837,11 @@ export default function QRScanner() {
                     <div style={{ fontSize: '15px', fontWeight: '900', marginTop: '2px' }}>
                       {(confirmed && redeemInfo?.counter?.posLabel) || describeCounterDiscount(scanResult.voucher, peopleCount).posLabel}
                     </div>
+                    {describeCounterDiscount(scanResult.voucher, peopleCount).splitHint && (
+                      <div style={{ fontSize: '12px', fontWeight: '700', marginTop: '4px' }}>
+                        {describeCounterDiscount(scanResult.voucher, peopleCount).splitHint}
+                      </div>
+                    )}
                     <div style={{ fontSize: '11.5px', marginTop: '2px', opacity: 0.85 }}>
                       UNI-MATE không trừ tiền. Mỗi mã giảm trên phần gọi của người có mã, rồi quán thu tiền như bình thường.
                     </div>

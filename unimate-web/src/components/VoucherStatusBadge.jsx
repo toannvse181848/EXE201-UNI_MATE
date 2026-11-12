@@ -3,6 +3,7 @@ import React from 'react';
 // Trạng thái do backend tính (unimate-backend/src/utils/voucherStatus.js) — trang quán và trang admin dùng chung
 const STYLES = {
   active: { label: 'Đang chạy', color: '#047857', bg: '#D1FAE5' },
+  locked: { label: 'UNI-MATE tạm khoá', color: '#7F1D1D', bg: '#FECACA' },
   paused: { label: 'Tạm dừng', color: '#B91C1C', bg: '#FEE2E2' },
   expired: { label: 'Hết hạn', color: '#64748B', bg: '#E2E8F0' },
   sold_out: { label: 'Hết lượt', color: '#64748B', bg: '#E2E8F0' },
@@ -13,7 +14,8 @@ const STYLES = {
 
 const HINTS = {
   active: 'Sinh viên đang thấy và lưu được voucher này',
-  paused: 'Quán / admin đã tạm dừng, sinh viên không thấy',
+  locked: 'UNI-MATE khoá vì vi phạm, chỉ UNI-MATE mở lại được, sinh viên không thấy',
+  paused: 'Quán đã tạm dừng, sinh viên không thấy',
   expired: 'Đã qua hạn sử dụng, sinh viên không thấy',
   sold_out: 'Đã dùng hết số lượng / hết mã, sinh viên không thấy',
   venue_pending: 'Quán chưa được admin duyệt, sinh viên chưa thấy',

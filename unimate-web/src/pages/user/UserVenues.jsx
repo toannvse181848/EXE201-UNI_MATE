@@ -105,7 +105,6 @@ export default function UserVenues() {
             hours: v.openHours || '',
             voucher: voucherByVenue[v._id]?.title || null,
             voucherId: voucherByVenue[v._id]?._id || null,
-            voucherCode: voucherByVenue[v._id]?.code || null,
             hasPaidVoucher: venuesWithPaidVoucher.has(v._id),
             // Quán đang có Gói Đối tác — backend đã xếp lên đầu danh sách
             isFeatured: Boolean(v.isFeatured),
@@ -158,7 +157,7 @@ export default function UserVenues() {
       await voucherApi.claimVoucher(venue.voucherId);
       trackEvent('voucher_claim', { voucher_id: String(venue.voucherId), source: 'venue' });
       setClaimedCodes((prev) => ({ ...prev, [venue.id]: true }));
-      notify.success(`🎉 Đã lưu voucher [${venue.voucherCode}] vào ví voucher của bạn! Bạn có thể xem mã QR ở mục "Ví Voucher của tôi".`);
+      notify.success(`🎉 Đã lưu voucher "${venue.voucher}" vào ví! Mở "Ví Voucher của tôi" để đưa mã QR cho thu ngân.`);
     } catch (err) {
       notify.error('Không thể nhận voucher: ' + err.message);
     } finally {

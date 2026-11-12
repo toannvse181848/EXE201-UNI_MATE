@@ -14,4 +14,12 @@ const holdUntilFor = (voucher, now = new Date()) => {
   return voucher.validUntil && new Date(voucher.validUntil) < hold ? new Date(voucher.validUntil) : hold;
 };
 
-module.exports = { WALLET_HOLD_DAYS, holdUntilFor };
+/**
+ * Không cộng dồn ưu đãi: mỗi sinh viên dùng 1 ưu đãi UNI-MATE mỗi lần tới một chi nhánh.
+ * Hai lượt dùng của cùng một bạn tại cùng chi nhánh phải cách nhau ít nhất bấy nhiêu giờ
+ * (sáng dùng voucher thường, chiều đi hẹn cafe vẫn được). Đặt VOUCHER_STACK_GAP_HOURS=0 để tắt.
+ */
+const gap = Number.parseFloat(process.env.VOUCHER_STACK_GAP_HOURS ?? '2');
+const VOUCHER_STACK_GAP_HOURS = Number.isFinite(gap) && gap >= 0 ? gap : 2;
+
+module.exports = { WALLET_HOLD_DAYS, holdUntilFor, VOUCHER_STACK_GAP_HOURS };

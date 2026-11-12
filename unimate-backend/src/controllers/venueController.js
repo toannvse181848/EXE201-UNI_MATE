@@ -13,6 +13,7 @@ const User = require('../models/User');
 const Redemption = require('../models/Redemption');
 const VenueCheckin = require('../models/VenueCheckin');
 const Meetup = require('../models/Meetup');
+const { refundCoinVouchers } = require('../utils/coinRefund');
 const UserVoucher = require('../models/UserVoucher');
 
 
@@ -295,6 +296,9 @@ const updateVenueStatus = catchAsync(async (req, res) => {
   if (!venue) {
     throw new ApiError(404, 'Không tìm thấy địa điểm');
   }
+
+  // Tạm khoá chi nhánh: voucher đổi coin chưa dùng của chi nhánh được hoàn coin cho sinh viên
+  if (status === 'rejected') await refundCoinVouchers({ venueId: venue._id }, 'chi nhánh bị tạm khoá');
 
   // Duyệt quán đầu tiên = duyệt luôn tài khoản quán (không đụng tới tài khoản đang bị khoá)
   if (status === 'approved') {

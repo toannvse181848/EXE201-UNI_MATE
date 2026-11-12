@@ -146,6 +146,11 @@ const voucherSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // UNI-MATE tạm khoá vì vi phạm: chỉ admin mở lại được, quán không tự bật chạy
+    lockedByAdmin: {
+      type: Boolean,
+      default: false,
+    },
     terms: [{ type: String }],
   },
   { timestamps: true }

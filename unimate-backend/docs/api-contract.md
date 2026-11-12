@@ -308,6 +308,14 @@ Response của `/redeem` có `undoUntil`: trước thời điểm này (30 phút
 - Buổi hẹn được ghi nhận nhờ lần xác nhận đó quay về `accepted`, quét lại thì ghi nhận và thưởng lại.
 - Response: `{ undone: số mã đã huỷ, coinRevoked: { [userId]: số coin đã trừ } }`.
 
+### Không cộng dồn ưu đãi
+
+Mỗi lần tới quán, một sinh viên chỉ dùng 1 ưu đãi UNI-MATE tại một chi nhánh: hai lượt của cùng một bạn ở cùng chi nhánh phải cách nhau ít nhất 2 giờ (`VOUCHER_STACK_GAP_HOURS`, `0` = tắt). Vi phạm thì `/verify` và `/redeem` trả `400` kèm `code: "VOUCHER_STACKED"`. Huỷ lượt quét nhầm thì lượt đó không còn tính.
+
+### Ưu đãi hẹn cafe có đặt giờ
+
+Chỉ hẹn được trong 14 ngày tới. Buổi hẹn có giờ thì từ 0 giờ ngày hẹn (giờ Việt Nam) mới quét được, trước đó `/verify` trả `400` kèm `code: "MEETUP_NOT_YET"`. `/verify` trả thêm `bookedToday: true` khi voucher đã được giữ chỗ cho buổi hẹn hôm nay.
+
 ### Giới hạn lượt mỗi ngày
 
 Voucher có `dailyLimit` (0 = không giới hạn). Lượt của một ngày (giờ Việt Nam) = lượt đã quét tại quầy + ưu đãi hẹn cafe đang giữ chỗ cho buổi hẹn đặt giờ trong ngày đó.
@@ -472,6 +480,10 @@ Tạo voucher (`POST /api/vouchers`) gửi thêm các field trên. Mã voucher v
 Sửa và xoá voucher (partner chủ voucher hoặc admin). Danh sách voucher trả thêm `hasRecipients`: `true` là đã có sinh viên nhận hoặc dùng.
 - `PUT /api/vouchers/:id` — không đổi được mã, loại voucher, cách phát mã. Khi `hasRecipients` là `true`, chỉ được sửa tên, ghi chú, gia hạn, tăng số lượng, bật `walletOnly`, đổi `dailyLimit`; đổi các ô khác trả `400`.
 - `DELETE /api/vouchers/:id` — chỉ xoá được khi `hasRecipients` là `false`, xoá luôn các mã riêng đã nạp. Đã có người nhận thì trả `400`, dùng tạm dừng để giữ lịch sử.
+- `PATCH /api/vouchers/:id/toggle` — quán bật / tạm dừng. Admin tắt là **khoá** (`lockedByAdmin: true`, trạng thái `locked`), quán bấm bật lại trả `403` kèm `code: "VOUCHER_LOCKED"`, chỉ admin mở khoá được. Nhập Excel không đổi được bật / tắt.
+- Hoàn coin: voucher đổi coin chưa dùng được hoàn đúng số coin đã trả (`coinPaid` trong ví) và gỡ khỏi ví khi quán tạm dừng, admin khoá voucher, admin tạm khoá chi nhánh (`rejected`) hoặc khoá tài khoản quán. Hết hạn thì không hoàn. Response của toggle có `refunded` (số sinh viên được hoàn).
+- Nhập Excel chế độ `update` với voucher đã có người nhận: chỉ đổi tên, ghi chú, tăng số lượng, gia hạn, giống `PUT`.
+- `GET /api/vouchers` (công khai) và ví không trả `code` của voucher: lộ mã chung thì ai cũng gõ được ở quầy. Sinh viên đọc cho thu ngân `displayCode` (mã riêng hoặc `UVM-...`).
 
 Voucher mã riêng:
 - `POST /api/vouchers/:id/codes` — nạp danh sách mã: JSON `{ "codes": ["BT-001", "BT-002"] }` (hoặc chuỗi mỗi mã một dòng), hoặc form-data `file` là Excel/CSV có mã ở cột đầu tiên. Chỉ nhận voucher loại mã riêng. Mã trùng nằm trong `skippedExisting`, mã sai định dạng nằm trong `skippedInvalid`.

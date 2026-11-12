@@ -7,7 +7,7 @@ import {
 import { voucherApi } from '../../services/api';
 import VoucherStatusBadge from '../../components/VoucherStatusBadge';
 import { describeVoucher } from '../../utils/voucher';
-import { notify } from '../../utils/notify';
+import { notify, confirmDialog } from '../../utils/notify';
 
 export default function VoucherOversight() {
   const [vouchers, setVouchers] = useState([]);
@@ -34,6 +34,8 @@ export default function VoucherOversight() {
         usedQr: v.redeemedByQr || 0,
         usedCode: v.redeemedByCode || 0,
         isActive: Boolean(v.isActive),
+        lockedByAdmin: Boolean(v.lockedByAdmin),
+        coinCost: v.coinCost || 0,
         status: v.status || (v.isActive ? 'active' : 'paused'),
         statusLabel: v.statusLabel,
       }));
@@ -50,9 +52,19 @@ export default function VoucherOversight() {
     fetchVouchers();
   }, []);
 
+  // Admin tắt = khoá (quán không tự bật lại được), admin bật = mở khoá
   const togglePause = async (id) => {
+    const item = vouchers.find((v) => v.id === id);
+    if (item?.isActive) {
+      const ok = await confirmDialog(
+        `Quán sẽ không tự bật lại được, chỉ UNI-MATE mở khoá.${item.coinCost > 0 ? ' Sinh viên đã đổi bằng UniCoin mà chưa dùng được hoàn coin.' : ''}`,
+        { title: 'Khoá voucher này?', confirmText: 'Khoá', cancelText: 'Huỷ', danger: true }
+      );
+      if (!ok) return;
+    }
     try {
-      await voucherApi.toggleVoucher(id);
+      const res = await voucherApi.toggleVoucher(id);
+      if (res?.message) notify.success(res.message);
       // Trạng thái (chờ duyệt quán, hết hạn...) do backend tính → tải lại cho đúng
       await fetchVouchers();
     } catch (err) {
@@ -186,7 +198,7 @@ export default function VoucherOversight() {
                       className="btn btn-secondary"
                       style={{ padding: '5px 10px', fontSize: '12px' }}
                     >
-                      {v.isActive ? 'Tạm dừng' : 'Bật lại'}
+                      {v.isActive ? 'Khoá' : v.lockedByAdmin ? 'Mở khoá' : 'Bật lại'}
                     </button>
                   </td>
                 </tr>

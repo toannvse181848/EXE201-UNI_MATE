@@ -105,7 +105,12 @@ const describeCounterDiscount = (voucher, people = 1) => {
         ? `Mỗi bạn gọi từ ${formatVnd(minBill)} (${n} bạn chung hoá đơn: từ ${formatVnd(minBill * n)})`
         : `Hoá đơn từ ${formatVnd(minBill)}`
       : null;
-  return { posLabel, minBillLabel };
+  // Giảm % mà chung hoá đơn với bạn không có mã: hệ thống không biết ai gọi món gì, thu ngân chia đều theo đầu người
+  const splitHint =
+    type === 'percent' && n > 1
+      ? `Chung hoá đơn với bạn không có mã: chia đều hoá đơn theo số người, lấy phần của ${n} bạn có mã rồi giảm ${voucher.discountPercent}%`
+      : null;
+  return { posLabel, minBillLabel, splitHint };
 };
 
 const withVoucherLabels = (voucher) => {
