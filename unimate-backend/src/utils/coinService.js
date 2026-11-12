@@ -54,35 +54,36 @@ async function earnCoins(userId, amount, { type, description }) {
 }
 
 /**
- * Trừ lại coin đã cộng (quán huỷ lượt quét nhầm). Không trừ quá số coin đang có.
+ * Trừ lại coin đã cộng (quán huỷ lượt quét nhầm). Luôn trừ đủ, số dư có thể âm:
+ * sinh viên lỡ tiêu coin đó rồi (VD: đổi Premium) thì nợ lại, coin âm không tiêu được (mọi chỗ tiêu đều cần đủ coin)
+ * và coin kiếm sau này bù vào trước. Không vậy thì "quét rồi huỷ" thành cách lấy coin miễn phí.
  * Cùng ngày thì trả lại phần giới hạn ngày đã dùng, để sinh viên kiếm lại được khi quét đúng.
  * @returns số coin đã trừ
  */
 async function revokeCoins(userId, amount, { type, description }) {
   if (!(amount > 0)) return 0;
+  const res = await User.updateOne(
+    { _id: userId },
+    {
+      $inc: { 'studentProfile.uniCoin': -amount },
+      $push: { 'studentProfile.coinLog': { $each: [logEntry(type, -amount, description)], $slice: -100 } },
+    }
+  );
+  if (res.modifiedCount === 0) return 0;
+
   const today = vnDay();
   for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
-    const user = await User.findById(userId).select('studentProfile.uniCoin studentProfile.dailyEarned studentProfile.earnDay');
-    if (!user) return 0;
-    const balance = user.studentProfile?.uniCoin || 0;
-    const taken = Math.min(amount, balance);
-    const earnedToday = getEarnedToday(user.studentProfile);
-    const $inc = {};
-    if (taken > 0) $inc['studentProfile.uniCoin'] = -taken;
-    if (earnedToday > 0) $inc['studentProfile.dailyEarned'] = -Math.min(amount, earnedToday);
-    if (!Object.keys($inc).length) return 0;
-
-    // Chỉ trừ khi số dư vẫn đúng như vừa đọc, để không trừ âm khi sinh viên vừa tiêu coin cùng lúc
-    const res = await User.updateOne(
-      { _id: userId, 'studentProfile.uniCoin': user.studentProfile?.uniCoin ?? { $exists: false } },
-      {
-        $inc,
-        ...(taken > 0 ? { $push: { 'studentProfile.coinLog': { $each: [logEntry(type, -taken, description)], $slice: -100 } } } : {}),
-      }
+    const user = await User.findById(userId).select('studentProfile.dailyEarned studentProfile.earnDay');
+    const earnedToday = getEarnedToday(user?.studentProfile);
+    if (earnedToday <= 0) break;
+    // Cùng kiểu cập nhật có điều kiện với earnCoins: có request khác chen vào thì đọc lại
+    const refunded = await User.updateOne(
+      { _id: userId, 'studentProfile.earnDay': today, 'studentProfile.dailyEarned': earnedToday },
+      { $inc: { 'studentProfile.dailyEarned': -Math.min(amount, earnedToday) } }
     );
-    if (res.modifiedCount > 0) return taken;
+    if (refunded.modifiedCount > 0) break;
   }
-  return 0;
+  return amount;
 }
 
 module.exports = {

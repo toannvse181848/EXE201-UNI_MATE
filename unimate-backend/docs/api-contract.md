@@ -304,7 +304,7 @@ Response của `/redeem` có `undoUntil`: trước thời điểm này (30 phút
 `POST /api/vouchers/partner/redemptions/:id/undo` — chủ quán hoặc thu ngân (chỉ lượt trong phạm vi chi nhánh của mình), trong 30 phút sau khi xác nhận. Quá hạn trả `400` kèm `code: "UNDO_TOO_LATE"`, lượt không thuộc quán mình hoặc đã huỷ trả `404`.
 - Huỷ cả lần xác nhận chứa lượt đó (VD: cả nhóm hẹn cafe cùng một lần bấm).
 - Voucher trở lại ví (`saved`). Gõ mã chung thì trả lại lượt đã phát. Lượt bị xoá khỏi lịch sử và Excel đối soát.
-- Trừ lại UniCoin đã cộng cho lượt đó, gồm cả thưởng hẹn cafe, không trừ quá số coin đang có. Cùng ngày thì trả lại phần giới hạn kiếm coin trong ngày.
+- Trừ lại UniCoin đã cộng cho lượt đó, gồm cả thưởng hẹn cafe. Luôn trừ đủ nên số dư có thể âm (sinh viên đã lỡ tiêu số coin đó); coin âm không tiêu được, coin kiếm sau bù vào trước. Cùng ngày thì trả lại phần giới hạn kiếm coin trong ngày.
 - Buổi hẹn được ghi nhận nhờ lần xác nhận đó quay về `accepted`, quét lại thì ghi nhận và thưởng lại.
 - Response: `{ undone: số mã đã huỷ, coinRevoked: { [userId]: số coin đã trừ } }`.
 

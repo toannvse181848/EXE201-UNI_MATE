@@ -648,10 +648,10 @@ const undoRedemption = catchAsync(async (req, res) => {
   if (removed.length === 0) throw new ApiError(400, 'Lượt này đã được huỷ');
 
   const venueName = voucher?.venueId?.name || 'quán đối tác';
-  const coinRevoked = {};
-  const takeBack = async (userId, coin) => {
-    const taken = await revokeCoins(userId, coin, { type: 'voucher_redeem_undo', description: `Quán huỷ lượt dùng voucher tại ${venueName}` });
-    coinRevoked[String(userId)] = (coinRevoked[String(userId)] || 0) + taken;
+  // Cộng dồn coin phải trừ của từng sinh viên (dùng voucher + thưởng hẹn cafe) để lịch sử coin chỉ có 1 dòng
+  const owed = {};
+  const takeBack = (userId, coin) => {
+    owed[String(userId)] = (owed[String(userId)] || 0) + coin;
   };
 
   for (const r of removed) {
@@ -662,14 +662,14 @@ const undoRedemption = catchAsync(async (req, res) => {
       await releaseSharedSlot({ _id: r.voucherId });
     }
     await Voucher.updateOne({ _id: r.voucherId, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } });
-    if (r.userId && r.coinAwarded > 0) await takeBack(r.userId, r.coinAwarded);
+    if (r.userId && r.coinAwarded > 0) takeBack(r.userId, r.coinAwarded);
   }
 
   const lead = removed.find((r) => r.meetupId);
   if (lead) {
     const rewarded = lead.meetupCoins.map((m) => m.userId);
     if (rewarded.length) await Meetup.updateOne({ _id: lead.meetupId }, { $pull: { rewardedUsers: { $in: rewarded } } });
-    for (const { userId, coin } of lead.meetupCoins) await takeBack(userId, coin);
+    for (const { userId, coin } of lead.meetupCoins) takeBack(userId, coin);
     if (lead.completedMeetup) {
       const meetup = await Meetup.findOneAndUpdate(
         { _id: lead.meetupId, status: 'completed' },
@@ -678,6 +678,11 @@ const undoRedemption = catchAsync(async (req, res) => {
       );
       if (meetup) await syncMeetupMessage(req, meetup, { status: 'accepted' });
     }
+  }
+
+  const coinRevoked = {};
+  for (const [userId, coin] of Object.entries(owed)) {
+    coinRevoked[userId] = await revokeCoins(userId, coin, { type: 'voucher_redeem_undo', description: `Quán huỷ lượt dùng voucher tại ${venueName}` });
   }
 
   res.status(200).json({
