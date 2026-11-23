@@ -29,6 +29,11 @@ const buildOc3Tables = (m) => {
     ['Doanh thu', vnd(b.revenue)],
     ['Giá trị đơn trung bình', vnd(b.averageOrderValue)],
     ['Khách mua lại (từ 2 đơn)', `${b.repeatBuyers} (${pct(b.repeatRate)})`],
+    ['Một khách chiếm nhiều giao dịch nhất (giới hạn 20%)', `${b.maxUserOrders} đơn (${pct(b.maxUserShare)})`],
+    ['Đơn chưa có mã tham chiếu ngân hàng', b.missingReference.length ? b.missingReference.join(', ') : 'không có'],
+    [`Đánh giá xác minh, mục tiêu ${m.reviews.target}`, m.reviews.count],
+    ['Khách trả phí đã đánh giá (cần ≥50%)', fraction(m.reviews.reviewers, b.payers)],
+    ['Điểm đánh giá trung bình (1–5)', m.reviews.averageRating == null ? '-' : m.reviews.averageRating.toFixed(2)],
     ['Tỷ lệ chuyển đổi đăng ký → trả phí (sinh viên)', pct(b.conversionRate)],
     ['Tổng chi phí (kênh + chi phí khác, nhập tay)', vnd(b.totalCost)],
     ['Doanh thu trừ chi phí', vnd(b.profit)],
@@ -76,7 +81,10 @@ const buildOc3Tables = (m) => {
     'Quán đăng ký': c.registeredPartners,
     'Người dùng hợp lệ': c.validStudents,
     'Người trả phí': c.payers,
+    'Giao dịch': c.paidOrders,
     'Doanh thu (VNĐ)': c.revenue,
+    'Tỷ lệ chuyển đổi đăng ký → trả phí': pct(c.conversionRate),
+    'Giá trị đơn trung bình': vnd(c.averageOrderValue),
     'Chi phí (VNĐ)': c.cost,
     'Chi phí / người dùng hợp lệ': vnd(c.costPerValidUser),
     'Chi phí / khách trả phí (CPA)': vnd(c.cpa),
@@ -123,8 +131,38 @@ const buildOc3Tables = (m) => {
     'Bị loại': o.excludeReason,
   }));
 
+  // G3.2: mỗi giao dịch hợp lệ kèm phương thức và mã tham chiếu để đối chiếu sao kê
+  const transactions = m.transactions.map((t, i) => ({
+    'STT': i + 1,
+    'Mã đơn': t.code,
+    'Ngày thanh toán': t.paidDay,
+    'Số tiền (VNĐ)': t.amount,
+    'Gói': t.plan,
+    'Khách (đã che)': t.buyer,
+    'Kênh': t.channel,
+    'Phương thức thanh toán': t.method,
+    'Mã tham chiếu ngân hàng': t.reference || 'Chưa có, cần bổ sung',
+    'Mã giao dịch SePay': t.gatewayId,
+    'Đánh giá (sao)': t.rating ?? '',
+  }));
+
+  // G3.4: đánh giá xác minh, mỗi đánh giá gắn một đơn đã thanh toán
+  const reviews = m.reviews.list.length
+    ? m.reviews.list.map((r, i) => ({
+      'STT': i + 1,
+      'Mã đơn': r.orderCode,
+      'Khách (đã che)': r.buyer,
+      'Số sao': r.rating,
+      'Nhận xét': r.comment,
+      'Ngày đánh giá': r.day,
+      'Đã sửa': r.edited ? 'có' : '',
+    }))
+    : [{ 'STT': '', 'Mã đơn': '(chưa có đánh giá)', 'Khách (đã che)': '', 'Số sao': '', 'Nhận xét': '', 'Ngày đánh giá': '', 'Đã sửa': '' }];
+
   return {
     'Tổng quan': summary,
+    'Giao dịch': transactions,
+    'Đánh giá': reviews,
     'Phễu': funnel,
     'Theo tuần': weekly,
     'Theo kênh': channels,

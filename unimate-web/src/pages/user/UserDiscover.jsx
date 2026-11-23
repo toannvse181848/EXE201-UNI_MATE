@@ -19,6 +19,7 @@ import { formatStudentYear } from '../../constants/academic';
 import { getAvatarUrl, DEFAULT_AVATAR } from '../../constants/avatar';
 import { useAuth } from '../../context/AuthContext';
 import { notify } from '../../utils/notify';
+import ReviewPrompt from '../../components/user/ReviewPrompt';
 
 
 /**
@@ -178,6 +179,9 @@ export default function UserDiscover() {
 
   return (
     <div>
+      {/* Khách đã trả phí mà chưa đánh giá: nhắc đánh giá (G3.4 OC3) */}
+      <ReviewPrompt />
+
       {/* Top Banner / Welcome */}
       <div
         style={{

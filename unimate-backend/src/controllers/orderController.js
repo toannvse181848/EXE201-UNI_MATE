@@ -7,7 +7,9 @@ const ApiError = require('../utils/ApiError');
 const { PLANS, getPlan, resolvePlanId } = require('../config/plans');
 const { activatePlanForUser, canBuyPlan } = require('../utils/subscription');
 const Payment = require('../models/Payment');
+const Review = require('../models/Review');
 const { isValidGaClientId, trackPurchase } = require('../utils/analytics');
+const { describePayment } = require('../utils/paymentInfo');
 const {
   maskEmail,
   maskName,
@@ -126,10 +128,56 @@ const createOrder = catchAsync(async (req, res) => {
   });
 });
 
-/** GET /api/orders/my — đơn hàng của tôi */
+/** GET /api/orders/my — đơn hàng của tôi, đơn đã thanh toán kèm đánh giá (nếu đã đánh giá) */
 const getMyOrders = catchAsync(async (req, res) => {
   const orders = await Order.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(50);
-  res.status(200).json({ success: true, count: orders.length, data: orders.map(toOrderJSON) });
+  const reviews = await Review.find({ orderId: { $in: orders.map((o) => o._id) } }).lean();
+  const reviewOf = new Map(reviews.map((r) => [String(r.orderId), r]));
+  const data = orders.map((o) => {
+    const r = reviewOf.get(String(o._id));
+    return {
+      ...toOrderJSON(o),
+      review: r ? { rating: r.rating, comment: r.comment, createdAt: r.createdAt, updatedAt: r.updatedAt } : null,
+    };
+  });
+  res.status(200).json({ success: true, count: data.length, data });
+});
+
+const REVIEW_MIN_LENGTH = 5;
+const REVIEW_MAX_LENGTH = 1000;
+
+/**
+ * POST /api/orders/:code/review { rating, comment } — khách đánh giá đơn đã thanh toán của chính mình.
+ * Mỗi đơn một đánh giá; gửi lại thì sửa đánh giá cũ. Admin không đánh giá thay khách được.
+ */
+const reviewOrder = catchAsync(async (req, res) => {
+  const order = await Order.findOne({ code: String(req.params.code).toUpperCase() });
+  if (!order) throw new ApiError(404, 'Không tìm thấy đơn hàng');
+  if (order.userId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, 'Chỉ người mua đơn này mới đánh giá được');
+  }
+  if (order.status !== 'paid') throw new ApiError(400, 'Chỉ đánh giá được đơn đã thanh toán');
+
+  const rating = Number(req.body.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new ApiError(400, 'Chọn từ 1 đến 5 sao');
+  const comment = typeof req.body.comment === 'string' ? req.body.comment.trim() : '';
+  if (comment.length < REVIEW_MIN_LENGTH) {
+    throw new ApiError(400, `Viết vài lời nhận xét (ít nhất ${REVIEW_MIN_LENGTH} ký tự)`);
+  }
+  if (comment.length > REVIEW_MAX_LENGTH) throw new ApiError(400, `Nhận xét tối đa ${REVIEW_MAX_LENGTH} ký tự`);
+
+  const existed = await Review.exists({ orderId: order._id });
+  const review = await Review.findOneAndUpdate(
+    { orderId: order._id },
+    { orderCode: order.code, userId: order.userId, rating, comment },
+    { upsert: true, returnDocument: 'after', runValidators: true, setDefaultsOnInsert: true }
+  );
+
+  res.status(existed ? 200 : 201).json({
+    success: true,
+    message: existed ? 'Đã cập nhật đánh giá' : 'Cảm ơn bạn đã đánh giá UNI-MATE!',
+    data: { rating: review.rating, comment: review.comment, createdAt: review.createdAt, updatedAt: review.updatedAt },
+  });
 });
 
 /** GET /api/orders/:code — chi tiết đơn (frontend gọi định kỳ để biết đã thanh toán chưa) */
@@ -162,12 +210,14 @@ const getAllOrders = catchAsync(async (req, res) => {
   if (req.query.status && STATUS_LABEL[req.query.status]) filter.status = req.query.status;
   const limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
 
-  const [orders, summary] = await Promise.all([
+  const [orders, summary, payments] = await Promise.all([
     Order.find(filter).populate('userId', 'fullName email role').sort({ createdAt: -1 }).limit(limit),
     Order.aggregate([{ $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }]),
+    Payment.find({}, 'sepayId referenceCode').lean(),
   ]);
 
   const stats = Object.fromEntries(summary.map((s) => [s._id, { count: s.count, total: s.total }]));
+  const paymentsById = new Map(payments.map((p) => [p.sepayId, p]));
 
   res.status(200).json({
     success: true,
@@ -177,9 +227,15 @@ const getAllOrders = catchAsync(async (req, res) => {
       paid: stats.paid || { count: 0, total: 0 },
       cancelled: stats.cancelled || { count: 0, total: 0 },
     },
-    data: orders.map(toOrderJSON),
+    data: orders.map((o) => ({
+      ...toOrderJSON(o),
+      payment: o.status === 'paid' ? describePayment(o, paymentsById) : null,
+    })),
   });
 });
+
+// Mã tham chiếu ngân hàng: bỏ khoảng trắng thừa, giới hạn độ dài
+const cleanRef = (value) => (typeof value === 'string' ? value.trim().slice(0, 100) : '');
 
 /** Điều kiện đơn còn nhận thanh toán: đang chờ, hoặc đã tự huỷ vì quá hạn (tiền về muộn) */
 const PAYABLE = { $or: [{ status: 'pending' }, { status: 'cancelled', autoCancelled: true }] };
@@ -189,11 +245,11 @@ const PAYABLE = { $or: [{ status: 'pending' }, { status: 'cancelled', autoCancel
  * Dùng chung cho admin xác nhận tay, webhook ngân hàng (SePay) và gán giao dịch lạc vào đơn.
  * Trả về null nếu đơn không còn nhận thanh toán (đã xác nhận / admin đã huỷ).
  */
-const markOrderPaid = async (code, { confirmedBy = null, note = '' } = {}) => {
+const markOrderPaid = async (code, { confirmedBy = null, note = '', paymentRef = '' } = {}) => {
   // Cập nhật có điều kiện để xác nhận 2 lần (bấm 2 lần / webhook gửi lại) không kích hoạt gói 2 lần
   const order = await Order.findOneAndUpdate(
     { code, ...PAYABLE },
-    { status: 'paid', paidAt: new Date(), confirmedBy, note, cancelledAt: null, autoCancelled: false },
+    { status: 'paid', paidAt: new Date(), confirmedBy, note, paymentRef: cleanRef(paymentRef), cancelledAt: null, autoCancelled: false },
     { returnDocument: 'after' }
   );
   if (!order) return null;
@@ -211,6 +267,7 @@ const confirmOrder = catchAsync(async (req, res) => {
   const result = await markOrderPaid(code, {
     confirmedBy: req.user._id,
     note: typeof req.body.note === 'string' ? req.body.note.trim() : '',
+    paymentRef: req.body.paymentRef,
   });
 
   if (!result) {
@@ -277,6 +334,7 @@ const sepayWebhook = catchAsync(async (req, res) => {
   } else {
     const result = await markOrderPaid(orderCode, {
       note: `Tự động xác nhận qua SePay #${id}${referenceCode ? ` · ${referenceCode}` : ''}`,
+      paymentRef: referenceCode || '',
     });
     status = result ? 'matched' : 'order_closed';
     message = result ? `Đã xác nhận ${orderCode}` : `Đơn ${orderCode} đã thanh toán hoặc đã bị huỷ`;
@@ -330,6 +388,7 @@ const resolvePayment = catchAsync(async (req, res) => {
     const result = await markOrderPaid(orderCode, {
       confirmedBy: req.user._id,
       note: `Gán giao dịch SePay #${payment.sepayId}${note ? ` · ${note}` : ''}`,
+      paymentRef: payment.referenceCode || '',
     });
     if (!result) throw new ApiError(400, `Đơn ${orderCode} không tồn tại, đã thanh toán hoặc đã bị huỷ tay`);
     payment.orderCode = orderCode;
@@ -354,26 +413,56 @@ const adminCancelOrder = catchAsync(async (req, res) => {
   res.status(200).json({ success: true, message: 'Đã huỷ đơn hàng', data: toOrderJSON(order) });
 });
 
+/**
+ * PATCH /api/orders/admin/:code/payment-ref { paymentRef } — bổ sung mã giao dịch ngân hàng cho đơn đã thanh toán
+ * (đơn admin xác nhận tay trước đây không ghi mã), để đối chiếu được với sao kê.
+ */
+const setPaymentRef = catchAsync(async (req, res) => {
+  const paymentRef = cleanRef(req.body.paymentRef);
+  if (paymentRef.length < 4) throw new ApiError(400, 'Nhập mã giao dịch trên sao kê ngân hàng (VD: FT26292214668722)');
+  const order = await Order.findOneAndUpdate(
+    { code: String(req.params.code).toUpperCase(), status: 'paid' },
+    { paymentRef },
+    { returnDocument: 'after' }
+  );
+  if (!order) throw new ApiError(400, 'Chỉ bổ sung mã giao dịch cho đơn đã thanh toán');
+  res.status(200).json({
+    success: true,
+    message: `Đã lưu mã giao dịch cho ${order.code}`,
+    data: { ...toOrderJSON(order), payment: describePayment(order) },
+  });
+});
+
 /** GET /api/orders/admin/export?status=paid — xuất Excel minh chứng giao dịch */
 const exportOrders = catchAsync(async (req, res) => {
   const status = req.query.status === 'all' ? null : (req.query.status || 'paid');
   const filter = status && STATUS_LABEL[status] ? { status } : {};
 
-  const orders = await Order.find(filter).populate('userId', 'fullName email role').sort({ createdAt: 1 });
+  const [orders, payments] = await Promise.all([
+    Order.find(filter).populate('userId', 'fullName email role').sort({ createdAt: 1 }),
+    Payment.find({}, 'sepayId referenceCode').lean(),
+  ]);
+  const paymentsById = new Map(payments.map((p) => [p.sepayId, p]));
 
-  const rows = orders.map((o, i) => ({
-    stt: i + 1,
-    code: o.code,
-    buyer: maskName(o.userId?.fullName),
-    email: maskEmail(o.userId?.email),
-    role: o.userId?.role === 'partner' ? 'Đối tác' : 'Sinh viên',
-    plan: o.planName,
-    amount: o.amount,
-    createdAt: formatDateTime(o.createdAt),
-    paidAt: formatDateTime(o.paidAt),
-    status: STATUS_LABEL[o.status],
-    note: o.note,
-  }));
+  const rows = orders.map((o, i) => {
+    const payment = o.status === 'paid' ? describePayment(o, paymentsById) : null;
+    return {
+      stt: i + 1,
+      code: o.code,
+      buyer: maskName(o.userId?.fullName),
+      email: maskEmail(o.userId?.email),
+      role: o.userId?.role === 'partner' ? 'Đối tác' : 'Sinh viên',
+      plan: o.planName,
+      amount: o.amount,
+      createdAt: formatDateTime(o.createdAt),
+      paidAt: formatDateTime(o.paidAt),
+      status: STATUS_LABEL[o.status],
+      method: payment?.method || '',
+      reference: payment ? payment.reference || 'Chưa có, cần bổ sung' : '',
+      gatewayId: payment?.gatewayId || '',
+      note: o.note,
+    };
+  });
 
   const buffer = buildWorkbook('Don_hang', [
     { header: 'STT', key: 'stt', width: 6 },
@@ -386,6 +475,9 @@ const exportOrders = catchAsync(async (req, res) => {
     { header: 'Thời gian tạo đơn', key: 'createdAt', width: 20 },
     { header: 'Thời gian thanh toán', key: 'paidAt', width: 20 },
     { header: 'Trạng thái', key: 'status', width: 16 },
+    { header: 'Phương thức thanh toán', key: 'method', width: 40 },
+    { header: 'Mã tham chiếu ngân hàng', key: 'reference', width: 24 },
+    { header: 'Mã giao dịch SePay', key: 'gatewayId', width: 18 },
     { header: 'Ghi chú', key: 'note', width: 30 },
   ], rows);
 
@@ -398,10 +490,12 @@ module.exports = {
   getMyOrders,
   getOrder,
   cancelMyOrder,
+  reviewOrder,
   getAllOrders,
   confirmOrder,
   sepayWebhook,
   adminCancelOrder,
+  setPaymentRef,
   exportOrders,
   getPayments,
   resolvePayment,

@@ -17,4 +17,12 @@ module.exports = {
     returned30Days: 18, // 50% số đổi voucher
     activePartners: 10,
   },
+  // Bảng chấm OC3 "Proof of Real Transactions"
+  oc3Rubric: {
+    // G3.4: đánh giá xác minh từ ≥50% khách trả phí, tối thiểu 10 đánh giá
+    minReviews: 10,
+    minReviewerShare: 0.5,
+    // G3.2: nền tảng hai phía, không ai chiếm quá 20% số giao dịch
+    maxUserShare: 0.2,
+  },
 };

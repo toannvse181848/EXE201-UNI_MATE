@@ -4,8 +4,9 @@
  * để hai nơi luôn ra cùng một con số. Định nghĩa từng chỉ số: docs/oc3-metrics.md.
  */
 const { maskEmail } = require('./excelExport');
+const { describePayment } = require('./paymentInfo');
 const { CHANNELS, resolveChannel } = require('../config/acquisition');
-const { courseMinimum, oc2Plan } = require('../config/oc3Targets');
+const { courseMinimum, oc2Plan, oc3Rubric } = require('../config/oc3Targets');
 
 // Tài khoản mẫu do src/seed.js tạo ra — không phải người dùng thật
 const SEED_EMAILS = [
@@ -49,6 +50,8 @@ const COLLECTIONS = [
   'orders',
   'venues',
   'useractivities',
+  'reviews',
+  'payments',
 ];
 
 /**
@@ -174,6 +177,51 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
   const approvedPartnerIds = new Set(data.venues.filter((v) => v.status === 'approved').map((v) => String(v.partnerId)));
   const activePartners = partners.filter((s) => approvedPartnerIds.has(String(s.user._id)));
 
+  // ─── Giao dịch (G3.2): mỗi đơn đã thanh toán kèm phương thức + mã tham chiếu để đối chiếu sao kê ─
+  const paymentsById = new Map(data.payments.map((p) => [p.sepayId, p]));
+  const paidOrderIds = new Set(paidOrders.map((o) => String(o._id)));
+  // Đánh giá chỉ tính khi gắn với đơn đã thanh toán của người dùng thật
+  const reviews = data.reviews.filter((r) => paidOrderIds.has(String(r.orderId)));
+  const reviewOfOrder = new Map(reviews.map((r) => [String(r.orderId), r]));
+  const transactions = [...paidOrders]
+    .sort((a, b) => new Date(a.paidAt || a.updatedAt) - new Date(b.paidAt || b.updatedAt))
+    .map((o) => {
+      const s = get(o.userId);
+      const payment = describePayment(o, paymentsById);
+      return {
+        code: o.code,
+        paidDay: vnDay(o.paidAt || o.updatedAt),
+        amount: o.amount,
+        plan: o.planName,
+        buyer: maskEmail(s.user.email),
+        role: s.user.role,
+        channel: CHANNELS[s.channel],
+        method: payment.method,
+        reference: payment.reference,
+        gatewayId: payment.gatewayId,
+        rating: reviewOfOrder.get(String(o._id))?.rating ?? null,
+      };
+    });
+  // Nền tảng hai phía: không ai chiếm quá 20% số giao dịch
+  const ordersPerUser = new Map();
+  for (const o of paidOrders) ordersPerUser.set(String(o.userId), (ordersPerUser.get(String(o.userId)) || 0) + 1);
+  const maxUserOrders = Math.max(0, ...ordersPerUser.values());
+
+  // ─── Đánh giá khách hàng (G3.4) ────────────────────────────────────────────
+  const reviewerIds = new Set(reviews.map((r) => String(r.userId)));
+  const ratingSum = reviews.reduce((sum, r) => sum + r.rating, 0);
+  const reviewTarget = Math.max(oc3Rubric.minReviews, Math.ceil(payers.length * oc3Rubric.minReviewerShare));
+  const reviewList = [...reviews]
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+    .map((r) => ({
+      orderCode: r.orderCode,
+      buyer: maskEmail(get(r.userId)?.user.email),
+      rating: r.rating,
+      comment: r.comment,
+      day: vnDay(r.createdAt),
+      edited: Boolean(r.updatedAt && r.createdAt && new Date(r.updatedAt) - new Date(r.createdAt) > 1000),
+    }));
+
   // ─── Phễu chuyển đổi (sinh viên) ───────────────────────────────────────────
   // Theo con đường tạo doanh thu; mỗi bước chỉ đếm người đã qua mọi bước trước nên phễu luôn thu hẹp,
   // bước cuối đúng bằng số sinh viên trả phí. "Kích hoạt" (kết bạn / lưu voucher) báo cáo riêng.
@@ -244,7 +292,10 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
     for (const d of s.activeDays) weeks.get(weekStart(d))?.activeStudents.add(String(s.user._id));
   }
   for (const s of partners) weekOf(s.user.createdAt).newPartners += 1;
-  for (const s of payers) if (s.firstPaidAt) weekOf(s.firstPaidAt).newPayers += 1;
+  for (const s of payers) {
+    const w = s.firstPaidAt && weekOf(s.firstPaidAt);
+    if (w) w.newPayers += 1;
+  }
   for (const m of data.matches) {
     if (studentId(m.user1) && m.user1Action === 'like' && weekOf(m.createdAt)) weekOf(m.createdAt).likes += 1;
     const matchedAt = m.matchedAt || m.updatedAt;
@@ -290,6 +341,9 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
     const clicks = Number(input.clicks) || 0;
     const valid = inChannel.filter((s) => isStudent(s) && usedCoreFlow(s)).length;
     const channelPayers = inChannel.filter((s) => s.ordersPaid > 0).length;
+    const channelOrders = inChannel.reduce((sum, s) => sum + s.ordersPaid, 0);
+    const channelRevenue = inChannel.reduce((sum, s) => sum + s.revenue, 0);
+    const registered = inChannel.filter((s) => isStudent(s) || s.user.role === 'partner').length;
     return {
       key,
       label,
@@ -297,7 +351,11 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
       registeredPartners: inChannel.filter((s) => s.user.role === 'partner').length,
       validStudents: valid,
       payers: channelPayers,
-      revenue: inChannel.reduce((sum, s) => sum + s.revenue, 0),
+      paidOrders: channelOrders,
+      revenue: channelRevenue,
+      // Tỷ lệ chuyển đổi đăng ký → trả phí của kênh; giá trị đơn trung bình của kênh
+      conversionRate: ratio(channelPayers, registered),
+      averageOrderValue: channelOrders ? channelRevenue / channelOrders : null,
       reach,
       clicks,
       cost,
@@ -331,6 +389,7 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
   const targets = [
     { group: 'Môn học', label: 'Người dùng hợp lệ', plan: courseMinimum.validUsers, actual: validStudents.length },
     { group: 'Môn học', label: 'Người trả phí', plan: courseMinimum.payingUsers, actual: payers.length },
+    { group: 'Bảng chấm OC3', label: 'Đánh giá xác minh (G3.4)', plan: reviewTarget, actual: reviews.length },
     { group: 'OC2', label: 'Lượt tiếp cận (Insights)', plan: oc2Plan.reach, actual: totalReach },
     { group: 'OC2', label: 'Lượt nhấp (Insights)', plan: oc2Plan.clicks, actual: totalClicks },
     { group: 'OC2', label: 'Sinh viên đăng ký', plan: oc2Plan.registeredStudents, actual: students.length },
@@ -409,7 +468,30 @@ const computeOc3Metrics = async (db, { excludedEmails = [], inputs = {}, now = n
       otherCost,
       totalCost: channelCost + otherCost,
       profit: revenue - channelCost - otherCost,
+      maxUserOrders,
+      maxUserShare: ratio(maxUserOrders, paidOrders.length),
+      maxUserShareLimit: oc3Rubric.maxUserShare,
+      missingReference: transactions.filter((t) => !t.reference).map((t) => t.code),
     },
+    reviews: {
+      count: reviews.length,
+      reviewers: reviewerIds.size,
+      reviewerShare: ratio(reviewerIds.size, payers.length),
+      averageRating: reviews.length ? ratingSum / reviews.length : null,
+      distribution: [5, 4, 3, 2, 1].map((stars) => ({ stars, count: reviews.filter((r) => r.rating === stars).length })),
+      target: reviewTarget,
+      minReviews: oc3Rubric.minReviews,
+      minReviewerShare: oc3Rubric.minReviewerShare,
+      met: reviews.length >= reviewTarget && ratio(reviewerIds.size, payers.length) >= oc3Rubric.minReviewerShare,
+      list: reviewList,
+    },
+    // Ngưỡng của bảng chấm (G3.1) — theo dõi trên dashboard
+    thresholds: [
+      { key: 'validUsers', label: 'Người dùng hợp lệ', actual: validStudents.length, target: courseMinimum.validUsers },
+      { key: 'payers', label: 'Người trả phí', actual: payers.length, target: courseMinimum.payingUsers },
+      { key: 'reviews', label: 'Đánh giá xác minh', actual: reviews.length, target: reviewTarget },
+    ],
+    transactions,
     funnel,
     biggestDrop,
     retention,

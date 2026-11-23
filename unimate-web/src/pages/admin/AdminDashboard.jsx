@@ -42,6 +42,37 @@ function StatTile({ label, value, detail }) {
   );
 }
 
+/** Thanh tiến độ so với ngưỡng của bảng chấm (G3.1) */
+function Meter({ label, actual, target }) {
+  const done = actual >= target;
+  const filled = target ? Math.min(1, actual / target) : 0;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '13px' }}>
+        <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+        <strong style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(actual)} / {fmt(target)}
+        </strong>
+      </div>
+      <div
+        role="meter"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={target}
+        aria-valuenow={actual}
+        style={{ height: '10px', borderRadius: '999px', backgroundColor: VIZ.meterTrack, overflow: 'hidden' }}
+      >
+        <div style={{ width: `${filled * 100}%`, height: '100%', borderRadius: '999px', backgroundColor: VIZ.series[0] }} />
+      </div>
+      <span style={{ fontSize: '12px', fontWeight: 700, color: done ? '#15803D' : '#B45309' }}>
+        {done ? 'Đạt' : `Còn thiếu ${fmt(target - actual)}`}
+      </span>
+    </div>
+  );
+}
+
+const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+
 function Notice({ tone, children }) {
   const warning = tone === 'warning';
   const Icon = warning ? AlertTriangle : Info;
@@ -68,7 +99,12 @@ function Notice({ tone, children }) {
 /** Phần phân tích: người dùng thật (đã loại admin, tài khoản mẫu, thành viên nhóm) */
 function Analytics({ data }) {
   const { students, business, retention } = data;
+  // Backend cũ (chưa deploy bản có đánh giá) không trả các khối bảng chấm OC3: ẩn các khối đó thay vì lỗi trang
+  const rubric = Boolean(data.reviews && data.thresholds && data.transactions);
+  const reviews = data.reviews || { count: 0, list: [], distribution: [], minReviews: 10, averageRating: null, reviewers: 0 };
   const weeks = data.weekly.map((w) => weekLabel(w.weekStart));
+  const channelRows = data.channels.filter((c) => c.registeredStudents + c.registeredPartners > 0);
+  const maxStars = Math.max(1, ...reviews.distribution.map((d) => d.count));
 
   return (
     <>
@@ -82,24 +118,69 @@ function Analytics({ data }) {
           ? `Nhật ký ngày mở app (web và mobile) có từ ${data.activityTrackedSince}. Trước ngày này, tỷ lệ quay lại được ước tính từ các hành động có ghi thời gian (kết bạn, nhắn tin, lưu voucher, điểm danh, đơn hàng).`
           : 'Chưa có nhật ký ngày mở app. Tỷ lệ quay lại đang được ước tính từ các hành động có ghi thời gian.'}
       </Notice>
+      {!rubric && (
+        <Notice tone="warning">
+          Máy chủ chưa chạy bản mới nên chưa có số đánh giá, danh sách giao dịch và ngưỡng bảng chấm. Deploy lại backend trên Render rồi bấm Tải lại.
+        </Notice>
+      )}
 
-      {/* Chỉ số chính */}
+      {/* G3.2: bốn kết quả chính, tính thẳng từ database, không nhập tay */}
+      <div>
+        <h3 style={sectionTitle}>Bốn kết quả chính</h3>
+        <p style={{ ...sectionNote, marginBottom: 0 }}>
+          Tự cập nhật từ database mỗi lần mở trang, không có số nhập tay. Mỗi khách chỉ tính một lần.
+        </p>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+        <StatTile
+          label="Tổng doanh thu"
+          value={vnd(business.revenue)}
+          detail={`Giá trị đơn trung bình ${vnd(business.averageOrderValue)}`}
+        />
         <StatTile
           label="Người dùng hợp lệ"
           value={fmt(students.valid)}
-          detail={`${fmt(students.registered)} sinh viên đăng ký`}
+          detail={`${fmt(students.registered)} sinh viên đăng ký · ${fmt(business.payers)} người trả phí`}
         />
         <StatTile
-          label="Người trả phí"
-          value={fmt(business.payers)}
-          detail={`Sinh viên ${business.studentPayers} · quán ${business.partnerPayers}`}
+          label="Giao dịch đã thanh toán"
+          value={fmt(business.paidOrders)}
+          detail={
+            rubric
+              ? `Một khách nhiều nhất ${business.maxUserOrders} đơn (${pct(business.maxUserShare)}, giới hạn ${pct(business.maxUserShareLimit)}${
+                business.maxUserShare > business.maxUserShareLimit ? ' · vượt giới hạn' : ''
+              })`
+              : `${fmt(business.payers)} khách trả phí`
+          }
         />
         <StatTile
-          label="Doanh thu"
-          value={vnd(business.revenue)}
-          detail={`${fmt(business.paidOrders)} đơn · trung bình ${vnd(business.averageOrderValue)}`}
+          label="Đánh giá xác minh"
+          value={rubric ? fmt(reviews.count) : '-'}
+          detail={
+            !rubric
+              ? 'Cần deploy backend mới'
+              : reviews.count
+                ? `Trung bình ${reviews.averageRating.toFixed(2)}/5 · ${reviews.reviewers}/${business.payers} khách đã đánh giá`
+                : `Chưa có · ${business.payers} khách trả phí có thể đánh giá`
+          }
         />
+      </div>
+
+      {/* G3.1: ngưỡng của bảng chấm */}
+      {rubric && <div className="portal-card">
+        <h3 style={sectionTitle}>Ngưỡng cần đạt</h3>
+        <p style={sectionNote}>
+          Môn học: 20 người dùng hợp lệ, 10 người trả phí. Đánh giá: từ ít nhất 50% khách trả phí và tối thiểu {reviews.minReviews} đánh giá.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+          {data.thresholds.map((t) => (
+            <Meter key={t.key} label={t.label} actual={t.actual} target={t.target} />
+          ))}
+        </div>
+      </div>}
+
+      {/* Hành vi: quay lại, chuyển đổi, mua lại */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         <StatTile
           label="Quay lại trong 7 ngày đầu"
           value={pct(share(retention.within7))}
@@ -108,7 +189,12 @@ function Analytics({ data }) {
         <StatTile
           label="Chuyển đổi đăng ký → trả phí"
           value={pct(business.conversionRate)}
-          detail={`Khách mua lại (từ 2 đơn): ${business.repeatBuyers} · ${pct(business.repeatRate)} người trả phí`}
+          detail={`Sinh viên trả phí ${business.studentPayers} · quán ${business.partnerPayers}`}
+        />
+        <StatTile
+          label="Tỷ lệ mua lại"
+          value={pct(business.repeatRate)}
+          detail={`${business.repeatBuyers} khách có từ 2 đơn trở lên`}
         />
       </div>
 
@@ -147,6 +233,124 @@ function Analytics({ data }) {
           />
         </div>
       </div>
+
+      {/* G3.3: người dùng, giao dịch, doanh thu theo kênh */}
+      <div className="portal-card" style={{ overflowX: 'auto' }}>
+        <h3 style={sectionTitle}>Theo kênh thu hút</h3>
+        <p style={sectionNote}>
+          Kênh của mỗi người lấy theo mã UTM trên link, rồi đến trang giới thiệu, rồi câu trả lời "Bạn biết UNI-MATE qua đâu?" lúc đăng ký.
+          "Chưa rõ" là người đăng ký trước khi app ghi nguồn.
+        </p>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {['Kênh', 'SV đăng ký', 'Quán đăng ký', 'Người dùng hợp lệ', 'Người trả phí', 'Giao dịch', 'Doanh thu', 'Chuyển đổi đăng ký → trả phí', 'Giá trị đơn TB'].map((h) => (
+                <th key={h} style={th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {channelRows.map((c) => (
+              <tr key={c.key}>
+                <td style={{ ...td, fontWeight: 700 }}>{c.label}</td>
+                <td style={td}>{c.registeredStudents}</td>
+                <td style={td}>{c.registeredPartners}</td>
+                <td style={td}>{c.validStudents}</td>
+                <td style={td}>{c.payers}</td>
+                <td style={td}>{c.paidOrders ?? '-'}</td>
+                <td style={td}>{vnd(c.revenue)}</td>
+                <td style={td}>{pct(c.conversionRate)}</td>
+                <td style={td}>{vnd(c.averageOrderValue)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* G3.4: đánh giá xác minh và giữ chân */}
+      {rubric && <div className="portal-card">
+        <h3 style={sectionTitle}>Đánh giá khách hàng</h3>
+        <p style={sectionNote}>
+          Khách tự đánh giá trong app (1–5 sao + nhận xét). Mỗi đánh giá gắn với một đơn đã thanh toán của chính khách đó.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '24px', alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '34px', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>
+                {reviews.averageRating == null ? '-' : reviews.averageRating.toFixed(2)}
+              </span>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>/ 5 · {fmt(reviews.count)} đánh giá</span>
+            </div>
+            {reviews.distribution.map((d) => (
+              <div key={d.stars} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 28px', alignItems: 'center', gap: '8px', fontSize: '12.5px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{d.stars} sao</span>
+                <div style={{ height: '8px', borderRadius: '999px', backgroundColor: VIZ.meterTrack, overflow: 'hidden' }}>
+                  <div style={{ width: `${(d.count / maxStars) * 100}%`, height: '100%', backgroundColor: VIZ.series[0] }} />
+                </div>
+                <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>{d.count}</span>
+              </div>
+            ))}
+            <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+              {reviews.reviewers}/{business.payers} khách trả phí đã đánh giá ({pct(reviews.reviewerShare)}) · tỷ lệ mua lại {pct(business.repeatRate)}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '340px', overflowY: 'auto' }}>
+            {reviews.list.length === 0 && (
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Chưa có đánh giá. Khách đã trả phí sẽ thấy lời nhắc đánh giá ở trang Khám phá và nút "Đánh giá" trong Lịch sử giao dịch.
+              </span>
+            )}
+            {reviews.list.map((r) => (
+              <div key={r.orderCode} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  <span>
+                    <span style={{ color: '#F59E0B', letterSpacing: '1px' }} aria-label={`${r.rating} sao`}>{stars(r.rating)}</span>{' '}
+                    {r.orderCode} · {r.buyer}
+                  </span>
+                  <span>{r.day}{r.edited ? ' · đã sửa' : ''}</span>
+                </div>
+                <div style={{ marginTop: '4px', fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{r.comment}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>}
+
+      {/* G3.2: mọi giao dịch kèm mã đơn, phương thức, mã tham chiếu để đối chiếu sao kê */}
+      {rubric && <div className="portal-card" style={{ overflowX: 'auto' }}>
+        <h3 style={sectionTitle}>Danh sách giao dịch</h3>
+        <p style={sectionNote}>
+          Đơn đã thanh toán của người dùng thật. Mã tham chiếu đối chiếu được với sao kê ngân hàng và SePay.
+          {business.missingReference?.length > 0 &&
+            ` Thiếu mã: ${business.missingReference.join(', ')} (bổ sung ở trang Quản lý đơn hàng).`}
+        </p>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {['#', 'Mã đơn', 'Ngày thanh toán', 'Số tiền', 'Mã tham chiếu', 'Phương thức', 'Khách', 'Kênh', 'Đánh giá'].map((h) => (
+                <th key={h} style={th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.transactions.map((t, i) => (
+              <tr key={t.code}>
+                <td style={td}>{i + 1}</td>
+                <td style={{ ...td, fontWeight: 700 }}>{t.code}</td>
+                <td style={td}>{t.paidDay}</td>
+                <td style={td}>{vnd(t.amount)}</td>
+                <td style={{ ...td, fontFamily: 'monospace', color: t.reference ? 'var(--text-primary)' : '#B45309' }}>
+                  {t.reference || 'Thiếu, cần bổ sung'}
+                </td>
+                <td style={{ ...td, whiteSpace: 'normal', minWidth: '170px', fontSize: '12px' }}>{t.method}</td>
+                <td style={td}>{t.buyer}</td>
+                <td style={td}>{t.channel}</td>
+                <td style={{ ...td, color: '#F59E0B' }}>{t.rating ? stars(t.rating) : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>}
 
       <div className="portal-card" style={{ overflowX: 'auto' }}>
         <h3 style={sectionTitle}>Bảng theo tuần</h3>

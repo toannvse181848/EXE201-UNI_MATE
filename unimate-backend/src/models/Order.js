@@ -41,6 +41,9 @@ const orderSchema = new mongoose.Schema(
     autoCancelled: { type: Boolean, default: false },
     // Ghi chú của admin, VD: mã giao dịch ngân hàng
     note: { type: String, trim: true, default: '' },
+    // Mã tham chiếu giao dịch ngân hàng (VD: FT26310668029238) để đối chiếu sao kê.
+    // SePay tự điền; đơn admin xác nhận tay thì admin bổ sung sau. Đơn cũ đọc từ note (utils/paymentInfo).
+    paymentRef: { type: String, trim: true, default: '' },
     // client_id GA4 của trình duyệt lúc tạo đơn, để báo purchase về đúng người mua
     gaClientId: { type: String, default: null },
   },

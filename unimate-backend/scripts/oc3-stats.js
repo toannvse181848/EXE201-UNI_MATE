@@ -24,6 +24,8 @@ const { buildOc3Tables } = require('../src/utils/oc3Report');
 
 const CSV_NAMES = {
   'Tổng quan': 'tong-quan',
+  'Giao dịch': 'giao-dich',
+  'Đánh giá': 'danh-gia',
   'Phễu': 'pheu',
   'Theo tuần': 'theo-tuan',
   'Theo kênh': 'theo-kenh',
@@ -72,7 +74,7 @@ async function run() {
   }
 
   console.log(`\nDatabase: ${db.databaseName}\n`);
-  for (const name of ['Tổng quan', 'Phễu', 'Theo kênh', 'Kế hoạch - thực tế']) {
+  for (const name of ['Tổng quan', 'Giao dịch', 'Phễu', 'Theo kênh', 'Kế hoạch - thực tế']) {
     console.log(`=== ${name.toUpperCase()} ===`);
     console.table(tables[name]);
   }

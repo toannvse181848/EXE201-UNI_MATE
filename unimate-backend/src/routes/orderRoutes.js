@@ -6,10 +6,12 @@ const {
   getMyOrders,
   getOrder,
   cancelMyOrder,
+  reviewOrder,
   getAllOrders,
   confirmOrder,
   sepayWebhook,
   adminCancelOrder,
+  setPaymentRef,
   exportOrders,
   getPayments,
   resolvePayment,
@@ -29,6 +31,8 @@ router.get('/admin/all', authorize('admin'), getAllOrders);
 router.get('/admin/export', authorize('admin'), exportOrders);
 router.patch('/admin/:code/confirm', authorize('admin'), confirmOrder);
 router.patch('/admin/:code/cancel', authorize('admin'), adminCancelOrder);
+// Bổ sung mã giao dịch ngân hàng cho đơn đã thanh toán (đối chiếu sao kê)
+router.patch('/admin/:code/payment-ref', authorize('admin'), setPaymentRef);
 // Giao dịch SePay không khớp đơn (chuyển thiếu, sai nội dung, đơn đã đóng) để đối soát tay
 router.get('/admin/payments', authorize('admin'), getPayments);
 router.patch('/admin/payments/:id', authorize('admin'), resolvePayment);
@@ -38,5 +42,7 @@ router.post('/', createOrder);
 router.get('/my', getMyOrders);
 router.get('/:code', getOrder);
 router.post('/:code/cancel', cancelMyOrder);
+// Khách đánh giá đơn đã thanh toán của mình (1–5 sao + nhận xét)
+router.post('/:code/review', reviewOrder);
 
 module.exports = router;

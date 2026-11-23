@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Receipt, RefreshCw } from 'lucide-react';
+import { Receipt, RefreshCw, Star } from 'lucide-react';
 import { orderApi } from '../services/api';
 import { formatVnd } from '../hooks/usePremiumPlans';
+import ReviewOrderModal from './ReviewOrderModal';
 
 const STATUS_STYLE = {
   pending: { label: 'Chờ thanh toán', color: '#B45309', background: '#FEF3C7' },
@@ -13,13 +14,18 @@ const formatDateTime = (value) => (value ? new Date(value).toLocaleString('vi-VN
 
 /**
  * Lịch sử giao dịch của người dùng đang đăng nhập.
- * Ẩn khi chưa có đơn nào; đơn đang chờ có nút tiếp tục thanh toán (onResume mở lại khung VietQR).
+ * Ẩn khi chưa có đơn nào; đơn đang chờ có nút tiếp tục thanh toán (onResume mở lại khung VietQR),
+ * đơn đã thanh toán có nút đánh giá (1–5 sao + nhận xét) hoặc hiện số sao đã đánh giá.
  * refreshKey đổi thì tải lại (vd: khi đóng / mở khung thanh toán).
  */
 export default function OrderHistory({ onResume, refreshKey }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
+  const [reviewing, setReviewing] = useState(null);
+
+  const saveReview = (code, review) =>
+    setOrders((list) => list.map((o) => (o.code === code ? { ...o, review } : o)));
 
   useEffect(() => {
     let active = true;
@@ -115,11 +121,43 @@ export default function OrderHistory({ onResume, refreshKey }) {
                     Tiếp tục thanh toán
                   </button>
                 )}
+                {/* Chỉ hiện khi backend đã hỗ trợ đánh giá (có trường review, kể cả null) */}
+                {order.status === 'paid' && 'review' in order && (
+                  <button
+                    type="button"
+                    onClick={() => setReviewing(order)}
+                    title={order.review ? 'Sửa đánh giá' : 'Đánh giá đơn này'}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      border: order.review ? '1px solid #FDE68A' : '1px solid #FB923C',
+                      backgroundColor: order.review ? '#FFFBEB' : '#E64A19',
+                      color: order.review ? '#92400E' : '#FFFFFF',
+                    }}
+                  >
+                    <Star size={13} fill={order.review ? '#F59E0B' : 'none'} color={order.review ? '#F59E0B' : '#FFFFFF'} />
+                    {order.review ? `${order.review.rating}/5 · Sửa` : 'Đánh giá'}
+                  </button>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {reviewing && (
+        <ReviewOrderModal
+          order={reviewing}
+          onClose={() => setReviewing(null)}
+          onSaved={(review) => saveReview(reviewing.code, review)}
+        />
+      )}
     </div>
   );
 }

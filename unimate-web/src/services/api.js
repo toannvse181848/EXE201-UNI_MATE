@@ -557,17 +557,27 @@ export const orderApi = {
     const res = await client.post(`/api/orders/${encodeURIComponent(code)}/cancel`);
     return res.data;
   },
+  // Khách đánh giá đơn đã thanh toán: { rating: 1–5, comment }
+  reviewOrder: async (code, { rating, comment }) => {
+    const res = await client.post(`/api/orders/${encodeURIComponent(code)}/review`, { rating, comment });
+    return res.data;
+  },
   // Admin
   getAllOrdersAdmin: async (params = {}) => {
     const res = await client.get('/api/orders/admin/all', { params });
     return res.data;
   },
-  confirmOrderAdmin: async (code, note = '') => {
-    const res = await client.patch(`/api/orders/admin/${encodeURIComponent(code)}/confirm`, { note });
+  confirmOrderAdmin: async (code, note = '', paymentRef = '') => {
+    const res = await client.patch(`/api/orders/admin/${encodeURIComponent(code)}/confirm`, { note, paymentRef });
     return res.data;
   },
   cancelOrderAdmin: async (code, note = '') => {
     const res = await client.patch(`/api/orders/admin/${encodeURIComponent(code)}/cancel`, { note });
+    return res.data;
+  },
+  // Bổ sung mã giao dịch ngân hàng cho đơn đã thanh toán (đối chiếu sao kê)
+  setPaymentRefAdmin: async (code, paymentRef) => {
+    const res = await client.patch(`/api/orders/admin/${encodeURIComponent(code)}/payment-ref`, { paymentRef });
     return res.data;
   },
   // Giao dịch SePay không khớp đơn: status = 'unresolved' | 'all' | ...

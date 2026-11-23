@@ -36,6 +36,10 @@ export default function OrderManagement() {
   // Action modals
   const [confirmingOrder, setConfirmingOrder] = useState(null); // order object
   const [confirmNote, setConfirmNote] = useState('');
+  const [confirmRef, setConfirmRef] = useState('');
+  // Bổ sung mã giao dịch ngân hàng cho đơn đã thanh toán (đối chiếu sao kê)
+  const [refOrder, setRefOrder] = useState(null);
+  const [refValue, setRefValue] = useState('');
   const [cancellingOrder, setCancellingOrder] = useState(null);
   const [cancelNote, setCancelNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -72,13 +76,31 @@ export default function OrderManagement() {
     if (!confirmingOrder) return;
     setActionLoading(true);
     try {
-      const res = await orderApi.confirmOrderAdmin(confirmingOrder.code, confirmNote);
+      const res = await orderApi.confirmOrderAdmin(confirmingOrder.code, confirmNote, confirmRef);
       notify.success(res.message || `Đã xác nhận đơn hàng ${confirmingOrder.code} thành công!`);
       setConfirmingOrder(null);
       setConfirmNote('');
+      setConfirmRef('');
       fetchOrders();
     } catch (err) {
       notify.error('Không thể xác nhận đơn: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Lưu mã giao dịch ngân hàng cho đơn đã thanh toán
+  const handleSaveRef = async () => {
+    if (!refOrder) return;
+    setActionLoading(true);
+    try {
+      const res = await orderApi.setPaymentRefAdmin(refOrder.code, refValue.trim());
+      notify.success(res.message || 'Đã lưu mã giao dịch');
+      setRefOrder(null);
+      setRefValue('');
+      fetchOrders();
+    } catch (err) {
+      notify.error(err.message);
     } finally {
       setActionLoading(false);
     }
@@ -445,9 +467,33 @@ export default function OrderManagement() {
                       {getStatusBadge(order.status)}
                     </td>
 
-                    {/* Note */}
-                    <td style={{ padding: '16px 16px', color: '#64748B', fontSize: '12px' }}>
-                      {order.note || '—'}
+                    {/* Note + phương thức, mã tham chiếu (đơn đã thanh toán) */}
+                    <td style={{ padding: '16px 16px', color: '#64748B', fontSize: '12px', maxWidth: '280px' }}>
+                      {order.payment && (
+                        <div style={{ marginBottom: order.note ? '4px' : 0 }}>
+                          <div style={{ color: '#334155', fontWeight: '700' }}>{order.payment.method}</div>
+                          {order.payment.reference ? (
+                            <div>
+                              Mã GD ngân hàng: <span style={{ fontFamily: 'monospace', color: '#0F172A' }}>{order.payment.reference}</span>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', color: '#B45309', fontWeight: '700' }}>
+                              Thiếu mã GD ngân hàng
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRefOrder(order);
+                                  setRefValue('');
+                                }}
+                                style={{ padding: '2px 8px', borderRadius: '6px', border: '1px solid #FDE68A', backgroundColor: '#FFFBEB', color: '#92400E', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer' }}
+                              >
+                                Bổ sung
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {order.note || (order.payment ? '' : '—')}
                     </td>
 
                     {/* Actions */}
@@ -459,6 +505,7 @@ export default function OrderManagement() {
                             onClick={() => {
                               setConfirmingOrder(order);
                               setConfirmNote('');
+                              setConfirmRef('');
                             }}
                             style={{
                               padding: '6px 12px',
@@ -518,13 +565,25 @@ export default function OrderManagement() {
               Sau khi xác nhận, gói dịch vụ <strong>{confirmingOrder.planName}</strong> sẽ lập tức được kích hoạt cho người dùng <strong>{confirmingOrder.userId?.fullName}</strong>.
             </p>
 
-            <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: '12px' }}>
               <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', marginBottom: '6px', color: '#334155' }}>
-                Mã giao dịch ngân hàng / Ghi chú (không bắt buộc):
+                Mã giao dịch ngân hàng (trên sao kê, nên điền để đối chiếu):
               </label>
               <input
                 type="text"
-                placeholder="VD: FT2601234567"
+                placeholder="VD: FT26292214668722"
+                value={confirmRef}
+                onChange={(e) => setConfirmRef(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #CBD5E1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', marginBottom: '6px', color: '#334155' }}>
+                Ghi chú (không bắt buộc):
+              </label>
+              <input
+                type="text"
+                placeholder="VD: khách chuyển sai nội dung, đã gọi xác nhận"
                 value={confirmNote}
                 onChange={(e) => setConfirmNote(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #CBD5E1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
@@ -547,6 +606,46 @@ export default function OrderManagement() {
               >
                 {actionLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={16} />}
                 Xác nhận đã nhận tiền
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BỔ SUNG MÃ GIAO DỊCH NGÂN HÀNG */}
+      {refOrder && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '20px', maxWidth: '420px', width: '100%', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#1E293B', marginBottom: '8px' }}>
+              Mã giao dịch cho đơn {refOrder.code}
+            </h3>
+            <p style={{ fontSize: '13px', color: '#64748B', lineHeight: '1.5', marginBottom: '16px' }}>
+              Mở lịch sử giao dịch ngân hàng ngày {refOrder.paidAt ? new Date(refOrder.paidAt).toLocaleDateString('vi-VN') : ''}, tìm khoản{' '}
+              <strong>{refOrder.amount?.toLocaleString('vi-VN')} đ</strong> của <strong>{refOrder.userId?.fullName}</strong> rồi chép mã giao dịch (thường bắt đầu bằng FT).
+            </p>
+            <input
+              type="text"
+              placeholder="VD: FT26292214668722"
+              value={refValue}
+              onChange={(e) => setRefValue(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #CBD5E1', fontSize: '13px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }}
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setRefOrder(null)}
+                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #CBD5E1', backgroundColor: '#fff', color: '#64748B', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading || refValue.trim().length < 4}
+                onClick={handleSaveRef}
+                style={{ flex: 2, padding: '10px', borderRadius: '10px', border: 'none', backgroundColor: '#10B981', color: '#fff', fontWeight: '800', cursor: actionLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: refValue.trim().length < 4 ? 0.6 : 1 }}
+              >
+                {actionLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={16} />}
+                Lưu mã giao dịch
               </button>
             </div>
           </div>
